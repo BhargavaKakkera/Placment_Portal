@@ -1,0 +1,13 @@
+prefix=D:/pp/pp_env/Library
+exec_prefix=D:/pp/pp_env/Library
+libdir=D:/pp/pp_env/Library/lib
+sharedlibdir=D:/pp/pp_env/Library/lib
+includedir=D:/pp/pp_env/Library/include
+
+Name: zlib
+Description: zlib compression library
+Version: 1.3.1
+
+Requires:
+Libs: -L${libdir} -L${sharedlibdir} -lz
+Cflags: -I${includedir}
