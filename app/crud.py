@@ -92,3 +92,14 @@ def accept_offer(session: Session, offer_id: int, student_id: int):
     session.commit()
     session.refresh(offer)
     return offer
+
+
+def verify_company(session: Session, company_id: int):
+    company = session.get(Company, company_id)
+    if not company:
+        return None
+    company.verified = True
+    session.add(company)
+    session.commit()
+    session.refresh(company)
+    return company

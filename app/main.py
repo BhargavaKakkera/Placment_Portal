@@ -95,6 +95,17 @@ def create_company_endpoint(company_in: CompanyCreate, current_user: User = Depe
 
 
 @app.get("/companies/me")
+
+
+@app.post("/companies/{company_id}/verify")
+def verify_company(company_id: int, current_user: User = Depends(get_current_user), session: Session = Depends(get_session)):
+    if current_user.role != "admin":
+        raise HTTPException(status_code=403, detail="Only admins can verify companies")
+    company = session.get(Company, company_id)
+    if not company:
+        raise HTTPException(status_code=404, detail="Company not found")
+    verified = crud.verify_company(session, company_id)
+    return verified
 def get_my_company(current_user: User = Depends(get_current_user), session: Session = Depends(get_session)):
     if current_user.role != "company":
         raise HTTPException(status_code=403, detail="Only companies have company profiles")
