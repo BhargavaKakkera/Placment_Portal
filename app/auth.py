@@ -48,3 +48,31 @@ def get_current_user(token: str = Depends(oauth2_scheme), session: Session = Dep
     if not user:
         raise credentials_exception
     return user
+
+
+def require_role(required_role: str):
+    # Returns a dependency that ensures the current user has the required role.
+    def _role_check(user: User = Depends(get_current_user)):
+        if user.role != required_role:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Insufficient permissions")
+        return user
+
+    return _role_check
+
+
+def get_current_student(user: User = Depends(get_current_user)):
+    if user.role != "student":
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only students allowed")
+    return user
+
+
+def get_current_company(user: User = Depends(get_current_user)):
+    if user.role != "company":
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only companies allowed")
+    return user
+
+
+def get_current_admin(user: User = Depends(get_current_user)):
+    if user.role != "admin":
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only admins allowed")
+    return user

@@ -1,13 +1,35 @@
 from sqlmodel import SQLModel, Field, Relationship
 from typing import Optional, List
 from datetime import datetime
+from enum import Enum as PyEnum
+
+
+class Role(str, PyEnum):
+    student = "student"
+    company = "company"
+    admin = "admin"
+
+
+class ApplicationStatus(str, PyEnum):
+    APPLIED = "applied"
+    SHORTLISTED = "shortlisted"
+    REJECTED = "rejected"
+    OFFERED = "offered"
+    ACCEPTED = "accepted"
+    DECLINED = "declined"
+
+
+class OfferStatus(str, PyEnum):
+    OFFERED = "offered"
+    ACCEPTED = "accepted"
+    DECLINED = "declined"
 
 
 class User(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     email: str = Field(index=True, unique=True)
     password_hash: str
-    role: str  # 'student' | 'company' | 'admin'
+    role: Role
     created_at: datetime = Field(default_factory=datetime.utcnow)
 
 
@@ -39,6 +61,7 @@ class Job(SQLModel, table=True):
     allowed_branches: Optional[str] = None  # comma-separated for simple demo
     max_backlogs: Optional[int] = None
     application_deadline: Optional[datetime] = None
+    closed: bool = Field(default=False)  # admin/company can close
     created_at: datetime = Field(default_factory=datetime.utcnow)
 
 
@@ -47,7 +70,7 @@ class Application(SQLModel, table=True):
     student_id: int = Field(foreign_key="student.id")
     job_id: int = Field(foreign_key="job.id")
     applied_at: datetime = Field(default_factory=datetime.utcnow)
-    status: str = Field(default="applied")
+    status: ApplicationStatus = Field(default=ApplicationStatus.APPLIED.value)
 
 
 class Offer(SQLModel, table=True):
@@ -56,5 +79,5 @@ class Offer(SQLModel, table=True):
     student_id: int = Field(foreign_key="student.id")
     company_id: int = Field(foreign_key="company.id")
     ctc: Optional[float] = None
-    status: str = Field(default="offered")  # offered/accepted/rejected/withdrawn
+    status: OfferStatus = Field(default=OfferStatus.OFFERED.value)
     created_at: datetime = Field(default_factory=datetime.utcnow)
