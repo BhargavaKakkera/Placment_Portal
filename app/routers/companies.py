@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
+from typing import Optional
 from sqlmodel import Session
 from ..database import get_session
 from .. import crud
@@ -86,7 +87,7 @@ def update_application_status(application_id: int, status: str, current_user=Dep
 
 
 @router.post("/applications/{application_id}/offers")
-def make_offer(application_id: int, ctc: float = Query(...), current_user=Depends(get_current_company), session: Session = Depends(get_session)):
+def make_offer(application_id: int, ctc: Optional[float] = Query(None), current_user=Depends(get_current_company), session: Session = Depends(get_session)):
     application = session.get(Application, application_id)
     if not application:
         raise HTTPException(status_code=404, detail="Application not found")

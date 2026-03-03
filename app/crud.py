@@ -1,4 +1,5 @@
 from sqlmodel import Session, select
+from typing import Optional
 from .models import User, Student, Company, Job, Application, Offer
 from .auth import hash_password, verify_password, create_access_token
 from datetime import timedelta
@@ -39,6 +40,16 @@ def create_job(session: Session, company_id: int, **data) -> Job:
     company = session.get(Company, company_id)
     if not company or not company.verified:
         raise ValueError("Company not verified or does not exist")
+    # validate role-specific requirements
+    role_type = data.get('role_type', 'full_time')
+    if role_type not in ('full_time', 'intern'):
+        raise ValueError("Invalid role_type; must be 'full_time' or 'intern'")
+    if role_type == 'intern':
+        if not data.get('internship_duration'):
+            raise ValueError("Internship duration is required for intern roles")
+        if data.get('stipend') is None:
+            raise ValueError("Stipend is required for intern roles")
+
     job = Job(company_id=company_id, **data)
     session.add(job)
     session.commit()
@@ -117,7 +128,7 @@ def apply_job(session: Session, student_id: int, job_id: int) -> Application:
     return app_obj
 
 
-def create_offer(session: Session, job_id: int, student_id: int, company_id: int, ctc: float) -> Offer:
+def create_offer(session: Session, job_id: int, student_id: int, company_id: int, ctc: Optional[float] = None) -> Offer:
     # Only allow offers to shortlisted applicants
     statement = select(Application).where(Application.job_id == job_id, Application.student_id == student_id)
     application = session.exec(statement).first()
@@ -125,6 +136,14 @@ def create_offer(session: Session, job_id: int, student_id: int, company_id: int
         raise ValueError("Application not found")
     if application.status != "shortlisted":
         raise ValueError("Can only make offer to shortlisted applicants")
+    # enforce CTC requirement based on job role
+    job = session.get(Job, job_id)
+    if not job:
+        raise ValueError("Job not found")
+    # job.role_type may be string like 'intern' or 'full_time'
+    role_type = getattr(job, 'role_type', 'full_time')
+    if (str(role_type) == 'full_time' or role_type == 'full_time') and ctc is None:
+        raise ValueError("CTC required for full-time offers")
     offer = Offer(job_id=job_id, student_id=student_id, company_id=company_id, ctc=ctc)
     application.status = "offered"
     session.add(offer)

@@ -22,6 +22,10 @@ class JobCreate(BaseModel):
     allowed_branches: Optional[str] = None
     max_backlogs: Optional[int] = None
     application_deadline: Optional[datetime] = None
+    role_type: Optional[str] = "full_time"
+    internship_duration: Optional[str] = None
+    ppo_available: Optional[bool] = False
+    stipend: Optional[float] = None
 
 
 class StudentCreate(BaseModel):
@@ -83,6 +87,10 @@ class JobOut(BaseModel):
     allowed_branches: Optional[str]
     max_backlogs: Optional[int]
     application_deadline: Optional[datetime]
+    role_type: str
+    internship_duration: Optional[str]
+    ppo_available: bool
+    stipend: Optional[float]
     closed: bool
     created_at: datetime
 

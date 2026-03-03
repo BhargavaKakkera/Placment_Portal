@@ -64,6 +64,14 @@ class Job(SQLModel, table=True):
     min_cgpa: Optional[float] = None
     allowed_branches: Optional[str] = None  # comma-separated for simple demo
     max_backlogs: Optional[int] = None
+    # role_type: 'full_time' or 'intern'
+    role_type: str = Field(default="full_time")
+    # for internships: duration like '2 months', '10 weeks', '6 months'
+    internship_duration: Optional[str] = None
+    # stipend for internships (monthly or total as agreed)
+    stipend: Optional[float] = None
+    # whether internship may include a PPO (pre-placement offer)
+    ppo_available: bool = Field(default=False)
     application_deadline: Optional[datetime] = None
     closed: bool = Field(default=False)  # admin/company can close
     created_at: datetime = Field(default_factory=datetime.utcnow)
