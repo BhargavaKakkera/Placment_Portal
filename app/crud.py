@@ -346,3 +346,30 @@ def verify_student(session: Session, student_id: int, admin_user_id: int):
     session.commit()
     session.refresh(student)
     return student
+
+
+def update_student(session: Session, student_id: int, admin_user_id: int = None, **data):
+    student = session.get(Student, student_id)
+    if not student:
+        return None
+    # Apply provided fields
+    for key, value in data.items():
+        if not hasattr(student, key):
+            # ignore unknown fields
+            continue
+        setattr(student, key, value)
+
+    # If verified explicitly set by admin, update audit fields
+    if 'verified' in data and data.get('verified'):
+        student.verified_at = datetime.utcnow()
+        if admin_user_id is not None:
+            student.verified_by_admin_id = admin_user_id
+
+    session.add(student)
+    try:
+        session.commit()
+    except Exception:
+        session.rollback()
+        return None
+    session.refresh(student)
+    return student

@@ -37,6 +37,16 @@ class CompanyCreate(BaseModel):
     name: str
 
 
+class StudentUpdate(BaseModel):
+    name: Optional[str] = None
+    roll_no: Optional[str] = None
+    cgpa: Optional[float] = None
+    branch: Optional[str] = None
+    graduation_year: Optional[int] = None
+    backlogs: Optional[int] = None
+    verified: Optional[bool] = None
+
+
 class UserOut(BaseModel):
     id: int
     email: EmailStr

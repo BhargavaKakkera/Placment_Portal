@@ -3,6 +3,7 @@ from sqlmodel import Session
 from ..database import get_session
 from .. import crud
 from ..auth import get_current_admin
+from ..schemas import StudentUpdate
 
 router = APIRouter(prefix="/admin", tags=["admin"])
 
@@ -107,3 +108,20 @@ def admin_delete_application(application_id: int, current_user=Depends(get_curre
     if not res:
         raise HTTPException(status_code=404, detail="Application not found or could not be deleted")
     return {"deleted": True}
+
+
+
+@router.patch("/students/{student_id}")
+def admin_update_student(
+    student_id: int,
+    student_in: StudentUpdate,
+    current_user=Depends(get_current_admin),
+    session: Session = Depends(get_session),
+):
+    data = student_in.dict(exclude_unset=True)
+    if not data:
+        raise HTTPException(status_code=400, detail="No update fields provided")
+    updated = crud.update_student(session, student_id, admin_user_id=current_user.id, **data)
+    if not updated:
+        raise HTTPException(status_code=404, detail="Student not found or update failed")
+    return updated
