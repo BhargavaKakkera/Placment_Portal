@@ -52,6 +52,9 @@ class StudentOut(BaseModel):
     branch: Optional[str]
     graduation_year: Optional[int]
     backlogs: Optional[int]
+    verified: bool
+    verified_at: Optional[datetime]
+
 
 
 class CompanyOut(BaseModel):

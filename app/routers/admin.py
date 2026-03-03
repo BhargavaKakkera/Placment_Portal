@@ -1,0 +1,109 @@
+from fastapi import APIRouter, Depends, HTTPException, Query
+from sqlmodel import Session
+from ..database import get_session
+from .. import crud
+from ..auth import get_current_admin
+
+router = APIRouter(prefix="/admin", tags=["admin"])
+
+
+@router.post("/companies/{company_id}/verify")
+def verify_company(company_id: int, current_user=Depends(get_current_admin), session: Session = Depends(get_session)):
+    try:
+        verified = crud.verify_company(session, company_id)
+    except Exception:
+        raise HTTPException(status_code=400, detail="Unable to verify company")
+    if not verified:
+        raise HTTPException(status_code=404, detail="Company not found")
+    return verified
+
+
+@router.post("/students/{student_id}/verify")
+def verify_student(student_id: int, current_user=Depends(get_current_admin), session: Session = Depends(get_session)):
+    # Admin verifies a student's profile (correctness of CGPA/roll no etc.)
+    verified = crud.verify_student(session, student_id, current_user.id)
+    if not verified:
+        raise HTTPException(status_code=404, detail="Student not found")
+    return verified
+
+
+@router.get("/students")
+def admin_list_students(
+    skip: int = Query(0, description="Pagination skip (offset)"),
+    limit: int = Query(100, description="Pagination limit (max 100)"),
+    verified: bool = Query(None, description="Filter by verification status: true=verified, false=pending"),
+    current_user=Depends(get_current_admin),
+    session: Session = Depends(get_session),
+):
+    items = crud.list_students(session, skip=skip, limit=limit, verified=verified)
+    total = crud.count_students(session, verified=verified)
+    return {"items": items, "skip": skip, "limit": limit, "total": total}
+
+
+@router.get("/jobs")
+def admin_list_jobs(skip: int = Query(0, description="Pagination skip (offset)"), limit: int = Query(100, description="Pagination limit (max 100)"), current_user=Depends(get_current_admin), session: Session = Depends(get_session)):
+    items = crud.list_jobs(session, skip=skip, limit=limit)
+    # total count optional for jobs
+    total = len(items)
+    return {"items": items, "skip": skip, "limit": limit, "total": total}
+
+
+@router.get("/applications")
+def admin_list_applications(skip: int = Query(0, description="Pagination skip (offset)"), limit: int = Query(100, description="Pagination limit (max 100)"), current_user=Depends(get_current_admin), session: Session = Depends(get_session)):
+    items = crud.list_applications(session, skip=skip, limit=limit)
+    total = len(items)
+    return {"items": items, "skip": skip, "limit": limit, "total": total}
+
+
+@router.post("/jobs/{job_id}/close")
+def close_job(job_id: int, current_user=Depends(get_current_admin), session: Session = Depends(get_session)):
+    try:
+        job = crud.close_job(session, job_id)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    return job
+
+
+@router.get("/companies")
+def admin_list_companies(
+    skip: int = Query(0, description="Pagination skip (offset)"),
+    limit: int = Query(100, description="Pagination limit (max 100)"),
+    verified: bool = Query(None, description="Filter by verification status: true=verified, false=pending"),
+    current_user=Depends(get_current_admin),
+    session: Session = Depends(get_session),
+):
+    items = crud.list_companies(session, skip=skip, limit=limit, verified=verified)
+    total = crud.count_companies(session, verified=verified)
+    return {"items": items, "skip": skip, "limit": limit, "total": total}
+
+
+@router.delete("/students/{student_id}")
+def admin_delete_student(student_id: int, current_user=Depends(get_current_admin), session: Session = Depends(get_session)):
+    res = crud.delete_student(session, student_id)
+    if not res:
+        raise HTTPException(status_code=404, detail="Student not found or could not be deleted")
+    return {"deleted": True}
+
+
+@router.delete("/companies/{company_id}")
+def admin_delete_company(company_id: int, current_user=Depends(get_current_admin), session: Session = Depends(get_session)):
+    res = crud.delete_company(session, company_id)
+    if not res:
+        raise HTTPException(status_code=404, detail="Company not found or could not be deleted")
+    return {"deleted": True}
+
+
+@router.delete("/jobs/{job_id}")
+def admin_delete_job(job_id: int, current_user=Depends(get_current_admin), session: Session = Depends(get_session)):
+    res = crud.delete_job(session, job_id)
+    if not res:
+        raise HTTPException(status_code=404, detail="Job not found or could not be deleted")
+    return {"deleted": True}
+
+
+@router.delete("/applications/{application_id}")
+def admin_delete_application(application_id: int, current_user=Depends(get_current_admin), session: Session = Depends(get_session)):
+    res = crud.delete_application(session, application_id)
+    if not res:
+        raise HTTPException(status_code=404, detail="Application not found or could not be deleted")
+    return {"deleted": True}

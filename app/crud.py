@@ -3,6 +3,7 @@ from .models import User, Student, Company, Job, Application, Offer
 from .auth import hash_password, verify_password, create_access_token
 from datetime import timedelta
 from datetime import datetime
+from sqlalchemy import func
 
 
 APPLICATION_STATUSES = {
@@ -87,6 +88,9 @@ def apply_job(session: Session, student_id: int, job_id: int) -> Application:
     student = session.get(Student, student_id)
     if not student:
         raise ValueError("Student not found")
+    # student must be verified by admin before applying
+    if not getattr(student, 'verified', False):
+        raise ValueError("Student profile not verified by admin")
     # CGPA eligibility
     if job.min_cgpa is not None and student.cgpa is not None and student.cgpa < job.min_cgpa:
         raise ValueError("CGPA below eligibility")
@@ -103,7 +107,12 @@ def apply_job(session: Session, student_id: int, job_id: int) -> Application:
         raise ValueError("Student already accepted an offer")
     app_obj = Application(student_id=student_id, job_id=job_id)
     session.add(app_obj)
-    session.commit()
+    try:
+        session.commit()
+    except Exception as e:
+        session.rollback()
+        # likely unique constraint violation
+        raise ValueError("Already applied to this job")
     session.refresh(app_obj)
     return app_obj
 
@@ -120,7 +129,11 @@ def create_offer(session: Session, job_id: int, student_id: int, company_id: int
     application.status = "offered"
     session.add(offer)
     session.add(application)
-    session.commit()
+    try:
+        session.commit()
+    except Exception as e:
+        session.rollback()
+        raise ValueError("Unable to create offer (possible duplicate)")
     session.refresh(offer)
     return offer
 
@@ -133,13 +146,29 @@ def accept_offer(session: Session, offer_id: int, student_id: int):
     student = session.get(Student, student_id)
     if student.locked_offer_id is not None:
         return None
-    offer.status = "accepted"
-    student.locked_offer_id = offer.id
-    session.add(offer)
-    session.add(student)
-    session.commit()
-    session.refresh(offer)
-    return offer
+    # student must be verified to accept offers
+    if not getattr(student, 'verified', False):
+        return None
+    # perform acceptance atomically: set this offer to accepted, mark student locked,
+    # and decline other offers for the student.
+    try:
+        offer.status = "accepted"
+        student.locked_offer_id = offer.id
+        session.add(offer)
+        session.add(student)
+        # decline other offers for this student
+        stmt = select(Offer).where(Offer.student_id == student_id, Offer.id != offer_id)
+        others = session.exec(stmt).all()
+        for o in others:
+            if o.status == "offered":
+                o.status = "declined"
+                session.add(o)
+        session.commit()
+        session.refresh(offer)
+        return offer
+    except Exception:
+        session.rollback()
+        return None
 
 
 def get_verified_jobs(session: Session, skip: int = 0, limit: int = 10):
@@ -185,9 +214,19 @@ def close_job(session: Session, job_id: int):
     return job
 
 
-def list_students(session: Session, skip: int = 0, limit: int = 100):
-    stmt = select(Student).offset(skip).limit(limit)
+def list_students(session: Session, skip: int = 0, limit: int = 100, verified: bool = None):
+    stmt = select(Student)
+    if verified is not None:
+        stmt = stmt.where(Student.verified == verified)
+    stmt = stmt.offset(skip).limit(limit)
     return session.exec(stmt).all()
+
+
+def count_students(session: Session, verified: bool = None):
+    stmt = select(func.count()).select_from(Student)
+    if verified is not None:
+        stmt = stmt.where(Student.verified == verified)
+    return session.exec(stmt).one()
 
 
 def list_jobs(session: Session, skip: int = 0, limit: int = 100):
@@ -200,6 +239,91 @@ def list_applications(session: Session, skip: int = 0, limit: int = 100):
     return session.exec(stmt).all()
 
 
+def list_companies(session: Session, skip: int = 0, limit: int = 100, verified: bool = None):
+    stmt = select(Company)
+    if verified is not None:
+        stmt = stmt.where(Company.verified == verified)
+    stmt = stmt.offset(skip).limit(limit)
+    return session.exec(stmt).all()
+
+
+def count_companies(session: Session, verified: bool = None):
+    stmt = select(func.count()).select_from(Company)
+    if verified is not None:
+        stmt = stmt.where(Company.verified == verified)
+    return session.exec(stmt).one()
+
+
+def list_users(session: Session, skip: int = 0, limit: int = 100):
+    stmt = select(User).offset(skip).limit(limit)
+    return session.exec(stmt).all()
+
+
+def delete_student(session: Session, student_id: int):
+    student = session.get(Student, student_id)
+    if not student:
+        return None
+    try:
+        session.delete(student)
+        session.commit()
+        return True
+    except Exception:
+        session.rollback()
+        return None
+
+
+def delete_company(session: Session, company_id: int):
+    company = session.get(Company, company_id)
+    if not company:
+        return None
+    try:
+        session.delete(company)
+        session.commit()
+        return True
+    except Exception:
+        session.rollback()
+        return None
+
+
+def delete_job(session: Session, job_id: int):
+    job = session.get(Job, job_id)
+    if not job:
+        return None
+    try:
+        session.delete(job)
+        session.commit()
+        return True
+    except Exception:
+        session.rollback()
+        return None
+
+
+def delete_application(session: Session, application_id: int):
+    application = session.get(Application, application_id)
+    if not application:
+        return None
+    try:
+        session.delete(application)
+        session.commit()
+        return True
+    except Exception:
+        session.rollback()
+        return None
+
+
+def withdraw_application(session: Session, application_id: int, student_id: int):
+    application = session.get(Application, application_id)
+    if not application or application.student_id != student_id:
+        return None
+    try:
+        session.delete(application)
+        session.commit()
+        return True
+    except Exception:
+        session.rollback()
+        return None
+
+
 def verify_company(session: Session, company_id: int):
     company = session.get(Company, company_id)
     if not company:
@@ -209,3 +333,16 @@ def verify_company(session: Session, company_id: int):
     session.commit()
     session.refresh(company)
     return company
+
+
+def verify_student(session: Session, student_id: int, admin_user_id: int):
+    student = session.get(Student, student_id)
+    if not student:
+        return None
+    student.verified = True
+    student.verified_at = datetime.utcnow()
+    student.verified_by_admin_id = admin_user_id
+    session.add(student)
+    session.commit()
+    session.refresh(student)
+    return student

@@ -2,6 +2,7 @@ from sqlmodel import SQLModel, Field, Relationship
 from typing import Optional, List
 from datetime import datetime
 from enum import Enum as PyEnum
+from sqlalchemy import UniqueConstraint
 
 
 class Role(str, PyEnum):
@@ -43,6 +44,9 @@ class Student(SQLModel, table=True):
     graduation_year: Optional[int] = None
     backlogs: Optional[int] = 0
     locked_offer_id: Optional[int] = None
+    verified: bool = Field(default=False)
+    verified_at: Optional[datetime] = None
+    verified_by_admin_id: Optional[int] = Field(default=None, foreign_key="user.id")
 
 
 class Company(SQLModel, table=True):
@@ -71,6 +75,7 @@ class Application(SQLModel, table=True):
     job_id: int = Field(foreign_key="job.id")
     applied_at: datetime = Field(default_factory=datetime.utcnow)
     status: ApplicationStatus = Field(default=ApplicationStatus.APPLIED.value)
+    __table_args__ = (UniqueConstraint('student_id', 'job_id', name='u_student_job'),)
 
 
 class Offer(SQLModel, table=True):
@@ -81,3 +86,4 @@ class Offer(SQLModel, table=True):
     ctc: Optional[float] = None
     status: OfferStatus = Field(default=OfferStatus.OFFERED.value)
     created_at: datetime = Field(default_factory=datetime.utcnow)
+    __table_args__ = (UniqueConstraint('job_id', 'student_id', name='u_job_student_offer'),)
