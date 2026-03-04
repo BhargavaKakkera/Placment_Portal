@@ -1,17 +1,17 @@
 # Core framework
-fastapi==0.95.2
-uvicorn[standard]==0.22.0
+fastapi==0.110.0
+uvicorn[standard]==0.29.0
 
 # ORM / DB
-sqlmodel==0.0.8
-sqlalchemy==1.4.41
+sqlmodel==0.0.16
+sqlalchemy==2.0.25
 
 # Auth & security
 passlib[bcrypt]==1.7.4
-bcrypt==4.0.1
+bcrypt==4.1.2
 python-jose[cryptography]==3.3.0
-python-multipart==0.0.6
-email-validator==2.1.0.post1
+python-multipart==0.0.9
+email-validator==2.1.1
 
-# Validation (FastAPI 0.95.x needs Pydantic v1)
-pydantic==1.10.13
+# Validation
+pydantic==2.6.4
