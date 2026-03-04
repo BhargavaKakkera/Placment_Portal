@@ -1,5 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlmodel import Session
+from datetime import datetime
 from ..database import get_session
 from .. import crud
 from ..schemas import JobCreate
@@ -39,3 +40,41 @@ def apply_to_job(job_id: int, current_user=Depends(get_current_student), session
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     return application
+
+
+@router.get("/eligible")
+def list_eligible_jobs(
+    current_user=Depends(get_current_student),
+    session: Session = Depends(get_session),
+):
+    student = crud.get_student_by_user_id(session, current_user.id)
+
+    if not student:
+        raise HTTPException(status_code=404, detail="Student profile not found")
+
+    jobs = crud.get_verified_jobs(session, skip=0, limit=1000)
+
+    eligible = []
+
+    for job in jobs:
+
+        if job.min_cgpa is not None and student.cgpa < job.min_cgpa:
+            continue
+
+        if job.max_backlogs is not None and student.backlogs > job.max_backlogs:
+            continue
+
+        if job.allowed_branches:
+            branches = [b.strip() for b in job.allowed_branches.split(",") if b.strip()]
+            if student.branch.value not in branches:
+                continue
+
+        if job.application_deadline and job.application_deadline < datetime.utcnow():
+            continue
+
+        if job.closed:
+            continue
+
+        eligible.append(job)
+
+    return eligible

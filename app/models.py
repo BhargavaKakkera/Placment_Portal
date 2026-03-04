@@ -26,23 +26,35 @@ class Student(SQLModel, table=True):
     user_id: int = Field(foreign_key="user.id", unique=True)
 
     name: str
-    roll_no: Optional[str] = None
+    roll_no: str
 
-    cgpa: Optional[float] = None
-    branch: Optional[Branch] = None
+    cgpa: float
+    branch: Branch
 
-    graduation_year: Optional[int] = None
-    backlogs: Optional[int] = 0
+    graduation_year: int
+    backlogs: int = 0
 
-    locked_offer_id: Optional[int] = None
+    # ---- personal info ----
 
+    phone: Optional[str] = None
+    personal_email: Optional[str] = None
+    address: Optional[str] = None
+    resume_url: Optional[str] = None
+
+    github_url: Optional[str] = None
+    linkedin_url: Optional[str] = None
+    leetcode_url: Optional[str] = None
+    codeforces_url: Optional[str] = None
+    hackerrank_url: Optional[str] = None
+    portfolio_url: Optional[str] = None
+    other_coding_url: Optional[str] = None
+
+    # ---- placement verification ----
     verified: bool = Field(default=False)
     verified_at: Optional[datetime] = None
+    verified_by_admin_id: Optional[int] = Field(default=None, foreign_key="user.id")
 
-    verified_by_admin_id: Optional[int] = Field(
-        default=None,
-        foreign_key="user.id"
-    )
+    locked_offer_id: Optional[int] = Field(default=None, foreign_key="offer.id")
 
 
 class Company(SQLModel, table=True):

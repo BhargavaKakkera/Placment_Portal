@@ -18,15 +18,7 @@ app.include_router(companies.router)
 app.include_router(admin.router)
 
 
-from .database import get_session
-from .models import User
-from fastapi import Depends
-from sqlmodel import select
-
-
 @app.get("/")
-def root(session=Depends(get_session)):
-    # Show all users on startup root for local/dev use
-    users = session.exec(select(User)).all()
-    return {"users": [ {"id": u.id, "email": u.email, "role": u.role} for u in users ]}
+def root():
+    return {"status": "ok"}
 

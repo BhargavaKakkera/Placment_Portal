@@ -1,16 +1,17 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
 from typing import Optional
-from sqlmodel import Session
+from sqlmodel import Session,select
 from ..database import get_session
 from .. import crud
-from ..schemas import CompanyCreate
+from ..schemas import CompanyCreate, CompanyOut
 from ..auth import get_current_company
 from ..models import Job, Application
+from ..enums import ApplicationStatus
 
 router = APIRouter(prefix="/companies", tags=["companies"])
 
 
-@router.post("/", response_model=dict)
+@router.post("/", response_model=CompanyOut)
 def create_company_endpoint(company_in: CompanyCreate, current_user=Depends(get_current_company), session: Session = Depends(get_session)):
     existing = crud.get_company_by_user_id(session, current_user.id)
     if existing:
@@ -41,6 +42,8 @@ def delete_my_company(current_user=Depends(get_current_company), session: Sessio
 @router.get("/jobs/{job_id}/applicants")
 def view_applicants(job_id: int, current_user=Depends(get_current_company), session: Session = Depends(get_session)):
     company = crud.get_company_by_user_id(session, current_user.id)
+    if not company:
+        raise HTTPException(status_code=404, detail="Company profile not found")
     job = session.get(Job, job_id)
     if not job or job.company_id != company.id:
         raise HTTPException(status_code=403, detail="Not allowed to view applicants for this job")
@@ -50,8 +53,11 @@ def view_applicants(job_id: int, current_user=Depends(get_current_company), sess
 
 @router.post("/applications/{application_id}/shortlist")
 def shortlist(application_id: int, current_user=Depends(get_current_company), session: Session = Depends(get_session)):
+    company = crud.get_company_by_user_id(session, current_user.id)
+    if not company:
+        raise HTTPException(status_code=404, detail="Company profile not found")
     try:
-        app_obj = crud.shortlist_applicant(session, application_id)
+        app_obj = crud.shortlist_applicant(session, application_id, company.id)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     return app_obj
@@ -59,8 +65,11 @@ def shortlist(application_id: int, current_user=Depends(get_current_company), se
 
 @router.post("/applications/{application_id}/reject")
 def reject(application_id: int, current_user=Depends(get_current_company), session: Session = Depends(get_session)):
+    company = crud.get_company_by_user_id(session, current_user.id)
+    if not company:
+        raise HTTPException(status_code=404, detail="Company profile not found")
     try:
-        app_obj = crud.reject_applicant(session, application_id)
+        app_obj = crud.reject_applicant(session, application_id, company.id)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     return app_obj
@@ -74,12 +83,20 @@ def update_application_status(application_id: int, status: str, current_user=Dep
         raise HTTPException(status_code=404, detail="Application not found")
     job = session.get(Job, application.job_id)
     company = crud.get_company_by_user_id(session, current_user.id)
+    if not company:
+        raise HTTPException(status_code=404, detail="Company profile not found")
     if not job or job.company_id != company.id:
         raise HTTPException(status_code=403, detail="Not allowed to modify this application")
-    allowed = {"shortlisted", "rejected"}
-    if status not in allowed:
+    allowed = {ApplicationStatus.shortlisted, ApplicationStatus.rejected}
+    try:
+        next_status = ApplicationStatus(status)
+    except ValueError:
         raise HTTPException(status_code=400, detail="Invalid status transition")
-    application.status = status
+    if next_status not in allowed:
+        raise HTTPException(status_code=400, detail="Invalid status transition")
+    if application.status != ApplicationStatus.applied:
+        raise HTTPException(status_code=400, detail="Only applied applications can be updated here")
+    application.status = next_status
     session.add(application)
     session.commit()
     session.refresh(application)
@@ -92,6 +109,8 @@ def make_offer(application_id: int, ctc: Optional[float] = Query(None), current_
     if not application:
         raise HTTPException(status_code=404, detail="Application not found")
     company = crud.get_company_by_user_id(session, current_user.id)
+    if not company:
+        raise HTTPException(status_code=404, detail="Company profile not found")
     job = session.get(Job, application.job_id)
     if not job or job.company_id != company.id:
         raise HTTPException(status_code=403, detail="Not authorized for this job")
@@ -105,6 +124,8 @@ def make_offer(application_id: int, ctc: Optional[float] = Query(None), current_
 @router.delete("/jobs/{job_id}")
 def delete_job(job_id: int, current_user=Depends(get_current_company), session: Session = Depends(get_session)):
     company = crud.get_company_by_user_id(session, current_user.id)
+    if not company:
+        raise HTTPException(status_code=404, detail="Company profile not found")
     job = session.get(Job, job_id)
     if not job or job.company_id != company.id:
         raise HTTPException(status_code=403, detail="Not allowed to delete this job")
@@ -112,3 +133,18 @@ def delete_job(job_id: int, current_user=Depends(get_current_company), session: 
     if not res:
         raise HTTPException(status_code=400, detail="Could not delete job")
     return {"deleted": True}
+
+
+@router.get("/me/jobs")
+def my_jobs(
+    current_user=Depends(get_current_company),
+    session: Session = Depends(get_session),
+):
+    company = crud.get_company_by_user_id(session, current_user.id)
+
+    if not company:
+        raise HTTPException(status_code=404, detail="Company profile not found")
+
+    stmt = select(Job).where(Job.company_id == company.id)
+
+    return session.exec(stmt).all()

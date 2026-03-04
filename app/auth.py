@@ -1,19 +1,23 @@
 from datetime import datetime, timedelta
 from passlib.context import CryptContext
 from typing import Optional
+import os
 from jose import jwt, JWTError
 from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
-from sqlmodel import Session, select
+from sqlmodel import Session
+from dotenv import load_dotenv
 from .models import User
 from .database import get_session
+
+load_dotenv()
 
 PWD_CONTEXT = CryptContext(schemes=["bcrypt"], deprecated="auto")
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login")
 
-SECRET_KEY = "change-me-in-prod"
+SECRET_KEY = os.getenv("SECRET_KEY", "change-me-in-prod")
 ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_MINUTES = 60
+ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "60"))
 
 
 def hash_password(password: str) -> str:
@@ -39,10 +43,11 @@ def get_current_user(token: str = Depends(oauth2_scheme), session: Session = Dep
     )
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-        user_id: int = int(payload.get("user_id"))
-        if user_id is None:
+        user_id_raw = payload.get("user_id")
+        if user_id_raw is None:
             raise credentials_exception
-    except JWTError:
+        user_id: int = int(user_id_raw)
+    except (JWTError, TypeError, ValueError):
         raise credentials_exception
     user = session.get(User, user_id)
     if not user:
