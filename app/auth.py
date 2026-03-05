@@ -5,7 +5,7 @@ import os
 from jose import jwt, JWTError
 from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
-from sqlmodel import Session
+from sqlmodel import Session, select
 from dotenv import load_dotenv
 from .models import User
 from .database import get_session
@@ -78,6 +78,30 @@ def get_current_company(user: User = Depends(get_current_user)):
 
 
 def get_current_admin(user: User = Depends(get_current_user)):
+    """Check if user has admin role"""
     if user.role != "admin":
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only admins allowed")
+    return user
+
+
+def get_verified_admin(user: User = Depends(get_current_admin)):
+    """
+    Check if user has admin role AND is verified.
+    - First admin (is_first_admin=True) is automatically verified
+    - Other admins need to be verified by first admin
+    """
+    if user.role != "admin":
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only admins allowed")
+    
+    # First admin is always verified
+    if user.is_first_admin:
+        return user
+    
+    # Other admins need verification
+    if not user.verified:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Admin not verified. Please wait for approval from first admin."
+        )
+    
     return user

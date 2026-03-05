@@ -6,7 +6,6 @@ from .. import crud
 from ..schemas import StudentCreate, StudentUpdate, StudentOut
 from ..auth import get_current_student
 from ..models import Application, Offer
-from ..enums import OfferStatus
 
 router = APIRouter(prefix="/students", tags=["students"])
 
@@ -163,7 +162,6 @@ def decline_offer(
         )
 
     offer = session.get(Offer, offer_id)
-
     if not offer or offer.student_id != student.id:
         raise HTTPException(
             status_code=403,
@@ -176,19 +174,14 @@ def decline_offer(
             detail="Cannot decline after accepting an offer"
         )
 
-    if offer.status != OfferStatus.offered:
+    declined = crud.decline_offer(session, offer_id, student.id)
+    if not declined:
         raise HTTPException(
             status_code=400,
             detail="Only pending offered status can be declined"
         )
 
-    offer.status = OfferStatus.declined
-
-    session.add(offer)
-    session.commit()
-    session.refresh(offer)
-
-    return offer
+    return declined
 
 
 # ---------------------------

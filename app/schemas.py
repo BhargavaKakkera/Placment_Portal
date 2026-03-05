@@ -65,7 +65,8 @@ class StudentUpdate(BaseModel):
     phone: Optional[str] = Field(
         None,
         min_length=10,
-        max_length=15
+        max_length=15,
+        pattern=r"^\+?[0-9]{10,15}$"
     )
 
     personal_email: Optional[EmailStr] = Field(
@@ -272,8 +273,32 @@ class UserOut(BaseModel):
     id: int
     email: EmailStr
     role: Role
+    
+    is_first_admin: bool = False
+    verified: bool = False
+    verified_at: Optional[datetime] = None
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class UserAdminOut(BaseModel):
+
+    id: int
+    email: EmailStr
+    role: Role
+    
+    is_first_admin: bool = False
+    verified: bool = False
+    verified_at: Optional[datetime] = None
+    verified_by_admin_id: Optional[int] = None
+    created_at: datetime
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class AdminVerifyUser(BaseModel):
+    """Schema for admin to verify another admin"""
+    user_id: int
 
 
 class PaginationParams(BaseModel):
@@ -285,3 +310,13 @@ class PaginationParams(BaseModel):
         ge=1,
         le=100
     )
+
+
+class AdminDashboardResponse(BaseModel):
+    """Schema for admin dashboard statistics."""
+    total_students: int
+    placed_students: int
+    active_jobs: int
+    total_companies: int
+    offers_made: int
+    offers_accepted: int

@@ -38,6 +38,27 @@ def _migrate_student_profile_columns():
                 )
 
 
+def _migrate_user_columns():
+    """Add newly introduced user columns for admin verification."""
+    required_columns = {
+        "is_first_admin": "INTEGER DEFAULT 0",
+        "verified": "INTEGER DEFAULT 0",
+        "verified_at": "TIMESTAMP",
+        "verified_by_admin_id": "INTEGER",
+    }
+
+    with engine.begin() as conn:
+        existing = {
+            row[1]
+            for row in conn.execute(text("PRAGMA table_info(user)")).fetchall()
+        }
+        for column_name, column_type in required_columns.items():
+            if column_name not in existing:
+                conn.execute(
+                    text(f"ALTER TABLE user ADD COLUMN {column_name} {column_type}")
+                )
+
+
 def init_db():
     """Initialize database.
 
@@ -58,3 +79,4 @@ def init_db():
             logging.exception("Failed to remove existing DB file")
     SQLModel.metadata.create_all(engine)
     _migrate_student_profile_columns()
+    _migrate_user_columns()

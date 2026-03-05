@@ -18,7 +18,7 @@ def create_job(job_in: JobCreate, current_user=Depends(get_current_company), ses
     if not company:
         raise HTTPException(status_code=404, detail="Company profile not found")
     try:
-        job = crud.create_job(session, company.id, **job_in.dict())
+        job = crud.create_job(session, company.id, **job_in.model_dump())
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     return job
@@ -27,6 +27,15 @@ def create_job(job_in: JobCreate, current_user=Depends(get_current_company), ses
 @router.get("/")
 def list_jobs(skip: int = Query(0, ge=0), limit: int = Query(10, ge=1, le=100), session: Session = Depends(get_session)):
     return crud.get_verified_jobs(session, skip=skip, limit=limit)
+
+
+@router.get("/{job_id}")
+def get_job(job_id: int, session: Session = Depends(get_session)):
+    """Get job details by ID."""
+    job = crud.get_job_by_id(session, job_id)
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+    return job
 
 
 @router.post("/{job_id}/apply")
@@ -52,7 +61,7 @@ def list_eligible_jobs(
     if not student:
         raise HTTPException(status_code=404, detail="Student profile not found")
 
-    jobs = crud.get_verified_jobs(session, skip=0, limit=1000)
+    jobs = crud.get_verified_jobs(session, skip=0, limit=None)
 
     eligible = []
 

@@ -18,6 +18,12 @@ class User(SQLModel, table=True):
     password_hash: str
     role: Role
     created_at: datetime = Field(default_factory=datetime.utcnow)
+    
+    # Admin verification fields
+    is_first_admin: bool = Field(default=False)
+    verified: bool = Field(default=False)
+    verified_at: Optional[datetime] = None
+    verified_by_admin_id: Optional[int] = Field(default=None, foreign_key="user.id")
 
 
 class Student(SQLModel, table=True):
