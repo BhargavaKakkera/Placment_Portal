@@ -65,7 +65,7 @@ class StudentUpdate(BaseModel):
     phone: Optional[str] = Field(
         None,
         min_length=10,
-        max_length=12
+        max_length=15
     )
 
     personal_email: Optional[EmailStr] = Field(
@@ -96,14 +96,6 @@ class StudentAdminUpdate(BaseModel):
     branch: Optional[Branch]
     graduation_year: Optional[int] = Field(None, ge=2000, le=2100)
     backlogs: Optional[int] = Field(None, ge=0, le=20)
-    resume_url: Optional[HttpUrl] = None
-    github_url: Optional[HttpUrl] = None
-    linkedin_url: Optional[HttpUrl] = None
-    leetcode_url: Optional[HttpUrl] = None
-    codeforces_url: Optional[HttpUrl] = None
-    hackerrank_url: Optional[HttpUrl] = None
-    portfolio_url: Optional[HttpUrl] = None
-    other_coding_url: Optional[HttpUrl] = None
 
     verified: Optional[bool]
 
