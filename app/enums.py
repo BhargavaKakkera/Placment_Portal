@@ -35,3 +35,9 @@ class OfferStatus(str, Enum):
     offered = "offered"
     accepted = "accepted"
     declined = "declined"
+
+
+class CompanyApplicationAction(str, Enum):
+    shortlisted = "shortlisted"
+    rejected = "rejected"
+    offered = "offered"

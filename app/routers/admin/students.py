@@ -87,7 +87,13 @@ def admin_delete_student(
     session: Session = Depends(get_session),
 ):
     """Delete a student (requires verified admin)."""
-    res = crud.delete_student(session, student_id)
+    try:
+        res = crud.delete_student(session, student_id)
+    except ValueError as e:
+        raise HTTPException(
+            status_code=409,
+            detail=str(e)
+        )
 
     if not res:
         raise HTTPException(
@@ -96,4 +102,20 @@ def admin_delete_student(
         )
 
     return {"deleted": True}
+
+
+@router.post("/{student_id}/reactivate")
+def admin_reactivate_student(
+    student_id: int,
+    current_user=Depends(get_verified_admin),
+    session: Session = Depends(get_session),
+):
+    """Reactivate a student and linked user account (requires verified admin)."""
+    res = crud.reactivate_student(session, student_id)
+    if not res:
+        raise HTTPException(
+            status_code=404,
+            detail="Student not found or could not be reactivated"
+        )
+    return {"reactivated": True}
 

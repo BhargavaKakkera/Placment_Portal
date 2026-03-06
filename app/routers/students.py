@@ -1,11 +1,13 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlmodel import Session, select
+from sqlalchemy.exc import IntegrityError
 
 from ..database import get_session
 from .. import crud
 from ..schemas import StudentCreate, StudentUpdate, StudentOut
 from ..auth import get_current_student
 from ..models import Application, Offer
+from ..enums import OfferStatus
 
 router = APIRouter(prefix="/students", tags=["students"])
 
@@ -28,13 +30,19 @@ def create_student(
             detail="Student profile already exists"
         )
 
-    student = crud.create_student(
-        session,
-        current_user.id,
-        **student_in.model_dump(mode="json")
-    )
-
-    return student
+    try:
+        student = crud.create_student(
+            session,
+            current_user.id,
+            **student_in.model_dump(mode="json")
+        )
+        return student
+    except IntegrityError:
+        session.rollback()
+        raise HTTPException(
+            status_code=422,
+            detail="Invalid student data for required fields"
+        )
 
 
 # ---------------------------
@@ -201,7 +209,13 @@ def delete_my_student(
             detail="Student profile not found"
         )
 
-    res = crud.delete_student(session, student.id)
+    try:
+        res = crud.delete_student(session, student.id)
+    except ValueError as e:
+        raise HTTPException(
+            status_code=409,
+            detail=str(e)
+        )
 
     if not res:
         raise HTTPException(
@@ -222,27 +236,10 @@ def withdraw_application(
     current_user=Depends(get_current_student),
     session: Session = Depends(get_session),
 ):
-    student = crud.get_student_by_user_id(session, current_user.id)
-
-    if not student:
-        raise HTTPException(
-            status_code=404,
-            detail="Student profile not found"
-        )
-
-    res = crud.withdraw_application(
-        session,
-        application_id,
-        student.id
+    raise HTTPException(
+        status_code=405,
+        detail="Application withdrawal is disabled after applying"
     )
-
-    if not res:
-        raise HTTPException(
-            status_code=400,
-            detail="Could not withdraw application or not authorized"
-        )
-
-    return {"withdrawn": True}
 
 
 
@@ -257,5 +254,23 @@ def my_offers(
         raise HTTPException(status_code=404, detail="Student profile not found")
 
     stmt = select(Offer).where(Offer.student_id == student.id)
+
+    return session.exec(stmt).all()
+
+
+@router.get("/me/offers/accepted")
+def my_accepted_offers(
+    current_user=Depends(get_current_student),
+    session: Session = Depends(get_session),
+):
+    student = crud.get_student_by_user_id(session, current_user.id)
+
+    if not student:
+        raise HTTPException(status_code=404, detail="Student profile not found")
+
+    stmt = select(Offer).where(
+        Offer.student_id == student.id,
+        Offer.status == OfferStatus.accepted,
+    )
 
     return session.exec(stmt).all()

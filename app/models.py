@@ -1,7 +1,7 @@
 from sqlmodel import SQLModel, Field
 from typing import Optional
 from datetime import datetime
-from sqlalchemy import UniqueConstraint
+from sqlalchemy import UniqueConstraint, Column, Integer, ForeignKey
 
 from .enums import (
     Role,
@@ -16,20 +16,32 @@ class User(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     email: str = Field(index=True, unique=True)
     password_hash: str
-    role: Role
+    role: Role = Field(index=True)
     created_at: datetime = Field(default_factory=datetime.utcnow)
-    
+
     # Admin verification fields
     is_first_admin: bool = Field(default=False)
-    verified: bool = Field(default=False)
+    verified: bool = Field(default=False, index=True)
     verified_at: Optional[datetime] = None
-    verified_by_admin_id: Optional[int] = Field(default=None, foreign_key="user.id")
+    verified_by_admin_id: Optional[int] = Field(
+        default=None,
+        sa_column=Column(Integer, ForeignKey("user.id", ondelete="SET NULL")),
+    )
+    is_active: bool = Field(default=True, index=True)
+    deactivated_at: Optional[datetime] = None
 
 
 class Student(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
 
-    user_id: int = Field(foreign_key="user.id", unique=True)
+    user_id: int = Field(
+        sa_column=Column(
+            Integer,
+            ForeignKey("user.id", ondelete="RESTRICT"),
+            unique=True,
+            nullable=False,
+        )
+    )
 
     name: str
     roll_no: str
@@ -56,26 +68,45 @@ class Student(SQLModel, table=True):
     other_coding_url: Optional[str] = None
 
     # ---- placement verification ----
-    verified: bool = Field(default=False)
+    verified: bool = Field(default=False, index=True)
     verified_at: Optional[datetime] = None
-    verified_by_admin_id: Optional[int] = Field(default=None, foreign_key="user.id")
+    verified_by_admin_id: Optional[int] = Field(
+        default=None,
+        sa_column=Column(Integer, ForeignKey("user.id", ondelete="SET NULL")),
+    )
 
-    locked_offer_id: Optional[int] = Field(default=None, foreign_key="offer.id")
+    locked_offer_id: Optional[int] = Field(
+        default=None,
+        sa_column=Column(Integer, ForeignKey("offer.id", ondelete="SET NULL")),
+    )
+    is_active: bool = Field(default=True, index=True)
+    deactivated_at: Optional[datetime] = None
 
 
 class Company(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
 
-    user_id: int = Field(foreign_key="user.id", unique=True)
+    user_id: int = Field(
+        sa_column=Column(
+            Integer,
+            ForeignKey("user.id", ondelete="RESTRICT"),
+            unique=True,
+            nullable=False,
+        )
+    )
 
     name: str
-    verified: bool = Field(default=False)
+    verified: bool = Field(default=False, index=True)
+    is_active: bool = Field(default=True, index=True)
+    deactivated_at: Optional[datetime] = None
 
 
 class Job(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
 
-    company_id: int = Field(foreign_key="company.id")
+    company_id: int = Field(
+        sa_column=Column(Integer, ForeignKey("company.id", ondelete="RESTRICT"), nullable=False, index=True)
+    )
 
     title: str
     description: Optional[str] = None
@@ -88,7 +119,7 @@ class Job(SQLModel, table=True):
 
     max_backlogs: Optional[int] = None
 
-    role_type: RoleType = Field(default=RoleType.full_time)
+    role_type: RoleType = Field(default=RoleType.full_time, index=True)
 
     internship_duration: Optional[str] = None
     stipend: Optional[float] = None
@@ -97,9 +128,9 @@ class Job(SQLModel, table=True):
 
     ppo_available: bool = Field(default=False)
 
-    application_deadline: Optional[datetime] = None
+    application_deadline: Optional[datetime] = Field(default=None, index=True)
 
-    closed: bool = Field(default=False)
+    closed: bool = Field(default=False, index=True)
 
     created_at: datetime = Field(default_factory=datetime.utcnow)
 
@@ -107,12 +138,16 @@ class Job(SQLModel, table=True):
 class Application(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
 
-    student_id: int = Field(foreign_key="student.id")
-    job_id: int = Field(foreign_key="job.id")
+    student_id: int = Field(
+        sa_column=Column(Integer, ForeignKey("student.id", ondelete="RESTRICT"), nullable=False, index=True)
+    )
+    job_id: int = Field(
+        sa_column=Column(Integer, ForeignKey("job.id", ondelete="RESTRICT"), nullable=False, index=True)
+    )
 
     applied_at: datetime = Field(default_factory=datetime.utcnow)
 
-    status: ApplicationStatus = Field(default=ApplicationStatus.applied)
+    status: ApplicationStatus = Field(default=ApplicationStatus.applied, index=True)
 
     __table_args__ = (
         UniqueConstraint("student_id", "job_id", name="u_student_job"),
@@ -122,13 +157,20 @@ class Application(SQLModel, table=True):
 class Offer(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
 
-    job_id: int = Field(foreign_key="job.id")
-    student_id: int = Field(foreign_key="student.id")
-    company_id: int = Field(foreign_key="company.id")
+    job_id: int = Field(
+        sa_column=Column(Integer, ForeignKey("job.id", ondelete="RESTRICT"), nullable=False, index=True)
+    )
+    student_id: int = Field(
+        sa_column=Column(Integer, ForeignKey("student.id", ondelete="RESTRICT"), nullable=False, index=True)
+    )
+    company_id: int = Field(
+        sa_column=Column(Integer, ForeignKey("company.id", ondelete="RESTRICT"), nullable=False, index=True)
+    )
 
     ctc: Optional[float] = None
 
-    status: OfferStatus = Field(default=OfferStatus.offered)
+    status: OfferStatus = Field(default=OfferStatus.offered, index=True)
+    response_deadline: Optional[datetime] = Field(default=None, index=True)
 
     created_at: datetime = Field(default_factory=datetime.utcnow)
 

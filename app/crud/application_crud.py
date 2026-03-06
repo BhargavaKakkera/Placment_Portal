@@ -5,8 +5,9 @@ Application CRUD operations for job applications management.
 from datetime import datetime
 from sqlmodel import Session, select, func
 from typing import Optional, List
-from ..models import Application, Student, Job
-from ..enums import ApplicationStatus
+from ..models import Application, Student, Job, Offer
+from ..enums import ApplicationStatus, CompanyApplicationAction, OfferStatus
+from .offer_crud import create_offer
 
 
 def apply_job(session: Session, student_id: int, job_id: int) -> Application:
@@ -34,16 +35,22 @@ def apply_job(session: Session, student_id: int, job_id: int) -> Application:
     student = session.get(Student, student_id)
     if not student:
         raise ValueError("Student not found")
+    if not getattr(student, "is_active", True):
+        raise ValueError("Student profile is deactivated")
     
     # Student must be verified by admin before applying
     if not getattr(student, 'verified', False):
         raise ValueError("Student profile not verified by admin")
     
     # CGPA eligibility
-    if job.min_cgpa is not None and student.cgpa is not None and student.cgpa < job.min_cgpa:
+    if student.cgpa is None:
+        raise ValueError("Student CGPA is missing. Ask admin to update profile.")
+    if job.min_cgpa is not None and student.cgpa < job.min_cgpa:
         raise ValueError("CGPA below eligibility")
     
     # Branch eligibility
+    if student.branch is None:
+        raise ValueError("Student branch is missing. Ask admin to update profile.")
     if job.allowed_branches:
         allowed = [b.strip().lower() for b in job.allowed_branches.split(",") if b.strip()]
         student_branch = student.branch.value if hasattr(student.branch, "value") else str(student.branch)
@@ -80,17 +87,8 @@ def withdraw_application(
     application_id: int, 
     student_id: int
 ) -> Optional[bool]:
-    """Withdraw an application."""
-    application = session.get(Application, application_id)
-    if not application or application.student_id != student_id:
-        return None
-    try:
-        session.delete(application)
-        session.commit()
-        return True
-    except Exception:
-        session.rollback()
-        return None
+    """Application withdrawal is disabled by business rule."""
+    return False
 
 
 def shortlist_applicant(
@@ -165,6 +163,88 @@ def update_application_status(
     if not application:
         return None
     application.status = status
+    session.add(application)
+    session.commit()
+    session.refresh(application)
+    return application
+
+
+def apply_company_action(
+    session: Session,
+    application: Application,
+    job: Job,
+    company_id: int,
+    action: CompanyApplicationAction,
+    ctc: Optional[float] = None,
+    offer_response_deadline=None,
+):
+    """
+    Apply a company action on an application with centralized transition rules.
+    Returns either updated Application or Offer (for offered action).
+    """
+    if job.company_id != company_id:
+        raise ValueError("Not allowed to modify this application")
+
+    current_status = application.status
+    if current_status == ApplicationStatus.accepted and action != CompanyApplicationAction.rejected:
+        raise ValueError("Accepted applications can only be moved to rejected")
+
+    if action == CompanyApplicationAction.offered:
+        return create_offer(
+            session,
+            job.id,
+            application.student_id,
+            company_id,
+            ctc,
+            offer_response_deadline,
+        )
+
+    if action == CompanyApplicationAction.shortlisted:
+        if current_status == ApplicationStatus.accepted:
+            raise ValueError(
+                "Cannot shortlist an accepted application directly. Move it to rejected first."
+            )
+        if current_status == ApplicationStatus.offered:
+            offer_stmt = select(Offer).where(
+                Offer.job_id == application.job_id,
+                Offer.student_id == application.student_id,
+                Offer.status == OfferStatus.offered,
+            )
+            active_offer = session.exec(offer_stmt).first()
+            if active_offer:
+                active_offer.status = OfferStatus.declined
+                session.add(active_offer)
+        application.status = ApplicationStatus.shortlisted
+    elif action == CompanyApplicationAction.rejected:
+        if current_status == ApplicationStatus.offered:
+            offer_stmt = select(Offer).where(
+                Offer.job_id == application.job_id,
+                Offer.student_id == application.student_id,
+                Offer.status == OfferStatus.offered,
+            )
+            active_offer = session.exec(offer_stmt).first()
+            if active_offer:
+                active_offer.status = OfferStatus.declined
+                session.add(active_offer)
+
+        if current_status == ApplicationStatus.accepted:
+            accepted_offer_stmt = select(Offer).where(
+                Offer.job_id == application.job_id,
+                Offer.student_id == application.student_id,
+                Offer.status == OfferStatus.accepted,
+            )
+            accepted_offer = session.exec(accepted_offer_stmt).first()
+            if accepted_offer:
+                accepted_offer.status = OfferStatus.declined
+                session.add(accepted_offer)
+                student = session.get(Student, application.student_id)
+                if student and student.locked_offer_id == accepted_offer.id:
+                    student.locked_offer_id = None
+                    session.add(student)
+        application.status = ApplicationStatus.rejected
+    else:
+        raise ValueError("Invalid status. Allowed: shortlisted, rejected, offered")
+
     session.add(application)
     session.commit()
     session.refresh(application)

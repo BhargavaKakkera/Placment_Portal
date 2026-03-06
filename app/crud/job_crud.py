@@ -5,7 +5,7 @@ Job CRUD operations for job postings management.
 from datetime import datetime
 from sqlmodel import Session, select, func
 from typing import Optional, List
-from ..models import Job, Company, Application
+from ..models import Job, Company, Application, Offer
 from ..enums import RoleType
 
 
@@ -15,7 +15,7 @@ def create_job(session: Session, company_id: int, **data) -> Job:
     Ensures company is verified before allowing job creation.
     """
     company = session.get(Company, company_id)
-    if not company or not company.verified:
+    if not company or not getattr(company, "is_active", True) or not company.verified:
         raise ValueError("Company not verified or does not exist")
 
     role_type = data.get("role_type", RoleType.full_time)
@@ -27,7 +27,12 @@ def create_job(session: Session, company_id: int, **data) -> Job:
     data["role_type"] = role_type
 
     if role_type == RoleType.internship:
-        if not data.get("internship_duration"):
+        internship_duration = data.get("internship_duration")
+        if (
+            internship_duration is None
+            or not isinstance(internship_duration, str)
+            or not internship_duration.strip()
+        ):
             raise ValueError("Internship duration is required for internship roles")
         if data.get("stipend") is None:
             raise ValueError("Stipend is required for internship roles")
@@ -74,6 +79,7 @@ def list_verified_jobs(
     statement = (
         select(Job)
         .join(Company, Company.id == Job.company_id)
+        .where(Company.is_active == True)
         .where(Company.verified == True)
         .where(Job.closed == False)
         .where((Job.application_deadline == None) | (Job.application_deadline >= now))
@@ -96,6 +102,7 @@ def count_active_jobs(session: Session) -> int:
         select(func.count())
         .select_from(Job)
         .join(Company, Company.id == Job.company_id)
+        .where(Company.is_active == True)
         .where(Company.verified == True)
         .where(Job.closed == False)
     )
@@ -125,6 +132,14 @@ def delete_job(session: Session, job_id: int) -> Optional[bool]:
     job = session.get(Job, job_id)
     if not job:
         return None
+
+    apps_count_stmt = select(func.count()).select_from(Application).where(Application.job_id == job_id)
+    apps_count = session.exec(apps_count_stmt).one()
+    offers_count_stmt = select(func.count()).select_from(Offer).where(Offer.job_id == job_id)
+    offers_count = session.exec(offers_count_stmt).one()
+    if apps_count > 0 or offers_count > 0:
+        raise ValueError("Cannot delete job with existing applications/offers. Close the job instead.")
+
     try:
         session.delete(job)
         session.commit()

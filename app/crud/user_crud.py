@@ -33,7 +33,7 @@ def create_user(
 
 def authenticate_user(session: Session, email: str, password: str) -> Optional[User]:
     """Authenticate user by email and password."""
-    statement = select(User).where(User.email == email)
+    statement = select(User).where(User.email == email).where(User.is_active == True)
     user = session.exec(statement).first()
     if not user:
         return None
@@ -49,13 +49,13 @@ def get_user_by_id(session: Session, user_id: int) -> Optional[User]:
 
 def get_all_users(session: Session, skip: int = 0, limit: int = 100) -> List[User]:
     """Get all users with pagination."""
-    statement = select(User).offset(skip).limit(limit)
+    statement = select(User).where(User.is_active == True).offset(skip).limit(limit)
     return session.exec(statement).all()
 
 
 def count_users(session: Session) -> int:
     """Count all users."""
-    statement = select(func.count()).select_from(User)
+    statement = select(func.count()).select_from(User).where(User.is_active == True)
     return session.exec(statement).one()
 
 
@@ -112,6 +112,7 @@ def get_pending_admins(session: Session, skip: int = 0, limit: int = 100) -> Lis
         .where(User.role == Role.admin)
         .where(User.is_first_admin == False)
         .where(User.verified == False)
+        .where(User.is_active == True)
         .offset(skip)
         .limit(limit)
     )
@@ -126,6 +127,7 @@ def count_pending_admins(session: Session) -> int:
         .where(User.role == Role.admin)
         .where(User.is_first_admin == False)
         .where(User.verified == False)
+        .where(User.is_active == True)
     )
     return session.exec(statement).one()
 

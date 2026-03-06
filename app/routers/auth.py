@@ -27,7 +27,9 @@ def register(payload: RegisterIn, session: Session = Depends(get_session)):
 
         existing = session.exec(select(User).where(User.email == payload.email)).first()
         if existing:
-            raise HTTPException(status_code=400, detail="Email already registered")
+            if not getattr(existing, "is_active", True):
+                raise HTTPException(status_code=409, detail="Account exists but is deactivated")
+            raise HTTPException(status_code=409, detail="Email already registered")
 
         user = crud.create_user(
             session,
@@ -38,7 +40,7 @@ def register(payload: RegisterIn, session: Session = Depends(get_session)):
         )
     except IntegrityError:
         session.rollback()
-        raise HTTPException(status_code=400, detail="Email already registered")
+        raise HTTPException(status_code=409, detail="Email already registered")
 
     token = create_access_token({"user_id": user.id, "role": user.role})
     return {"access_token": token}
@@ -46,6 +48,10 @@ def register(payload: RegisterIn, session: Session = Depends(get_session)):
 
 @router.post("/login", response_model=Token)
 def login(form_data: OAuth2PasswordRequestForm = Depends(), session: Session = Depends(get_session)):
+    user_by_email = session.exec(select(User).where(User.email == form_data.username)).first()
+    if user_by_email and not getattr(user_by_email, "is_active", True):
+        raise HTTPException(status_code=403, detail="Account is deactivated")
+
     user = crud.authenticate_user(session, form_data.username, form_data.password)
     if not user:
         raise HTTPException(status_code=401, detail="Incorrect credentials")

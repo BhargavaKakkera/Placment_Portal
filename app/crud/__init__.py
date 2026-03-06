@@ -28,8 +28,10 @@ from .student_crud import (
     get_student_by_id,
     update_student,
     delete_student,
+    reactivate_student,
     list_students,
     count_students,
+    count_placed_students,
     verify_student,
 )
 
@@ -39,6 +41,7 @@ from .company_crud import (
     get_company_by_id,
     update_company,
     delete_company,
+    reactivate_company,
     list_companies,
     count_companies,
     verify_company,
@@ -49,6 +52,7 @@ from .job_crud import (
     get_job_by_id,
     list_jobs,
     count_jobs,
+    count_active_jobs,
     list_verified_jobs,
     get_applicants_for_job,
     close_job,
@@ -64,6 +68,7 @@ from .application_crud import (
     list_applications,
     count_applications,
     update_application_status,
+    apply_company_action,
 )
 
 from .offer_crud import (
@@ -71,6 +76,8 @@ from .offer_crud import (
     accept_offer,
     decline_offer,
     get_offers_for_student,
+    count_offers_made,
+    count_offers_accepted,
 )
 
 # Alias for backwards compatibility
@@ -86,14 +93,17 @@ __all__ = [
     "verify_admin",
     "update_user_verification",
     "get_pending_admins",
+    "count_pending_admins",
     # Student
     "create_student",
     "get_student_by_user_id",
     "get_student_by_id",
     "update_student",
     "delete_student",
+    "reactivate_student",
     "list_students",
     "count_students",
+    "count_placed_students",
     "verify_student",
     # Company
     "create_company",
@@ -101,6 +111,7 @@ __all__ = [
     "get_company_by_id",
     "update_company",
     "delete_company",
+    "reactivate_company",
     "list_companies",
     "count_companies",
     "verify_company",
@@ -109,6 +120,7 @@ __all__ = [
     "get_job_by_id",
     "list_jobs",
     "count_jobs",
+    "count_active_jobs",
     "list_verified_jobs",
     "get_applicants_for_job",
     "close_job",
@@ -122,10 +134,13 @@ __all__ = [
     "list_applications",
     "count_applications",
     "update_application_status",
+    "apply_company_action",
     # Offer
     "create_offer",
     "accept_offer",
     "decline_offer",
     "get_offers_for_student",
+    "count_offers_made",
+    "count_offers_accepted",
 ]
 

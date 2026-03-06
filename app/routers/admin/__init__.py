@@ -12,7 +12,7 @@ This module contains admin endpoints organized by resource:
 from fastapi import APIRouter
 
 # Create main admin router
-router = APIRouter(prefix="/admin", tags=["admin"])
+router = APIRouter(prefix="/admin")
 
 # Import and include sub-routers
 from . import companies, students, jobs, applications, users, dashboard

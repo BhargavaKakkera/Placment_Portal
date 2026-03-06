@@ -53,7 +53,13 @@ def admin_delete_job(
     session: Session = Depends(get_session),
 ):
     """Delete a job (requires verified admin)."""
-    res = crud.delete_job(session, job_id)
+    try:
+        res = crud.delete_job(session, job_id)
+    except ValueError as e:
+        raise HTTPException(
+            status_code=409,
+            detail=str(e)
+        )
 
     if not res:
         raise HTTPException(

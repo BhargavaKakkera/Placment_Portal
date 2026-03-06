@@ -2,7 +2,14 @@ from pydantic import BaseModel, EmailStr, Field, ConfigDict, model_validator, fi
 from typing import Optional, List
 from datetime import datetime
 
-from .enums import Role, Branch, RoleType, ApplicationStatus, OfferStatus
+from .enums import (
+    Role,
+    Branch,
+    RoleType,
+    ApplicationStatus,
+    OfferStatus,
+    CompanyApplicationAction,
+)
 
 
 class RegisterIn(BaseModel):
@@ -30,12 +37,11 @@ class StudentCreate(BaseModel):
     roll_no: str = Field(min_length=2, max_length=30)
 
     cgpa: float = Field(ge=0, le=10)
-
     branch: Branch
 
     graduation_year: int = Field(ge=2000, le=2100)
 
-    backlogs: int = Field(ge=0, le=20)
+    backlogs: int = Field(default=0, ge=0, le=20)
 
     phone: Optional[str] = Field(
         None,
@@ -193,7 +199,7 @@ class JobCreate(BaseModel):
             if self.stipend is None:
                 raise ValueError("Internship must include stipend")
 
-            if self.internship_duration is None:
+            if self.internship_duration is None or not self.internship_duration.strip():
                 raise ValueError("Internship must include duration")
 
         if self.role_type == RoleType.full_time:
@@ -252,6 +258,19 @@ class ApplicationOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
+class CompanyApplicationStatusUpdate(BaseModel):
+    status: CompanyApplicationAction
+    ctc: Optional[float] = Field(
+        default=None,
+        ge=0,
+        description="Required when status is offered for full-time jobs"
+    )
+    offer_response_deadline: Optional[datetime] = Field(
+        default=None,
+        description="Deadline until which student can accept an offered application"
+    )
+
+
 class OfferOut(BaseModel):
 
     id: int
@@ -262,6 +281,7 @@ class OfferOut(BaseModel):
     ctc: Optional[float]
 
     status: OfferStatus
+    response_deadline: Optional[datetime]
 
     created_at: datetime
 

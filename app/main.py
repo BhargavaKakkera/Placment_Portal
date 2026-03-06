@@ -22,5 +22,5 @@ app.include_router(admin_router)
 
 @app.get("/")
 def root():
-    return {"status": "ok"}
+    return {"message": "Placement Portal API is running"}
 
