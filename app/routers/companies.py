@@ -1,5 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlmodel import Session, select
+from sqlalchemy.exc import IntegrityError
 from ..database import get_session
 from .. import crud
 from ..schemas import CompanyCreate, CompanyOut, CompanyApplicationStatusUpdate
@@ -15,7 +16,11 @@ def create_company_endpoint(company_in: CompanyCreate, current_user=Depends(get_
     existing = crud.get_company_by_user_id(session, current_user.id)
     if existing:
         raise HTTPException(status_code=400, detail="Company profile already exists")
-    company = crud.create_company(session, current_user.id, company_in.name)
+    try:
+        company = crud.create_company(session, current_user.id, company_in.name)
+    except IntegrityError:
+        session.rollback()
+        raise HTTPException(status_code=409, detail="Company profile already exists or account is inactive")
     return company
 
 
@@ -123,7 +128,11 @@ def my_jobs(
     if not company:
         raise HTTPException(status_code=404, detail="Company profile not found")
 
-    stmt = select(Job).where(Job.company_id == company.id)
+    stmt = (
+        select(Job)
+        .where(Job.company_id == company.id)
+        .order_by(Job.created_at.desc(), Job.id.desc())
+    )
 
     return session.exec(stmt).all()
 
@@ -141,6 +150,6 @@ def my_accepted_offers(
     stmt = select(Offer).where(
         Offer.company_id == company.id,
         Offer.status == OfferStatus.accepted,
-    )
+    ).order_by(Offer.created_at.desc(), Offer.id.desc())
 
     return session.exec(stmt).all()

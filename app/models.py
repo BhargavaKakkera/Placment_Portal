@@ -44,6 +44,7 @@ class Student(SQLModel, table=True):
     )
 
     name: str
+    reg_no: str = Field(index=True, unique=True)
     roll_no: str
 
     cgpa: float
@@ -66,14 +67,6 @@ class Student(SQLModel, table=True):
     hackerrank_url: Optional[str] = None
     portfolio_url: Optional[str] = None
     other_coding_url: Optional[str] = None
-
-    # ---- placement verification ----
-    verified: bool = Field(default=False, index=True)
-    verified_at: Optional[datetime] = None
-    verified_by_admin_id: Optional[int] = Field(
-        default=None,
-        sa_column=Column(Integer, ForeignKey("user.id", ondelete="SET NULL")),
-    )
 
     locked_offer_id: Optional[int] = Field(
         default=None,

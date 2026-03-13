@@ -30,44 +30,20 @@ class Token(BaseModel):
     token_type: str = "bearer"
 
 
-class StudentCreate(BaseModel):
+class PasswordResetRequestIn(BaseModel):
+    email: EmailStr = Field(max_length=120)
 
-    name: str = Field(min_length=2, max_length=100)
 
-    roll_no: str = Field(min_length=2, max_length=30)
-
-    cgpa: float = Field(ge=0, le=10)
-    branch: Branch
-
-    graduation_year: int = Field(ge=2000, le=2100)
-
-    backlogs: int = Field(default=0, ge=0, le=20)
-
-    phone: Optional[str] = Field(
-        None,
-        min_length=10,
-        max_length=15,
-        pattern=r"^\+?[0-9]{10,15}$"
+class PasswordResetConfirmIn(BaseModel):
+    token: str = Field(min_length=20)
+    new_password: str = Field(
+        min_length=8,
+        max_length=100,
+        description="Password must be at least 8 characters",
     )
-    personal_email: Optional[EmailStr] = Field(None, max_length=120)
-    address: Optional[str] = Field(None, min_length=5, max_length=300)
-    resume_url: Optional[HttpUrl] = None
-    github_url: Optional[HttpUrl] = None
-    linkedin_url: Optional[HttpUrl] = None
-    leetcode_url: Optional[HttpUrl] = None
-    codeforces_url: Optional[HttpUrl] = None
-    hackerrank_url: Optional[HttpUrl] = None
-    portfolio_url: Optional[HttpUrl] = None
-    other_coding_url: Optional[HttpUrl] = None
+
 
 class StudentUpdate(BaseModel):
-
-    name: Optional[str] = Field(
-        None,
-        min_length=2,
-        max_length=100
-    )
-
     phone: Optional[str] = Field(
         None,
         min_length=10,
@@ -96,16 +72,39 @@ class StudentUpdate(BaseModel):
     other_coding_url: Optional[HttpUrl] = None
 
 
+class AdminStudentProvisionIn(BaseModel):
+    email: EmailStr = Field(max_length=120)
+    name: str = Field(min_length=2, max_length=100)
+    reg_no: str = Field(min_length=2, max_length=30)
+    roll_no: str = Field(min_length=2, max_length=30)
+    cgpa: float = Field(ge=0, le=10)
+    branch: Branch
+    graduation_year: int = Field(ge=2000, le=2100)
+    backlogs: int = Field(default=0, ge=0, le=20)
+
+    @model_validator(mode="after")
+    def _validate_number_fields(self):
+        if self.reg_no == self.roll_no:
+            raise ValueError("reg_no and roll_no must be different")
+        return self
+
+
+class AdminStudentProvisionOut(BaseModel):
+    user_id: int
+    student_id: int
+    invite_token: Optional[str] = None
+    invite_sent: bool
+    message: str
+
+
 class StudentAdminUpdate(BaseModel):
 
+    reg_no: Optional[str] = Field(None, min_length=2, max_length=30)
     roll_no: Optional[str] = Field(None, min_length=2, max_length=30)
     cgpa: Optional[float] = Field(None, ge=0, le=10)
     branch: Optional[Branch]
     graduation_year: Optional[int] = Field(None, ge=2000, le=2100)
     backlogs: Optional[int] = Field(None, ge=0, le=20)
-
-    verified: Optional[bool]
-
 
 class StudentOut(BaseModel):
 
@@ -113,6 +112,7 @@ class StudentOut(BaseModel):
     user_id: int
 
     name: str
+    reg_no: str
     roll_no: str
 
     cgpa: float
@@ -132,9 +132,6 @@ class StudentOut(BaseModel):
     hackerrank_url: Optional[HttpUrl]
     portfolio_url: Optional[HttpUrl]
     other_coding_url: Optional[HttpUrl]
-
-    verified: bool
-    verified_at: Optional[datetime]
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -258,6 +255,14 @@ class ApplicationOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
+class ApplicationListOut(BaseModel):
+    items: List[ApplicationOut]
+    skip: int
+    limit: int
+    total: int
+    has_more: bool
+
+
 class CompanyApplicationStatusUpdate(BaseModel):
     status: CompanyApplicationAction
     ctc: Optional[float] = Field(
@@ -316,19 +321,54 @@ class UserAdminOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
+class UserAdminListOut(BaseModel):
+    items: List[UserAdminOut]
+    skip: int
+    limit: int
+    total: int
+    has_more: bool
+
+
+class StudentListOut(BaseModel):
+    items: List[StudentOut]
+    skip: int
+    limit: int
+    total: int
+    has_more: bool
+
+
+class CompanyListOut(BaseModel):
+    items: List[CompanyOut]
+    skip: int
+    limit: int
+    total: int
+    has_more: bool
+
+
+class JobListOut(BaseModel):
+    items: List[JobOut]
+    skip: int
+    limit: int
+    total: int
+    has_more: bool
+
+
 class AdminVerifyUser(BaseModel):
     """Schema for admin to verify another admin"""
     user_id: int
 
 
 class PaginationParams(BaseModel):
-
-    skip: int = Field(0, ge=0)
-
+    skip: int = Field(
+        0,
+        ge=0,
+        description="Number of records to skip before returning items",
+    )
     limit: int = Field(
         10,
         ge=1,
-        le=100
+        le=100,
+        description="Maximum number of records to return",
     )
 
 

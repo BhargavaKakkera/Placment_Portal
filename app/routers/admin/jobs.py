@@ -2,39 +2,42 @@
 Admin router for job management.
 """
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException
 from sqlmodel import Session
 
 from ...database import get_session
 from ... import crud
 from ...auth import get_verified_admin
+from ...schemas import JobListOut, PaginationParams
 
-router = APIRouter(prefix="/jobs", tags=["admin-jobs"])
+router = APIRouter(
+    prefix="/jobs",
+    tags=["admin-jobs"],
+    dependencies=[Depends(get_verified_admin)],
+)
 
 
-@router.get("/")
+@router.get("/", response_model=JobListOut)
 def admin_list_jobs(
-    skip: int = Query(0, ge=0, description="Pagination skip"),
-    limit: int = Query(100, ge=1, le=100, description="Pagination limit"),
-    current_user=Depends(get_verified_admin),
+    pagination: PaginationParams = Depends(),
     session: Session = Depends(get_session),
 ):
     """List all jobs with pagination (requires verified admin)."""
-    items = crud.list_jobs(session, skip=skip, limit=limit)
+    items = crud.list_jobs(session, skip=pagination.skip, limit=pagination.limit)
     total = crud.count_jobs(session)
 
     return {
         "items": items,
-        "skip": skip,
-        "limit": limit,
-        "total": total
+        "skip": pagination.skip,
+        "limit": pagination.limit,
+        "total": total,
+        "has_more": pagination.skip + len(items) < total,
     }
 
 
 @router.post("/{job_id}/close")
 def close_job(
     job_id: int,
-    current_user=Depends(get_verified_admin),
     session: Session = Depends(get_session),
 ):
     """Close a job posting (requires verified admin)."""
@@ -49,7 +52,6 @@ def close_job(
 @router.delete("/{job_id}")
 def admin_delete_job(
     job_id: int,
-    current_user=Depends(get_verified_admin),
     session: Session = Depends(get_session),
 ):
     """Delete a job (requires verified admin)."""

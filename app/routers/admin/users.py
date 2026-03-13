@@ -2,7 +2,7 @@
 Admin router for user management - specifically for admin verification.
 """
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException
 from sqlmodel import Session, select
 
 from ...database import get_session
@@ -10,33 +10,36 @@ from ... import crud
 from ...auth import get_verified_admin
 from ...models import User
 from ...enums import Role
+from ...schemas import PaginationParams, UserAdminOut, UserAdminListOut
 
-router = APIRouter(prefix="/users", tags=["admin-users"])
+router = APIRouter(
+    prefix="/users",
+    tags=["admin-users"],
+    dependencies=[Depends(get_verified_admin)],
+)
 
 
-@router.get("/")
+@router.get("/", response_model=UserAdminListOut)
 def admin_list_users(
-    skip: int = Query(0, ge=0, description="Pagination skip"),
-    limit: int = Query(100, ge=1, le=100, description="Pagination limit"),
-    current_user=Depends(get_verified_admin),
+    pagination: PaginationParams = Depends(),
     session: Session = Depends(get_session),
 ):
     """List all users with pagination (requires verified admin)."""
-    items = crud.get_all_users(session, skip=skip, limit=limit)
+    items = crud.get_all_users(session, skip=pagination.skip, limit=pagination.limit)
     total = crud.count_users(session)
 
     return {
         "items": items,
-        "skip": skip,
-        "limit": limit,
-        "total": total
+        "skip": pagination.skip,
+        "limit": pagination.limit,
+        "total": total,
+        "has_more": pagination.skip + len(items) < total,
     }
 
 
-@router.get("/pending-admins")
+@router.get("/pending-admins", response_model=UserAdminListOut)
 def list_pending_admins(
-    skip: int = Query(0, ge=0, description="Pagination skip"),
-    limit: int = Query(100, ge=1, le=100, description="Pagination limit"),
+    pagination: PaginationParams = Depends(),
     current_user=Depends(get_verified_admin),
     session: Session = Depends(get_session),
 ):
@@ -51,18 +54,19 @@ def list_pending_admins(
             detail="Only the first admin can view pending admin requests"
         )
     
-    items = crud.get_pending_admins(session, skip=skip, limit=limit)
+    items = crud.get_pending_admins(session, skip=pagination.skip, limit=pagination.limit)
     total = crud.count_pending_admins(session)
 
     return {
         "items": items,
-        "skip": skip,
-        "limit": limit,
-        "total": total
+        "skip": pagination.skip,
+        "limit": pagination.limit,
+        "total": total,
+        "has_more": pagination.skip + len(items) < total,
     }
 
 
-@router.post("/{user_id}/verify-admin")
+@router.post("/{user_id}/verify-admin", response_model=UserAdminOut)
 def verify_admin_user(
     user_id: int,
     current_user=Depends(get_verified_admin),
@@ -104,10 +108,9 @@ def verify_admin_user(
     return verified
 
 
-@router.get("/{user_id}")
+@router.get("/{user_id}", response_model=UserAdminOut)
 def get_user(
     user_id: int,
-    current_user=Depends(get_verified_admin),
     session: Session = Depends(get_session),
 ):
     """Get user by ID (requires verified admin)."""

@@ -63,7 +63,7 @@ def get_job_by_id(session: Session, job_id: int) -> Optional[Job]:
 
 def list_jobs(session: Session, skip: int = 0, limit: int = 100) -> List[Job]:
     """List all jobs with pagination."""
-    statement = select(Job).offset(skip).limit(limit)
+    statement = select(Job).order_by(Job.created_at.desc(), Job.id.desc()).offset(skip).limit(limit)
     return session.exec(statement).all()
 
 
@@ -83,6 +83,7 @@ def list_verified_jobs(
         .where(Company.verified == True)
         .where(Job.closed == False)
         .where((Job.application_deadline == None) | (Job.application_deadline >= now))
+        .order_by(Job.created_at.desc(), Job.id.desc())
         .offset(skip)
     )
     if limit is not None:
@@ -109,9 +110,28 @@ def count_active_jobs(session: Session) -> int:
     return session.exec(statement).one()
 
 
+def count_verified_jobs(session: Session) -> int:
+    """Count verified, open jobs that haven't passed the deadline."""
+    now = datetime.utcnow()
+    statement = (
+        select(func.count())
+        .select_from(Job)
+        .join(Company, Company.id == Job.company_id)
+        .where(Company.is_active == True)
+        .where(Company.verified == True)
+        .where(Job.closed == False)
+        .where((Job.application_deadline == None) | (Job.application_deadline >= now))
+    )
+    return session.exec(statement).one()
+
+
 def get_applicants_for_job(session: Session, job_id: int) -> List[Application]:
     """Get all applications for a job."""
-    statement = select(Application).where(Application.job_id == job_id)
+    statement = (
+        select(Application)
+        .where(Application.job_id == job_id)
+        .order_by(Application.applied_at.desc(), Application.id.desc())
+    )
     return session.exec(statement).all()
 
 

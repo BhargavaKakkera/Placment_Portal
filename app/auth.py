@@ -1,23 +1,23 @@
-from datetime import datetime, timedelta
-from passlib.context import CryptContext
+from datetime import datetime, timedelta, timezone
 from typing import Optional
-import os
-from jose import jwt, JWTError
+
 from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
-from sqlmodel import Session, select
-from dotenv import load_dotenv
+from jose import jwt, JWTError
+from passlib.context import CryptContext
+from sqlmodel import Session
+
+from .config import (
+    ACCESS_TOKEN_EXPIRE_MINUTES,
+    ALGORITHM,
+    PASSWORD_RESET_TOKEN_EXPIRE_MINUTES,
+    SECRET_KEY,
+)
 from .models import User
 from .database import get_session
 
-load_dotenv()
-
 PWD_CONTEXT = CryptContext(schemes=["bcrypt"], deprecated="auto")
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login")
-
-SECRET_KEY = os.getenv("SECRET_KEY", "change-me-in-prod")
-ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "60"))
 
 
 def hash_password(password: str) -> str:
@@ -30,9 +30,53 @@ def verify_password(plain: str, hashed: str) -> bool:
 
 def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
     to_encode = data.copy()
-    expire = datetime.utcnow() + (expires_delta or timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES))
+    expire = datetime.now(timezone.utc) + (
+        expires_delta or timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+    )
+    subject = to_encode.pop("user_id", None)
+    if subject is not None and "sub" not in to_encode:
+        to_encode["sub"] = str(subject)
     to_encode.update({"exp": expire})
     return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
+
+
+def verify_access_token(token: str) -> Optional[int]:
+    """Return the access token user id if the token is valid."""
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        user_id_raw = payload.get("sub")
+        if user_id_raw is None:
+            return None
+        return int(user_id_raw)
+    except (JWTError, TypeError, ValueError):
+        return None
+
+
+def create_password_reset_token(user_id: int, expires_delta: Optional[timedelta] = None) -> str:
+    """Create a short-lived JWT token specifically for password reset."""
+    expire = datetime.now(timezone.utc) + (
+        expires_delta or timedelta(minutes=PASSWORD_RESET_TOKEN_EXPIRE_MINUTES)
+    )
+    payload = {
+        "sub": str(user_id),
+        "purpose": "password_reset",
+        "exp": expire,
+    }
+    return jwt.encode(payload, SECRET_KEY, algorithm=ALGORITHM)
+
+
+def verify_password_reset_token(token: str) -> Optional[int]:
+    """Return user_id if token is valid and meant for password reset."""
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        if payload.get("purpose") != "password_reset":
+            return None
+        user_id_raw = payload.get("sub")
+        if user_id_raw is None:
+            return None
+        return int(user_id_raw)
+    except (JWTError, TypeError, ValueError):
+        return None
 
 
 def get_current_user(token: str = Depends(oauth2_scheme), session: Session = Depends(get_session)):
@@ -41,13 +85,8 @@ def get_current_user(token: str = Depends(oauth2_scheme), session: Session = Dep
         detail="Could not validate credentials",
         headers={"WWW-Authenticate": "Bearer"},
     )
-    try:
-        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-        user_id_raw = payload.get("user_id")
-        if user_id_raw is None:
-            raise credentials_exception
-        user_id: int = int(user_id_raw)
-    except (JWTError, TypeError, ValueError):
+    user_id = verify_access_token(token)
+    if user_id is None:
         raise credentials_exception
     user = session.get(User, user_id)
     if not user:

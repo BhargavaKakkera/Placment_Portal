@@ -1,48 +1,14 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlmodel import Session, select
-from sqlalchemy.exc import IntegrityError
 
 from ..database import get_session
 from .. import crud
-from ..schemas import StudentCreate, StudentUpdate, StudentOut
+from ..schemas import StudentUpdate, StudentOut
 from ..auth import get_current_student
 from ..models import Application, Offer
 from ..enums import OfferStatus
 
 router = APIRouter(prefix="/students", tags=["students"])
-
-
-# ---------------------------
-# CREATE STUDENT PROFILE
-# ---------------------------
-
-@router.post("/", response_model=StudentOut)
-def create_student(
-    student_in: StudentCreate,
-    current_user=Depends(get_current_student),
-    session: Session = Depends(get_session),
-):
-    existing = crud.get_student_by_user_id(session, current_user.id)
-
-    if existing:
-        raise HTTPException(
-            status_code=400,
-            detail="Student profile already exists"
-        )
-
-    try:
-        student = crud.create_student(
-            session,
-            current_user.id,
-            **student_in.model_dump(mode="json")
-        )
-        return student
-    except IntegrityError:
-        session.rollback()
-        raise HTTPException(
-            status_code=422,
-            detail="Invalid student data for required fields"
-        )
 
 
 # ---------------------------
@@ -117,7 +83,11 @@ def my_applications(
             detail="Student profile not found"
         )
 
-    stmt = select(Application).where(Application.student_id == student.id)
+    stmt = (
+        select(Application)
+        .where(Application.student_id == student.id)
+        .order_by(Application.applied_at.desc(), Application.id.desc())
+    )
 
     return session.exec(stmt).all()
 
@@ -230,10 +200,12 @@ def delete_my_student(
 # WITHDRAW APPLICATION
 # ---------------------------
 
-@router.delete("/applications/{application_id}")
+@router.delete(
+    "/applications/{application_id}",
+    dependencies=[Depends(get_current_student)],
+)
 def withdraw_application(
     application_id: int,
-    current_user=Depends(get_current_student),
     session: Session = Depends(get_session),
 ):
     raise HTTPException(
@@ -253,7 +225,11 @@ def my_offers(
     if not student:
         raise HTTPException(status_code=404, detail="Student profile not found")
 
-    stmt = select(Offer).where(Offer.student_id == student.id)
+    stmt = (
+        select(Offer)
+        .where(Offer.student_id == student.id)
+        .order_by(Offer.created_at.desc(), Offer.id.desc())
+    )
 
     return session.exec(stmt).all()
 
@@ -271,6 +247,6 @@ def my_accepted_offers(
     stmt = select(Offer).where(
         Offer.student_id == student.id,
         Offer.status == OfferStatus.accepted,
-    )
+    ).order_by(Offer.created_at.desc(), Offer.id.desc())
 
     return session.exec(stmt).all()

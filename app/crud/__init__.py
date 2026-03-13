@@ -14,12 +14,15 @@ from .user_crud import (
     create_user,
     authenticate_user,
     get_user_by_id,
+    get_user_by_email,
     get_all_users,
     count_users,
     verify_admin,
     update_user_verification,
+    update_user_password,
     get_pending_admins,
     count_pending_admins,
+    purge_expired_unverified_users,
 )
 
 from .student_crud import (
@@ -32,7 +35,6 @@ from .student_crud import (
     list_students,
     count_students,
     count_placed_students,
-    verify_student,
 )
 
 from .company_crud import (
@@ -53,6 +55,7 @@ from .job_crud import (
     list_jobs,
     count_jobs,
     count_active_jobs,
+    count_verified_jobs,
     list_verified_jobs,
     get_applicants_for_job,
     close_job,
@@ -67,6 +70,7 @@ from .application_crud import (
     reject_applicant,
     list_applications,
     count_applications,
+    delete_application,
     update_application_status,
     apply_company_action,
 )
@@ -88,12 +92,15 @@ __all__ = [
     "create_user",
     "authenticate_user",
     "get_user_by_id",
+    "get_user_by_email",
     "get_all_users",
     "count_users",
     "verify_admin",
     "update_user_verification",
+    "update_user_password",
     "get_pending_admins",
     "count_pending_admins",
+    "purge_expired_unverified_users",
     # Student
     "create_student",
     "get_student_by_user_id",
@@ -104,7 +111,6 @@ __all__ = [
     "list_students",
     "count_students",
     "count_placed_students",
-    "verify_student",
     # Company
     "create_company",
     "get_company_by_user_id",
@@ -121,6 +127,7 @@ __all__ = [
     "list_jobs",
     "count_jobs",
     "count_active_jobs",
+    "count_verified_jobs",
     "list_verified_jobs",
     "get_applicants_for_job",
     "close_job",
@@ -133,6 +140,7 @@ __all__ = [
     "reject_applicant",
     "list_applications",
     "count_applications",
+    "delete_application",
     "update_application_status",
     "apply_company_action",
     # Offer

@@ -100,19 +100,24 @@ def list_companies(
     session: Session,
     skip: int = 0,
     limit: int = 100,
-    verified: bool = None
+    verified: bool = None,
+    include_inactive: bool = False,
 ) -> List[Company]:
-    """List active companies with optional filtering."""
-    statement = select(Company).where(Company.is_active == True)
+    """List companies with optional filtering."""
+    statement = select(Company)
+    if not include_inactive:
+        statement = statement.where(Company.is_active == True)
     if verified is not None:
         statement = statement.where(Company.verified == verified)
-    statement = statement.offset(skip).limit(limit)
+    statement = statement.order_by(Company.name.asc(), Company.id.asc()).offset(skip).limit(limit)
     return session.exec(statement).all()
 
 
-def count_companies(session: Session, verified: bool = None) -> int:
-    """Count active companies with optional filtering."""
-    statement = select(func.count()).select_from(Company).where(Company.is_active == True)
+def count_companies(session: Session, verified: bool = None, include_inactive: bool = False) -> int:
+    """Count companies with optional filtering."""
+    statement = select(func.count()).select_from(Company)
+    if not include_inactive:
+        statement = statement.where(Company.is_active == True)
     if verified is not None:
         statement = statement.where(Company.verified == verified)
     return session.exec(statement).one()

@@ -5,6 +5,7 @@ uvicorn[standard]==0.29.0
 # ORM / DB
 sqlmodel==0.0.16
 sqlalchemy==2.0.25
+alembic==1.13.2
 
 # Auth & security
 passlib[bcrypt]==1.7.4

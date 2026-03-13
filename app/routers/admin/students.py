@@ -2,49 +2,136 @@
 Admin router for student management.
 """
 
-from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlmodel import Session
+import secrets
+from typing import Optional
+
+from fastapi import APIRouter, Depends, HTTPException, Query, BackgroundTasks
+from sqlalchemy.exc import IntegrityError
+from sqlmodel import Session, select
 
 from ...database import get_session
 from ... import crud
-from ...auth import get_verified_admin
-from ...schemas import StudentAdminUpdate
+from ...auth import get_verified_admin, hash_password, create_password_reset_token
+from ...config import DEBUG
+from ...schemas import (
+    StudentAdminUpdate,
+    AdminStudentProvisionIn,
+    AdminStudentProvisionOut,
+    PaginationParams,
+    StudentListOut,
+)
+from ...models import User, Student
+from ...enums import Branch
+from ...enums import Role
 
-router = APIRouter(prefix="/students", tags=["admin-students"])
+router = APIRouter(
+    prefix="/students",
+    tags=["admin-students"],
+    dependencies=[Depends(get_verified_admin)],
+)
+DEBUG_MODE = DEBUG
 
 
-@router.post("/{student_id}/verify")
-def verify_student(
-    student_id: int,
-    current_user=Depends(get_verified_admin),
+def _send_student_invite_email(email: str, token: str) -> None:
+    """
+    Demo background task.
+    Replace with real email provider integration.
+    """
+    print(f"[student-invite] queued email for {email}")
+
+
+@router.post("/provision", response_model=AdminStudentProvisionOut)
+def provision_student(
+    payload: AdminStudentProvisionIn,
+    background_tasks: BackgroundTasks,
     session: Session = Depends(get_session),
 ):
-    """Verify a student (requires verified admin)."""
-    verified = crud.verify_student(session, student_id, current_user.id)
+    """Create student user+profile from official data and issue invite token."""
+    crud.purge_expired_unverified_users(session, older_than_days=15, email=payload.email)
 
-    if not verified:
-        raise HTTPException(status_code=404, detail="Student not found")
+    existing_user = session.exec(select(User).where(User.email == payload.email)).first()
+    if existing_user:
+        raise HTTPException(status_code=409, detail="Email already registered")
 
-    return verified
+    existing_student = session.exec(
+        select(Student).where(Student.reg_no == payload.reg_no)
+    ).first()
+    if existing_student:
+        raise HTTPException(status_code=409, detail="reg_no already exists")
+
+    temp_password = secrets.token_urlsafe(24)
+
+    try:
+        user = User(
+            email=payload.email,
+            password_hash=hash_password(temp_password),
+            role=Role.student,
+            is_first_admin=False,
+            verified=False,
+            is_active=True,
+        )
+        session.add(user)
+        session.flush()
+
+        student = Student(
+            user_id=user.id,
+            name=payload.name,
+            reg_no=payload.reg_no,
+            roll_no=payload.roll_no,
+            cgpa=payload.cgpa,
+            branch=payload.branch,
+            graduation_year=payload.graduation_year,
+            backlogs=payload.backlogs,
+        )
+        session.add(student)
+        session.commit()
+        session.refresh(student)
+    except IntegrityError:
+        session.rollback()
+        raise HTTPException(status_code=409, detail="Student/user already exists")
+
+    invite_token = create_password_reset_token(user.id)
+    background_tasks.add_task(_send_student_invite_email, user.email, invite_token)
+
+    response = {
+        "user_id": user.id,
+        "student_id": student.id,
+        "invite_sent": True,
+        "message": "Invite has been queued for email delivery.",
+    }
+    if DEBUG_MODE:
+        response["invite_token"] = invite_token
+
+    return response
 
 
-@router.get("/")
+@router.get("/", response_model=StudentListOut)
 def admin_list_students(
-    skip: int = Query(0, ge=0, description="Pagination skip (offset)"),
-    limit: int = Query(100, ge=1, le=100, description="Pagination limit (max 100)"),
-    verified: bool = Query(None, description="Filter by verification status"),
-    current_user=Depends(get_verified_admin),
+    pagination: PaginationParams = Depends(),
+    branch: Optional[Branch] = Query(None, description="Filter by branch"),
+    include_inactive: bool = Query(False, description="Include deactivated students"),
     session: Session = Depends(get_session),
 ):
     """List all students with pagination (requires verified admin)."""
-    items = crud.list_students(session, skip=skip, limit=limit, verified=verified)
-    total = crud.count_students(session, verified=verified)
+    items = crud.list_students(
+        session,
+        skip=pagination.skip,
+        limit=pagination.limit,
+        branch=branch,
+        include_inactive=include_inactive,
+    )
+    total = crud.count_students(
+        session,
+        branch=branch,
+        include_inactive=include_inactive,
+    )
 
     return {
         "items": items,
-        "skip": skip,
-        "limit": limit,
-        "total": total
+        "skip": pagination.skip,
+        "limit": pagination.limit,
+        "total": total,
+        "has_more": pagination.skip + len(items) < total,
     }
 
 
@@ -52,7 +139,6 @@ def admin_list_students(
 def admin_update_student(
     student_id: int,
     student_in: StudentAdminUpdate,
-    current_user=Depends(get_verified_admin),
     session: Session = Depends(get_session),
 ):
     """Update a student profile (requires verified admin)."""
@@ -67,7 +153,6 @@ def admin_update_student(
     updated = crud.update_student(
         session,
         student_id,
-        admin_user_id=current_user.id,
         **data
     )
 
@@ -83,7 +168,6 @@ def admin_update_student(
 @router.delete("/{student_id}")
 def admin_delete_student(
     student_id: int,
-    current_user=Depends(get_verified_admin),
     session: Session = Depends(get_session),
 ):
     """Delete a student (requires verified admin)."""
@@ -107,7 +191,6 @@ def admin_delete_student(
 @router.post("/{student_id}/reactivate")
 def admin_reactivate_student(
     student_id: int,
-    current_user=Depends(get_verified_admin),
     session: Session = Depends(get_session),
 ):
     """Reactivate a student and linked user account (requires verified admin)."""

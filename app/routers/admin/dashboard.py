@@ -10,12 +10,15 @@ from ... import crud
 from ...auth import get_verified_admin
 from ...schemas import AdminDashboardResponse
 
-router = APIRouter(prefix="/dashboard", tags=["admin-dashboard"])
+router = APIRouter(
+    prefix="/dashboard",
+    tags=["admin-dashboard"],
+    dependencies=[Depends(get_verified_admin)],
+)
 
 
 @router.get("/", response_model=AdminDashboardResponse)
 def get_dashboard_stats(
-    current_user=Depends(get_verified_admin),
     session: Session = Depends(get_session),
 ):
     """

@@ -1,13 +1,14 @@
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException
 from sqlmodel import Session
 from datetime import datetime
 from ..database import get_session
 from .. import crud
-from ..schemas import JobCreate
+from ..schemas import JobCreate, JobListOut, PaginationParams
 from ..auth import get_current_company
 from ..models import Job
 from ..models import Application
 from ..auth import get_current_student
+from ..crud.offer_crud import get_application_block_reason
 
 router = APIRouter(prefix="/jobs", tags=["jobs"])
 
@@ -24,9 +25,17 @@ def create_job(job_in: JobCreate, current_user=Depends(get_current_company), ses
     return job
 
 
-@router.get("/")
-def list_jobs(skip: int = Query(0, ge=0), limit: int = Query(10, ge=1, le=100), session: Session = Depends(get_session)):
-    return crud.get_verified_jobs(session, skip=skip, limit=limit)
+@router.get("/", response_model=JobListOut)
+def list_jobs(pagination: PaginationParams = Depends(), session: Session = Depends(get_session)):
+    items = crud.get_verified_jobs(session, skip=pagination.skip, limit=pagination.limit)
+    total = crud.count_verified_jobs(session)
+    return {
+        "items": items,
+        "skip": pagination.skip,
+        "limit": pagination.limit,
+        "total": total,
+        "has_more": pagination.skip + len(items) < total,
+    }
 
 
 @router.post("/{job_id}/apply")
@@ -35,15 +44,17 @@ def apply_to_job(job_id: int, current_user=Depends(get_current_student), session
     student = crud.get_student_by_user_id(session, current_user.id)
     if not student:
         raise HTTPException(status_code=404, detail="Student profile not found")
-    if student.locked_offer_id is not None:
-        raise HTTPException(status_code=400, detail="Student already accepted an offer and cannot apply to new jobs")
     try:
         application = crud.apply_job(session, student.id, job_id)
     except ValueError as e:
         message = str(e)
         if "not verified" in message or "deactivated" in message:
             raise HTTPException(status_code=403, detail=message)
-        if "Already applied" in message or "already accepted" in message:
+        if (
+            "Already applied" in message
+            or "already accepted" in message
+            or "cannot apply" in message
+        ):
             raise HTTPException(status_code=409, detail=message)
         raise HTTPException(status_code=400, detail=message)
     return application
@@ -58,8 +69,6 @@ def list_eligible_jobs(
 
     if not student:
         raise HTTPException(status_code=404, detail="Student profile not found")
-    if student.locked_offer_id is not None:
-        return []
     if student.cgpa is None or student.branch is None:
         raise HTTPException(
             status_code=409,
@@ -88,6 +97,14 @@ def list_eligible_jobs(
             continue
 
         if job.closed:
+            continue
+
+        block_reason = get_application_block_reason(
+            session,
+            student.id,
+            getattr(job, "role_type", None),
+        )
+        if block_reason:
             continue
 
         eligible.append(job)

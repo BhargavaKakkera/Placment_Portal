@@ -7,7 +7,7 @@ from sqlmodel import Session, select, func
 from typing import Optional, List
 from ..models import Application, Student, Job, Offer
 from ..enums import ApplicationStatus, CompanyApplicationAction, OfferStatus
-from .offer_crud import create_offer
+from .offer_crud import create_offer, get_application_block_reason
 
 
 def apply_job(session: Session, student_id: int, job_id: int) -> Application:
@@ -38,10 +38,6 @@ def apply_job(session: Session, student_id: int, job_id: int) -> Application:
     if not getattr(student, "is_active", True):
         raise ValueError("Student profile is deactivated")
     
-    # Student must be verified by admin before applying
-    if not getattr(student, 'verified', False):
-        raise ValueError("Student profile not verified by admin")
-    
     # CGPA eligibility
     if student.cgpa is None:
         raise ValueError("Student CGPA is missing. Ask admin to update profile.")
@@ -61,9 +57,13 @@ def apply_job(session: Session, student_id: int, job_id: int) -> Application:
     if job.max_backlogs is not None and student.backlogs is not None and student.backlogs > job.max_backlogs:
         raise ValueError("Too many backlogs to be eligible")
     
-    # Placement rule: student who has accepted offer cannot apply
-    if student.locked_offer_id is not None:
-        raise ValueError("Student already accepted an offer")
+    block_reason = get_application_block_reason(
+        session,
+        student_id,
+        getattr(job, "role_type", None),
+    )
+    if block_reason:
+        raise ValueError(block_reason)
     
     # Create application
     app_obj = Application(student_id=student_id, job_id=job_id)
@@ -143,7 +143,12 @@ def list_applications(
     limit: int = 100
 ) -> List[Application]:
     """List all applications with pagination."""
-    statement = select(Application).offset(skip).limit(limit)
+    statement = (
+        select(Application)
+        .order_by(Application.applied_at.desc())
+        .offset(skip)
+        .limit(limit)
+    )
     return session.exec(statement).all()
 
 
@@ -151,6 +156,20 @@ def count_applications(session: Session) -> int:
     """Count all applications."""
     statement = select(func.count()).select_from(Application)
     return session.exec(statement).one()
+
+
+def delete_application(session: Session, application_id: int) -> Optional[bool]:
+    """Delete an application (admin operation)."""
+    application = session.get(Application, application_id)
+    if not application:
+        return None
+    try:
+        session.delete(application)
+        session.commit()
+        return True
+    except Exception:
+        session.rollback()
+        return None
 
 
 def update_application_status(
@@ -186,10 +205,9 @@ def apply_company_action(
         raise ValueError("Not allowed to modify this application")
 
     current_status = application.status
-    if current_status == ApplicationStatus.accepted and action != CompanyApplicationAction.rejected:
-        raise ValueError("Accepted applications can only be moved to rejected")
-
     if action == CompanyApplicationAction.offered:
+        if current_status != ApplicationStatus.shortlisted:
+            raise ValueError("Only shortlisted applications can be moved to offered")
         return create_offer(
             session,
             job.id,
@@ -200,10 +218,8 @@ def apply_company_action(
         )
 
     if action == CompanyApplicationAction.shortlisted:
-        if current_status == ApplicationStatus.accepted:
-            raise ValueError(
-                "Cannot shortlist an accepted application directly. Move it to rejected first."
-            )
+        if current_status not in {ApplicationStatus.applied, ApplicationStatus.offered}:
+            raise ValueError("Only applied/offered applications can be moved to shortlisted")
         if current_status == ApplicationStatus.offered:
             offer_stmt = select(Offer).where(
                 Offer.job_id == application.job_id,
@@ -216,6 +232,13 @@ def apply_company_action(
                 session.add(active_offer)
         application.status = ApplicationStatus.shortlisted
     elif action == CompanyApplicationAction.rejected:
+        if current_status not in {
+            ApplicationStatus.applied,
+            ApplicationStatus.shortlisted,
+            ApplicationStatus.offered,
+            ApplicationStatus.accepted,
+        }:
+            raise ValueError("Only active pipeline applications can be rejected")
         if current_status == ApplicationStatus.offered:
             offer_stmt = select(Offer).where(
                 Offer.job_id == application.job_id,

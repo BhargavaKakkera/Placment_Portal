@@ -16,6 +16,64 @@ def _to_utc_naive(dt: datetime) -> datetime:
     return dt.astimezone(timezone.utc).replace(tzinfo=None)
 
 
+def _normalize_role_type(role_type) -> RoleType:
+    """Return a valid RoleType from enum/string values."""
+    if isinstance(role_type, RoleType):
+        return role_type
+    if isinstance(role_type, str):
+        try:
+            return RoleType(role_type)
+        except ValueError:
+            pass
+    return RoleType.full_time
+
+
+def get_student_acceptance_state(session: Session, student_id: int) -> dict:
+    """Summarize accepted offers for a student by role type."""
+    statement = (
+        select(Offer, Job)
+        .join(Job, Offer.job_id == Job.id)
+        .where(
+            Offer.student_id == student_id,
+            Offer.status == OfferStatus.accepted,
+        )
+    )
+    accepted_rows = session.exec(statement).all()
+
+    has_accepted_internship = False
+    has_accepted_full_time = False
+    accepted_internship_offer_ids = []
+
+    for offer, job in accepted_rows:
+        role_type = _normalize_role_type(getattr(job, "role_type", RoleType.full_time))
+        if role_type == RoleType.internship:
+            has_accepted_internship = True
+            accepted_internship_offer_ids.append(offer.id)
+        else:
+            has_accepted_full_time = True
+
+    return {
+        "has_accepted_internship": has_accepted_internship,
+        "has_accepted_full_time": has_accepted_full_time,
+        "accepted_internship_offer_ids": accepted_internship_offer_ids,
+    }
+
+
+def get_application_block_reason(session: Session, student_id: int, role_type) -> Optional[str]:
+    """Return the role-aware block reason for a new application or offer."""
+    target_role = _normalize_role_type(role_type)
+    acceptance_state = get_student_acceptance_state(session, student_id)
+
+    if acceptance_state["has_accepted_full_time"]:
+        return "Student already accepted a full-time offer and cannot apply to new jobs"
+    if (
+        target_role == RoleType.internship
+        and acceptance_state["has_accepted_internship"]
+    ):
+        return "Student already accepted an internship offer and cannot apply to more internship jobs"
+    return None
+
+
 def _expire_overdue_offers(session: Session, student_id: Optional[int] = None) -> int:
     """
     Expire offered records past response deadline.
@@ -79,8 +137,8 @@ def create_offer(
     application = session.exec(statement).first()
     if not application:
         raise ValueError("Application not found")
-    if application.status == ApplicationStatus.accepted:
-        raise ValueError("Accepted applications cannot be offered again")
+    if application.status != ApplicationStatus.shortlisted:
+        raise ValueError("Only shortlisted applications can be offered")
     
     # enforce CTC requirement based on job role
     job = session.get(Job, job_id)
@@ -89,12 +147,7 @@ def create_offer(
     if job.company_id != company_id:
         raise ValueError("Company not authorized for this job")
 
-    role_type = getattr(job, "role_type", RoleType.full_time)
-    if isinstance(role_type, str):
-        try:
-            role_type = RoleType(role_type)
-        except ValueError:
-            raise ValueError("Invalid job role type")
+    role_type = _normalize_role_type(getattr(job, "role_type", RoleType.full_time))
 
     if role_type == RoleType.full_time and ctc is None:
         raise ValueError("CTC required for full-time offers")
@@ -102,8 +155,9 @@ def create_offer(
     student = session.get(Student, student_id)
     if not student or not getattr(student, "is_active", True):
         raise ValueError("Student not found")
-    if student.locked_offer_id is not None:
-        raise ValueError("Student already accepted another offer and cannot be offered")
+    block_reason = get_application_block_reason(session, student_id, role_type)
+    if block_reason:
+        raise ValueError(block_reason.replace("apply to new jobs", "be offered new roles").replace("apply to more internship jobs", "be offered another internship role"))
 
     effective_deadline = response_deadline or job.application_deadline or (datetime.utcnow() + timedelta(days=7))
     effective_deadline = _to_utc_naive(effective_deadline)
@@ -175,17 +229,20 @@ def accept_offer(session: Session, offer_id: int, student_id: int) -> Optional[O
     student = session.get(Student, student_id)
     if not student or not getattr(student, "is_active", True):
         return None
-    if student.locked_offer_id is not None:
+    role_type = _normalize_role_type(getattr(session.get(Job, offer.job_id), "role_type", RoleType.full_time))
+    acceptance_state = get_student_acceptance_state(session, student_id)
+    if acceptance_state["has_accepted_full_time"]:
         return None
-    # student must be verified to accept offers
-    if not getattr(student, 'verified', False):
+    if (
+        role_type == RoleType.internship
+        and acceptance_state["has_accepted_internship"]
+    ):
         return None
-    
     # perform acceptance atomically: set this offer to accepted, mark student locked,
     # and decline other offers for the student.
     try:
         offer.status = OfferStatus.accepted
-        student.locked_offer_id = offer.id
+        student.locked_offer_id = offer.id if role_type == RoleType.full_time else None
         session.add(offer)
         session.add(student)
 
@@ -198,11 +255,11 @@ def accept_offer(session: Session, offer_id: int, student_id: int) -> Optional[O
             accepted_app.status = ApplicationStatus.accepted
             session.add(accepted_app)
 
-        # decline other offers for this student
+        # Full-time acceptance is terminal. Internship acceptance only closes
+        # other internship offers, leaving full-time opportunities open.
         stmt = select(Offer).where(
             Offer.student_id == student_id,
             Offer.id != offer_id,
-            Offer.status == OfferStatus.offered,
         )
         others = session.exec(stmt).all()
         other_job_ids = {o.job_id for o in others}
@@ -216,12 +273,30 @@ def accept_offer(session: Session, offer_id: int, student_id: int) -> Optional[O
             other_apps_by_job_id = {app.job_id: app for app in other_apps}
 
         for o in others:
+            other_job = session.get(Job, o.job_id)
+            other_role_type = _normalize_role_type(getattr(other_job, "role_type", RoleType.full_time))
+            should_decline = False
+            if o.status == OfferStatus.offered:
+                should_decline = (
+                    role_type == RoleType.full_time
+                    or other_role_type == RoleType.internship
+                )
+            elif o.status == OfferStatus.accepted:
+                should_decline = (
+                    role_type == RoleType.full_time
+                    and other_role_type == RoleType.internship
+                )
+
+            if not should_decline:
+                continue
+
             o.status = OfferStatus.declined
             session.add(o)
             other_app = other_apps_by_job_id.get(o.job_id)
             if other_app and other_app.status in {
                 ApplicationStatus.offered,
                 ApplicationStatus.shortlisted,
+                ApplicationStatus.accepted,
             }:
                 other_app.status = ApplicationStatus.declined
                 session.add(other_app)

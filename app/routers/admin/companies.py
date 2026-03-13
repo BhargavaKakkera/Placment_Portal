@@ -8,14 +8,18 @@ from sqlmodel import Session
 from ...database import get_session
 from ... import crud
 from ...auth import get_verified_admin
+from ...schemas import CompanyListOut, PaginationParams
 
-router = APIRouter(prefix="/companies", tags=["admin-companies"])
+router = APIRouter(
+    prefix="/companies",
+    tags=["admin-companies"],
+    dependencies=[Depends(get_verified_admin)],
+)
 
 
 @router.post("/{company_id}/verify")
 def verify_company(
     company_id: int,
-    current_user=Depends(get_verified_admin),
     session: Session = Depends(get_session),
 ):
     """Verify a company (requires verified admin)."""
@@ -30,30 +34,35 @@ def verify_company(
     return verified
 
 
-@router.get("/")
+@router.get("/", response_model=CompanyListOut)
 def admin_list_companies(
-    skip: int = Query(0, ge=0, description="Pagination skip (offset)"),
-    limit: int = Query(100, ge=1, le=100, description="Pagination limit (max 100)"),
+    pagination: PaginationParams = Depends(),
     verified: bool = Query(None, description="Filter by verification status"),
-    current_user=Depends(get_verified_admin),
+    include_inactive: bool = Query(False, description="Include deactivated companies"),
     session: Session = Depends(get_session),
 ):
     """List all companies with pagination (requires verified admin)."""
-    items = crud.list_companies(session, skip=skip, limit=limit, verified=verified)
-    total = crud.count_companies(session, verified=verified)
+    items = crud.list_companies(
+        session,
+        skip=pagination.skip,
+        limit=pagination.limit,
+        verified=verified,
+        include_inactive=include_inactive,
+    )
+    total = crud.count_companies(session, verified=verified, include_inactive=include_inactive)
 
     return {
         "items": items,
-        "skip": skip,
-        "limit": limit,
-        "total": total
+        "skip": pagination.skip,
+        "limit": pagination.limit,
+        "total": total,
+        "has_more": pagination.skip + len(items) < total,
     }
 
 
 @router.delete("/{company_id}")
 def admin_delete_company(
     company_id: int,
-    current_user=Depends(get_verified_admin),
     session: Session = Depends(get_session),
 ):
     """Delete a company (requires verified admin)."""
@@ -77,7 +86,6 @@ def admin_delete_company(
 @router.post("/{company_id}/reactivate")
 def admin_reactivate_company(
     company_id: int,
-    current_user=Depends(get_verified_admin),
     session: Session = Depends(get_session),
 ):
     """Reactivate a company and linked user account (requires verified admin)."""
