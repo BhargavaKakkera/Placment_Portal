@@ -2,18 +2,12 @@
 Offer CRUD operations for job offers management.
 """
 
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta
 from sqlmodel import Session, select, func
 from typing import Optional, List
-from ..models import Offer, Application, Student, Job
+from ..models import Offer, Application, Student, Job, Company
 from ..enums import RoleType, ApplicationStatus, OfferStatus
-
-
-def _to_utc_naive(dt: datetime) -> datetime:
-    """Normalize datetime values to UTC-naive for consistent DB comparisons."""
-    if dt.tzinfo is None:
-        return dt
-    return dt.astimezone(timezone.utc).replace(tzinfo=None)
+from ..datetime_utils import utc_now, to_utc_naive
 
 
 def _normalize_role_type(role_type) -> RoleType:
@@ -24,7 +18,7 @@ def _normalize_role_type(role_type) -> RoleType:
         try:
             return RoleType(role_type)
         except ValueError:
-            pass
+            raise ValueError("Invalid role_type")
     return RoleType.full_time
 
 
@@ -81,7 +75,7 @@ def _expire_overdue_offers(session: Session, student_id: Optional[int] = None) -
     - offer.status = declined
     - application.status = rejected
     """
-    now = datetime.utcnow()
+    now = utc_now()
     statement = select(Offer).where(
         Offer.status == OfferStatus.offered,
         Offer.response_deadline != None,
@@ -159,9 +153,9 @@ def create_offer(
     if block_reason:
         raise ValueError(block_reason.replace("apply to new jobs", "be offered new roles").replace("apply to more internship jobs", "be offered another internship role"))
 
-    effective_deadline = response_deadline or job.application_deadline or (datetime.utcnow() + timedelta(days=7))
-    effective_deadline = _to_utc_naive(effective_deadline)
-    if effective_deadline <= datetime.utcnow():
+    effective_deadline = response_deadline or job.application_deadline or (utc_now() + timedelta(days=7))
+    effective_deadline = to_utc_naive(effective_deadline)
+    if effective_deadline <= utc_now():
         raise ValueError("Offer response deadline must be in the future")
 
     existing_offer_stmt = select(Offer).where(
@@ -213,7 +207,7 @@ def accept_offer(session: Session, offer_id: int, student_id: int) -> Optional[O
         return None
     if offer.status != OfferStatus.offered:
         return None
-    if offer.response_deadline and _to_utc_naive(offer.response_deadline) < datetime.utcnow():
+    if offer.response_deadline and to_utc_naive(offer.response_deadline) < utc_now():
         offer.status = OfferStatus.declined
         session.add(offer)
         app_stmt = select(Application).where(
@@ -338,11 +332,93 @@ def decline_offer(session: Session, offer_id: int, student_id: int) -> Optional[
     return offer
 
 
-def get_offers_for_student(session: Session, student_id: int) -> List[Offer]:
-    """Get all offers for a student."""
+def list_student_offer_summaries(
+    session: Session,
+    student_id: int,
+    status: Optional[OfferStatus] = None,
+):
+    """List a student's offers with job and company context."""
     _expire_overdue_offers(session, student_id=student_id)
-    statement = select(Offer).where(Offer.student_id == student_id)
-    return session.exec(statement).all()
+    statement = (
+        select(Offer, Job, Company)
+        .join(Job, Offer.job_id == Job.id)
+        .join(Company, Offer.company_id == Company.id)
+        .where(Offer.student_id == student_id)
+        .order_by(Offer.created_at.desc(), Offer.id.desc())
+    )
+    if status is not None:
+        statement = statement.where(Offer.status == status)
+
+    rows = session.exec(statement).all()
+    return [
+        {
+            "id": offer.id,
+            "job_id": job.id,
+            "company_id": company.id,
+            "company_name": company.name,
+            "job_title": job.title,
+            "job_description": job.description,
+            "role_type": job.role_type,
+            "stipend": job.stipend,
+            "ctc": offer.ctc if offer.ctc is not None else job.ctc,
+            "status": offer.status,
+            "response_deadline": offer.response_deadline,
+            "created_at": offer.created_at,
+        }
+        for offer, job, company in rows
+    ]
+
+
+def list_company_accepted_offer_summaries(
+    session: Session,
+    company_id: int,
+    skip: int = 0,
+    limit: int = 100,
+):
+    """List accepted offers for a company with student and job context."""
+    statement = (
+        select(Offer, Student, Job)
+        .join(Student, Offer.student_id == Student.id)
+        .join(Job, Offer.job_id == Job.id)
+        .where(
+            Offer.company_id == company_id,
+            Offer.status == OfferStatus.accepted,
+        )
+        .order_by(Offer.created_at.desc(), Offer.id.desc())
+        .offset(skip)
+        .limit(limit)
+    )
+    rows = session.exec(statement).all()
+    return [
+        {
+            "id": offer.id,
+            "job_id": job.id,
+            "student_id": student.id,
+            "student_name": student.name,
+            "reg_no": student.reg_no,
+            "roll_no": student.roll_no,
+            "job_title": job.title,
+            "role_type": job.role_type,
+            "stipend": job.stipend,
+            "ctc": offer.ctc if offer.ctc is not None else job.ctc,
+            "status": offer.status,
+            "created_at": offer.created_at,
+        }
+        for offer, student, job in rows
+    ]
+
+
+def count_company_accepted_offers(session: Session, company_id: int) -> int:
+    """Count accepted offers for a company."""
+    statement = (
+        select(func.count())
+        .select_from(Offer)
+        .where(
+            Offer.company_id == company_id,
+            Offer.status == OfferStatus.accepted,
+        )
+    )
+    return session.exec(statement).one()
 
 
 def count_offers_made(session: Session) -> int:
@@ -356,3 +432,9 @@ def count_offers_accepted(session: Session) -> int:
     statement = select(func.count()).select_from(Offer).where(Offer.status == OfferStatus.accepted)
     return session.exec(statement).one()
 
+
+def count_offers_pending_response(session: Session) -> int:
+    """Count offers awaiting student response."""
+    _expire_overdue_offers(session)
+    statement = select(func.count()).select_from(Offer).where(Offer.status == OfferStatus.offered)
+    return session.exec(statement).one()

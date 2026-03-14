@@ -2,7 +2,10 @@ import os
 import unittest
 from datetime import datetime, timedelta, timezone
 
-os.environ["DATABASE_URL"] = "sqlite:///./test_placement.db"
+os.environ["DATABASE_URL"] = os.getenv(
+    "TEST_DATABASE_URL",
+    "postgresql+psycopg://postgres:2005@localhost:5432/test_placment_portal",
+)
 os.environ["DEBUG"] = "true"
 
 from fastapi.testclient import TestClient
@@ -18,26 +21,14 @@ from app.database import engine
 class CriticalWorkflowTests(unittest.TestCase):
     def setUp(self):
         engine.dispose()
-        db_file = os.path.join(os.getcwd(), "test_placement.db")
-        if os.path.exists(db_file):
-            try:
-                os.remove(db_file)
-            except PermissionError:
-                engine.dispose()
-                os.remove(db_file)
         alembic_cfg = Config("alembic.ini")
+        command.downgrade(alembic_cfg, "base")
         command.upgrade(alembic_cfg, "head")
         self.client = TestClient(app)
 
     def tearDown(self):
         self.client.close()
         engine.dispose()
-        db_file = os.path.join(os.getcwd(), "test_placement.db")
-        if os.path.exists(db_file):
-            try:
-                os.remove(db_file)
-            except OSError:
-                pass
 
     def _auth_header(self, token: str):
         return {"Authorization": f"Bearer {token}"}
@@ -48,7 +39,21 @@ class CriticalWorkflowTests(unittest.TestCase):
             json={"email": email, "password": password, "role": role},
         )
         self.assertEqual(resp.status_code, 200, resp.text)
-        return resp.json()["access_token"]
+        payload = resp.json()
+
+        if role in {"admin", "company"}:
+            verification_token = payload.get("verification_token")
+            self.assertTrue(verification_token)
+
+            verify_resp = self.client.post(
+                "/auth/verify-email",
+                json={"token": verification_token},
+            )
+            self.assertEqual(verify_resp.status_code, 200, verify_resp.text)
+
+            return self._login(email, password)
+
+        return payload["access_token"]
 
     def _provision_student(
         self,
@@ -152,12 +157,12 @@ class CriticalWorkflowTests(unittest.TestCase):
         )
         self.assertEqual(new_login.status_code, 200, new_login.text)
 
-    def test_sqlite_foreign_keys_enabled(self):
+    def test_test_suite_uses_postgresql_database(self):
         with Session(engine) as session:
-            value = session.exec(text("PRAGMA foreign_keys")).one()
-        if not isinstance(value, int):
+            value = session.exec(text("SELECT current_database()")).one()
+        if not isinstance(value, str):
             value = value[0]
-        self.assertEqual(value, 1)
+        self.assertEqual(value, "test_placment_portal")
 
     def test_student_soft_delete_deactivates_account(self):
         admin_token = self._register("admin_soft_delete@example.com", "Password123", "admin")
@@ -236,7 +241,7 @@ class CriticalWorkflowTests(unittest.TestCase):
             headers=self._auth_header(company_token),
         )
         self.assertEqual(applicants_resp.status_code, 200, applicants_resp.text)
-        application_id = applicants_resp.json()[0]["id"]
+        application_id = applicants_resp.json()["items"][0]["id"]
 
         shortlist_resp = self.client.patch(
             f"/companies/applications/{application_id}",
@@ -537,7 +542,7 @@ class CriticalWorkflowTests(unittest.TestCase):
             headers=self._auth_header(company_token),
         )
         self.assertEqual(internship_applicants.status_code, 200, internship_applicants.text)
-        internship_application_id = internship_applicants.json()[0]["id"]
+        internship_application_id = internship_applicants.json()["items"][0]["id"]
 
         shortlist_internship = self.client.patch(
             f"/companies/applications/{internship_application_id}",
@@ -582,7 +587,7 @@ class CriticalWorkflowTests(unittest.TestCase):
             headers=self._auth_header(company_token),
         )
         self.assertEqual(full_time_applicants.status_code, 200, full_time_applicants.text)
-        full_time_application_id = full_time_applicants.json()[0]["id"]
+        full_time_application_id = full_time_applicants.json()["items"][0]["id"]
 
         shortlist_full_time = self.client.patch(
             f"/companies/applications/{full_time_application_id}",

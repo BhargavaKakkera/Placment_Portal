@@ -2,12 +2,13 @@
 User CRUD operations for authentication and admin management.
 """
 
-from datetime import datetime, timedelta
+from datetime import timedelta
 from sqlmodel import Session, select, func
 from typing import Optional, List
 from ..models import User, Student, Company, Application, Offer, Job
 from ..auth import hash_password, verify_password
 from ..enums import Role
+from ..datetime_utils import utc_now
 
 
 def create_user(
@@ -59,9 +60,26 @@ def update_user_password(session: Session, user_id: int, new_password: str) -> O
     if not user or not getattr(user, "is_active", True):
         return None
     user.password_hash = hash_password(new_password)
+    if not getattr(user, "email_verified", False):
+        user.email_verified = True
+        user.email_verified_at = utc_now()
     session.add(user)
     session.commit()
     session.refresh(user)
+    return user
+
+
+def mark_user_email_verified(session: Session, user_id: int) -> Optional[User]:
+    """Mark a user's email as verified."""
+    user = session.get(User, user_id)
+    if not user or not getattr(user, "is_active", True):
+        return None
+    if not user.email_verified:
+        user.email_verified = True
+        user.email_verified_at = utc_now()
+        session.add(user)
+        session.commit()
+        session.refresh(user)
     return user
 
 
@@ -95,7 +113,7 @@ def verify_admin(session: Session, admin_user_id: int, verified_by_admin_id: int
         return None
     
     admin.verified = True
-    admin.verified_at = datetime.utcnow()
+    admin.verified_at = utc_now()
     admin.verified_by_admin_id = verified_by_admin_id
     
     session.add(admin)
@@ -117,7 +135,7 @@ def update_user_verification(
     
     user.verified = verified
     if verified:
-        user.verified_at = datetime.utcnow()
+        user.verified_at = utc_now()
         user.verified_by_admin_id = verified_by_admin_id
     else:
         user.verified_at = None
@@ -163,15 +181,15 @@ def purge_expired_unverified_users(
     email: Optional[str] = None,
 ) -> int:
     """
-    Hard-delete stale unverified users older than `older_than_days`.
+    Hard-delete stale email-unverified users older than `older_than_days`.
     Safety rule: delete only if there is no placement history.
     - Student side history: applications/offers
     - Company side history: jobs/offers
     """
-    cutoff = datetime.utcnow() - timedelta(days=older_than_days)
+    cutoff = utc_now() - timedelta(days=older_than_days)
     statement = (
         select(User)
-        .where(User.verified == False)
+        .where(User.email_verified == False)
         .where(User.created_at <= cutoff)
     )
     if email:

@@ -2,10 +2,10 @@
 Company CRUD operations for company profile management.
 """
 
-from datetime import datetime
 from sqlmodel import Session, select, func
 from typing import Optional, List
 from ..models import Company, User
+from ..datetime_utils import utc_now
 
 
 def create_company(session: Session, user_id: int, name: str) -> Company:
@@ -54,13 +54,13 @@ def delete_company(session: Session, company_id: int) -> Optional[bool]:
         return None
     try:
         company.is_active = False
-        company.deactivated_at = datetime.utcnow()
+        company.deactivated_at = utc_now()
         session.add(company)
 
         user = session.get(User, company.user_id)
         if user and getattr(user, "is_active", True):
             user.is_active = False
-            user.deactivated_at = datetime.utcnow()
+            user.deactivated_at = utc_now()
             session.add(user)
 
         session.commit()

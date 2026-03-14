@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta, timezone
+from datetime import timedelta
 from typing import Optional
 
 from fastapi import Depends, HTTPException, status
@@ -15,6 +15,7 @@ from .config import (
 )
 from .models import User
 from .database import get_session
+from .datetime_utils import utc_now_aware
 
 PWD_CONTEXT = CryptContext(schemes=["bcrypt"], deprecated="auto")
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login")
@@ -30,7 +31,7 @@ def verify_password(plain: str, hashed: str) -> bool:
 
 def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
     to_encode = data.copy()
-    expire = datetime.now(timezone.utc) + (
+    expire = utc_now_aware() + (
         expires_delta or timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
     )
     subject = to_encode.pop("user_id", None)
@@ -54,7 +55,7 @@ def verify_access_token(token: str) -> Optional[int]:
 
 def create_password_reset_token(user_id: int, expires_delta: Optional[timedelta] = None) -> str:
     """Create a short-lived JWT token specifically for password reset."""
-    expire = datetime.now(timezone.utc) + (
+    expire = utc_now_aware() + (
         expires_delta or timedelta(minutes=PASSWORD_RESET_TOKEN_EXPIRE_MINUTES)
     )
     payload = {
@@ -65,11 +66,38 @@ def create_password_reset_token(user_id: int, expires_delta: Optional[timedelta]
     return jwt.encode(payload, SECRET_KEY, algorithm=ALGORITHM)
 
 
+def create_email_verification_token(user_id: int, expires_delta: Optional[timedelta] = None) -> str:
+    """Create a short-lived JWT token specifically for email verification."""
+    expire = utc_now_aware() + (
+        expires_delta or timedelta(minutes=PASSWORD_RESET_TOKEN_EXPIRE_MINUTES)
+    )
+    payload = {
+        "sub": str(user_id),
+        "purpose": "email_verification",
+        "exp": expire,
+    }
+    return jwt.encode(payload, SECRET_KEY, algorithm=ALGORITHM)
+
+
 def verify_password_reset_token(token: str) -> Optional[int]:
     """Return user_id if token is valid and meant for password reset."""
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
         if payload.get("purpose") != "password_reset":
+            return None
+        user_id_raw = payload.get("sub")
+        if user_id_raw is None:
+            return None
+        return int(user_id_raw)
+    except (JWTError, TypeError, ValueError):
+        return None
+
+
+def verify_email_verification_token(token: str) -> Optional[int]:
+    """Return user_id if token is valid and meant for email verification."""
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        if payload.get("purpose") != "email_verification":
             return None
         user_id_raw = payload.get("sub")
         if user_id_raw is None:
@@ -118,6 +146,11 @@ def get_current_student(user: User = Depends(get_current_user)):
 def get_current_company(user: User = Depends(get_current_user)):
     if user.role != "company":
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only companies allowed")
+    if not getattr(user, "email_verified", False):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Company email not verified. Please verify your email first."
+        )
     return user
 
 
@@ -125,6 +158,11 @@ def get_current_admin(user: User = Depends(get_current_user)):
     """Check if user has admin role"""
     if user.role != "admin":
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only admins allowed")
+    if not getattr(user, "email_verified", False):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Admin email not verified. Please verify your email first."
+        )
     return user
 
 
@@ -137,7 +175,13 @@ def get_verified_admin(user: User = Depends(get_current_admin)):
     if user.role != "admin":
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only admins allowed")
     
-    # First admin is always verified
+    if not getattr(user, "email_verified", False):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Admin email not verified. Please verify your email first."
+        )
+
+    # First admin is always admin-approved after email verification.
     if user.is_first_admin:
         return user
     

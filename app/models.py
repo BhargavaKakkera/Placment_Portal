@@ -10,6 +10,7 @@ from .enums import (
     ApplicationStatus,
     OfferStatus
 )
+from .datetime_utils import utc_now
 
 
 class User(SQLModel, table=True):
@@ -17,7 +18,9 @@ class User(SQLModel, table=True):
     email: str = Field(index=True, unique=True)
     password_hash: str
     role: Role = Field(index=True)
-    created_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=utc_now)
+    email_verified: bool = Field(default=False, index=True)
+    email_verified_at: Optional[datetime] = None
 
     # Admin verification fields
     is_first_admin: bool = Field(default=False)
@@ -125,7 +128,7 @@ class Job(SQLModel, table=True):
 
     closed: bool = Field(default=False, index=True)
 
-    created_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=utc_now)
 
 
 class Application(SQLModel, table=True):
@@ -138,7 +141,7 @@ class Application(SQLModel, table=True):
         sa_column=Column(Integer, ForeignKey("job.id", ondelete="RESTRICT"), nullable=False, index=True)
     )
 
-    applied_at: datetime = Field(default_factory=datetime.utcnow)
+    applied_at: datetime = Field(default_factory=utc_now)
 
     status: ApplicationStatus = Field(default=ApplicationStatus.applied, index=True)
 
@@ -165,7 +168,7 @@ class Offer(SQLModel, table=True):
     status: OfferStatus = Field(default=OfferStatus.offered, index=True)
     response_deadline: Optional[datetime] = Field(default=None, index=True)
 
-    created_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=utc_now)
 
     __table_args__ = (
         UniqueConstraint("job_id", "student_id", name="u_job_student_offer"),

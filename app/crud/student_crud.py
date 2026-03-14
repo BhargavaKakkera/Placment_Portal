@@ -2,12 +2,12 @@
 Student CRUD operations for student profile management.
 """
 
-from datetime import datetime
 from sqlmodel import Session, select, func
 from typing import Optional, List
 from ..models import Student, User, Offer
 from ..enums import Branch
 from ..enums import OfferStatus
+from ..datetime_utils import utc_now
 
 
 def create_student(session: Session, user_id: int, **data) -> Student:
@@ -66,13 +66,13 @@ def delete_student(session: Session, student_id: int) -> Optional[bool]:
 
     try:
         student.is_active = False
-        student.deactivated_at = datetime.utcnow()
+        student.deactivated_at = utc_now()
         session.add(student)
 
         user = session.get(User, student.user_id)
         if user and getattr(user, "is_active", True):
             user.is_active = False
-            user.deactivated_at = datetime.utcnow()
+            user.deactivated_at = utc_now()
             session.add(user)
 
         session.commit()
@@ -149,3 +149,35 @@ def count_placed_students(session: Session) -> int:
         .where(Offer.status == OfferStatus.accepted)
     )
     return session.exec(statement).one()
+
+
+def get_branch_placement_stats(session: Session) -> List[dict]:
+    """Return placement stats grouped by student branch."""
+    total_rows = session.exec(
+        select(Student.branch, func.count(Student.id))
+        .where(Student.is_active == True)
+        .group_by(Student.branch)
+        .order_by(Student.branch.asc())
+    ).all()
+
+    placed_rows = session.exec(
+        select(Student.branch, func.count(func.distinct(Student.id)))
+        .select_from(Student)
+        .join(Offer, Offer.student_id == Student.id)
+        .where(Student.is_active == True)
+        .where(Offer.status == OfferStatus.accepted)
+        .group_by(Student.branch)
+        .order_by(Student.branch.asc())
+    ).all()
+
+    placed_by_branch = {branch: placed for branch, placed in placed_rows}
+
+    return [
+        {
+            "branch": branch,
+            "total_students": total,
+            "placed_students": placed_by_branch.get(branch, 0),
+            "placement_rate": round((placed_by_branch.get(branch, 0) / total) * 100, 2) if total else 0.0,
+        }
+        for branch, total in total_rows
+    ]

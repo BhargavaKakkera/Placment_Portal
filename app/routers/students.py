@@ -1,11 +1,17 @@
 from fastapi import APIRouter, Depends, HTTPException
-from sqlmodel import Session, select
+from sqlmodel import Session
 
 from ..database import get_session
 from .. import crud
-from ..schemas import StudentUpdate, StudentOut
+from ..schemas import (
+    StudentUpdate,
+    StudentOut,
+    StudentApplicationListOut,
+    StudentOfferItemOut,
+    PaginationParams,
+)
 from ..auth import get_current_student
-from ..models import Application, Offer
+from ..models import Offer
 from ..enums import OfferStatus
 
 router = APIRouter(prefix="/students", tags=["students"])
@@ -70,8 +76,9 @@ def update_my_profile(
 # VIEW MY APPLICATIONS
 # ---------------------------
 
-@router.get("/me/applications")
+@router.get("/me/applications", response_model=StudentApplicationListOut)
 def my_applications(
+    pagination: PaginationParams = Depends(),
     current_user=Depends(get_current_student),
     session: Session = Depends(get_session),
 ):
@@ -83,13 +90,20 @@ def my_applications(
             detail="Student profile not found"
         )
 
-    stmt = (
-        select(Application)
-        .where(Application.student_id == student.id)
-        .order_by(Application.applied_at.desc(), Application.id.desc())
+    items = crud.list_student_application_summaries(
+        session,
+        student.id,
+        skip=pagination.skip,
+        limit=pagination.limit,
     )
-
-    return session.exec(stmt).all()
+    total = crud.count_student_applications(session, student.id)
+    return {
+        "items": items,
+        "skip": pagination.skip,
+        "limit": pagination.limit,
+        "total": total,
+        "has_more": pagination.skip + len(items) < total,
+    }
 
 
 # ---------------------------
@@ -215,7 +229,7 @@ def withdraw_application(
 
 
 
-@router.get("/me/offers")
+@router.get("/me/offers", response_model=list[StudentOfferItemOut])
 def my_offers(
     current_user=Depends(get_current_student),
     session: Session = Depends(get_session),
@@ -225,16 +239,14 @@ def my_offers(
     if not student:
         raise HTTPException(status_code=404, detail="Student profile not found")
 
-    stmt = (
-        select(Offer)
-        .where(Offer.student_id == student.id)
-        .order_by(Offer.created_at.desc(), Offer.id.desc())
+    return crud.list_student_offer_summaries(
+        session,
+        student.id,
+        status=OfferStatus.offered,
     )
 
-    return session.exec(stmt).all()
 
-
-@router.get("/me/offers/accepted")
+@router.get("/me/offers/accepted", response_model=list[StudentOfferItemOut])
 def my_accepted_offers(
     current_user=Depends(get_current_student),
     session: Session = Depends(get_session),
@@ -244,9 +256,8 @@ def my_accepted_offers(
     if not student:
         raise HTTPException(status_code=404, detail="Student profile not found")
 
-    stmt = select(Offer).where(
-        Offer.student_id == student.id,
-        Offer.status == OfferStatus.accepted,
-    ).order_by(Offer.created_at.desc(), Offer.id.desc())
-
-    return session.exec(stmt).all()
+    return crud.list_student_offer_summaries(
+        session,
+        student.id,
+        status=OfferStatus.accepted,
+    )

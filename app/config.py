@@ -4,7 +4,9 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./placement.db")
+DEFAULT_DATABASE_URL = "postgresql+psycopg://postgres:2005@localhost:5432/placment_portal"
+DATABASE_URL = os.getenv("DATABASE_URL", DEFAULT_DATABASE_URL)
+DB_CONNECT_TIMEOUT_SECONDS = int(os.getenv("DB_CONNECT_TIMEOUT_SECONDS", "5"))
 
 SECRET_KEY = os.getenv("SECRET_KEY")
 if not SECRET_KEY:

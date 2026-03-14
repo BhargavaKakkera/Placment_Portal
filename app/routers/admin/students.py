@@ -66,6 +66,7 @@ def provision_student(
             email=payload.email,
             password_hash=hash_password(temp_password),
             role=Role.student,
+            email_verified=False,
             is_first_admin=False,
             verified=False,
             is_active=True,

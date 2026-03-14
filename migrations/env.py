@@ -4,8 +4,9 @@ from alembic import context
 from sqlalchemy import engine_from_config, pool
 from sqlmodel import SQLModel
 
-from app.database import DATABASE_URL
-import app.models  # noqa: F401
+from app.config import DATABASE_URL
+import app.models  # Load SQLModel metadata for Alembic autogenerate.
+
 
 
 config = context.config

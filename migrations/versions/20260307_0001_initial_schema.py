@@ -108,7 +108,6 @@ def upgrade() -> None:
         sa.Column("is_active", sa.Boolean(), nullable=False),
         sa.Column("deactivated_at", sa.DateTime(), nullable=True),
         sa.ForeignKeyConstraint(["user_id"], ["user.id"], ondelete="RESTRICT"),
-        sa.ForeignKeyConstraint(["locked_offer_id"], ["offer.id"], ondelete="SET NULL"),
         sa.PrimaryKeyConstraint("id"),
         sa.UniqueConstraint("user_id"),
     )
@@ -152,10 +151,22 @@ def upgrade() -> None:
     op.create_index("ix_offer_response_deadline", "offer", ["response_deadline"], unique=False)
     op.create_index("ix_offer_status", "offer", ["status"], unique=False)
     op.create_index("ix_offer_student_id", "offer", ["student_id"], unique=False)
+    op.create_foreign_key(
+        "fk_student_locked_offer_id_offer",
+        "student",
+        "offer",
+        ["locked_offer_id"],
+        ["id"],
+        ondelete="SET NULL",
+    )
 
 
 def downgrade() -> None:
-    op.execute("PRAGMA foreign_keys=OFF")
+    bind = op.get_bind()
+    is_sqlite = bind.dialect.name == "sqlite"
+    if is_sqlite:
+        op.execute("PRAGMA foreign_keys=OFF")
+    op.drop_constraint("fk_student_locked_offer_id_offer", "student", type_="foreignkey")
     op.drop_index("ix_offer_student_id", table_name="offer")
     op.drop_index("ix_offer_status", table_name="offer")
     op.drop_index("ix_offer_response_deadline", table_name="offer")
@@ -187,4 +198,5 @@ def downgrade() -> None:
     op.drop_index("ix_user_is_active", table_name="user")
     op.drop_index("ix_user_email", table_name="user")
     op.drop_table("user")
-    op.execute("PRAGMA foreign_keys=ON")
+    if is_sqlite:
+        op.execute("PRAGMA foreign_keys=ON")

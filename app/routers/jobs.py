@@ -1,6 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlmodel import Session
-from datetime import datetime
 from ..database import get_session
 from .. import crud
 from ..schemas import JobCreate, JobListOut, PaginationParams
@@ -9,6 +8,7 @@ from ..models import Job
 from ..models import Application
 from ..auth import get_current_student
 from ..crud.offer_crud import get_application_block_reason
+from ..datetime_utils import utc_now, to_utc_naive
 
 router = APIRouter(prefix="/jobs", tags=["jobs"])
 
@@ -93,7 +93,7 @@ def list_eligible_jobs(
             if student_branch not in branches:
                 continue
 
-        if job.application_deadline and job.application_deadline < datetime.utcnow():
+        if job.application_deadline and to_utc_naive(job.application_deadline) < utc_now():
             continue
 
         if job.closed:

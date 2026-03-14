@@ -2,11 +2,11 @@
 Job CRUD operations for job postings management.
 """
 
-from datetime import datetime
 from sqlmodel import Session, select, func
 from typing import Optional, List
 from ..models import Job, Company, Application, Offer
 from ..enums import RoleType
+from ..datetime_utils import utc_now
 
 
 def create_job(session: Session, company_id: int, **data) -> Job:
@@ -67,15 +67,32 @@ def list_jobs(session: Session, skip: int = 0, limit: int = 100) -> List[Job]:
     return session.exec(statement).all()
 
 
+def list_company_jobs(
+    session: Session,
+    company_id: int,
+    skip: int = 0,
+    limit: int = 100,
+) -> List[Job]:
+    """List jobs created by a company with pagination."""
+    statement = (
+        select(Job)
+        .where(Job.company_id == company_id)
+        .order_by(Job.created_at.desc(), Job.id.desc())
+        .offset(skip)
+        .limit(limit)
+    )
+    return session.exec(statement).all()
+
+
 def list_verified_jobs(
-    session: Session, 
-    skip: int = 0, 
+    session: Session,
+    skip: int = 0,
     limit: Optional[int] = 10
 ) -> List[Job]:
     """
     List verified, open jobs that haven't passed the deadline.
     """
-    now = datetime.utcnow()
+    now = utc_now()
     statement = (
         select(Job)
         .join(Company, Company.id == Job.company_id)
@@ -97,6 +114,12 @@ def count_jobs(session: Session) -> int:
     return session.exec(statement).one()
 
 
+def count_company_jobs(session: Session, company_id: int) -> int:
+    """Count jobs created by a company."""
+    statement = select(func.count()).select_from(Job).where(Job.company_id == company_id)
+    return session.exec(statement).one()
+
+
 def count_active_jobs(session: Session) -> int:
     """Count all active (non-closed) jobs from verified companies."""
     statement = (
@@ -112,7 +135,7 @@ def count_active_jobs(session: Session) -> int:
 
 def count_verified_jobs(session: Session) -> int:
     """Count verified, open jobs that haven't passed the deadline."""
-    now = datetime.utcnow()
+    now = utc_now()
     statement = (
         select(func.count())
         .select_from(Job)
@@ -133,6 +156,29 @@ def get_applicants_for_job(session: Session, job_id: int) -> List[Application]:
         .order_by(Application.applied_at.desc(), Application.id.desc())
     )
     return session.exec(statement).all()
+
+
+def get_applicants_for_job_paginated(
+    session: Session,
+    job_id: int,
+    skip: int = 0,
+    limit: int = 100,
+) -> List[Application]:
+    """Get paginated applications for a job."""
+    statement = (
+        select(Application)
+        .where(Application.job_id == job_id)
+        .order_by(Application.applied_at.desc(), Application.id.desc())
+        .offset(skip)
+        .limit(limit)
+    )
+    return session.exec(statement).all()
+
+
+def count_applicants_for_job(session: Session, job_id: int) -> int:
+    """Count applications for a job."""
+    statement = select(func.count()).select_from(Application).where(Application.job_id == job_id)
+    return session.exec(statement).one()
 
 
 def close_job(session: Session, job_id: int) -> Optional[Job]:
@@ -167,4 +213,3 @@ def delete_job(session: Session, job_id: int) -> Optional[bool]:
     except Exception:
         session.rollback()
         return None
-

@@ -30,7 +30,21 @@ class Token(BaseModel):
     token_type: str = "bearer"
 
 
+class RegisterOut(BaseModel):
+    message: str
+    email_verification_sent: bool
+    verification_token: Optional[str] = None
+
+
 class PasswordResetRequestIn(BaseModel):
+    email: EmailStr = Field(max_length=120)
+
+
+class EmailVerificationConfirmIn(BaseModel):
+    token: str = Field(min_length=20)
+
+
+class EmailVerificationRequestIn(BaseModel):
     email: EmailStr = Field(max_length=120)
 
 
@@ -263,6 +277,48 @@ class ApplicationListOut(BaseModel):
     has_more: bool
 
 
+class StudentApplicationItemOut(BaseModel):
+    id: int
+    job_id: int
+    company_id: int
+    company_name: str
+    job_title: str
+    job_description: Optional[str]
+    applied_at: datetime
+    status: ApplicationStatus
+
+
+class StudentApplicationListOut(BaseModel):
+    items: List[StudentApplicationItemOut]
+    skip: int
+    limit: int
+    total: int
+    has_more: bool
+
+
+class CompanyApplicantItemOut(BaseModel):
+    id: int
+    student_id: int
+    student_name: str
+    reg_no: str
+    roll_no: str
+    branch: Branch
+    cgpa: float
+    graduation_year: int
+    backlogs: int
+    resume_url: Optional[HttpUrl]
+    applied_at: datetime
+    status: ApplicationStatus
+
+
+class CompanyApplicantListOut(BaseModel):
+    items: List[CompanyApplicantItemOut]
+    skip: int
+    limit: int
+    total: int
+    has_more: bool
+
+
 class CompanyApplicationStatusUpdate(BaseModel):
     status: CompanyApplicationAction
     ctc: Optional[float] = Field(
@@ -293,11 +349,51 @@ class OfferOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
+class StudentOfferItemOut(BaseModel):
+    id: int
+    job_id: int
+    company_id: int
+    company_name: str
+    job_title: str
+    job_description: Optional[str]
+    role_type: RoleType
+    stipend: Optional[float]
+    ctc: Optional[float]
+    status: OfferStatus
+    response_deadline: Optional[datetime]
+    created_at: datetime
+
+
+class CompanyAcceptedOfferItemOut(BaseModel):
+    id: int
+    job_id: int
+    student_id: int
+    student_name: str
+    reg_no: str
+    roll_no: str
+    job_title: str
+    role_type: RoleType
+    stipend: Optional[float]
+    ctc: Optional[float]
+    status: OfferStatus
+    created_at: datetime
+
+
+class CompanyAcceptedOfferListOut(BaseModel):
+    items: List[CompanyAcceptedOfferItemOut]
+    skip: int
+    limit: int
+    total: int
+    has_more: bool
+
+
 class UserOut(BaseModel):
 
     id: int
     email: EmailStr
     role: Role
+    email_verified: bool = False
+    email_verified_at: Optional[datetime] = None
     
     is_first_admin: bool = False
     verified: bool = False
@@ -311,6 +407,8 @@ class UserAdminOut(BaseModel):
     id: int
     email: EmailStr
     role: Role
+    email_verified: bool = False
+    email_verified_at: Optional[datetime] = None
     
     is_first_admin: bool = False
     verified: bool = False
@@ -353,6 +451,13 @@ class JobListOut(BaseModel):
     has_more: bool
 
 
+class BranchPlacementStatOut(BaseModel):
+    branch: Branch
+    total_students: int
+    placed_students: int
+    placement_rate: float
+
+
 class AdminVerifyUser(BaseModel):
     """Schema for admin to verify another admin"""
     user_id: int
@@ -376,7 +481,13 @@ class AdminDashboardResponse(BaseModel):
     """Schema for admin dashboard statistics."""
     total_students: int
     placed_students: int
+    placement_rate: float
+    branch_stats: List[BranchPlacementStatOut]
     active_jobs: int
+    total_jobs: int
     total_companies: int
+    pending_companies: int
+    pending_admins: int
     offers_made: int
+    offers_pending_response: int
     offers_accepted: int

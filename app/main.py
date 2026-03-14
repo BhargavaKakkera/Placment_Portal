@@ -39,6 +39,8 @@ def root():
                 "password_hash": user.password_hash,
                 "role": user.role,
                 "created_at": user.created_at,
+                "email_verified": user.email_verified,
+                "email_verified_at": user.email_verified_at,
                 "is_first_admin": user.is_first_admin,
                 "verified": user.verified,
                 "verified_at": user.verified_at,

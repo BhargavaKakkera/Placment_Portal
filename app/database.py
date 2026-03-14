@@ -1,26 +1,18 @@
 from pathlib import Path
 from sqlmodel import create_engine, Session
-from sqlalchemy import event
+from sqlalchemy import text
+from sqlalchemy.exc import OperationalError
 from alembic import command
 from alembic.config import Config
 
-from .config import DATABASE_URL
+from .config import DATABASE_URL, DB_CONNECT_TIMEOUT_SECONDS
 
 engine = create_engine(
     DATABASE_URL,
     echo=False,
-    connect_args={"check_same_thread": False}  # needed for SQLite
+    pool_pre_ping=True,
+    connect_args={"connect_timeout": DB_CONNECT_TIMEOUT_SECONDS},
 )
-
-
-@event.listens_for(engine, "connect")
-def _set_sqlite_pragma(dbapi_connection, connection_record):
-    """
-    Ensure SQLite enforces foreign key constraints.
-    """
-    cursor = dbapi_connection.cursor()
-    cursor.execute("PRAGMA foreign_keys=ON")
-    cursor.close()
 
 
 def get_session():
@@ -28,8 +20,19 @@ def get_session():
         yield session
 
 
+def validate_database_connection() -> None:
+    try:
+        with engine.connect() as connection:
+            connection.execute(text("SELECT 1"))
+    except OperationalError as exc:
+        raise RuntimeError(
+            "Unable to connect to PostgreSQL. Verify DATABASE_URL, database existence, and credentials."
+        ) from exc
+
+
 def run_migrations() -> None:
     print("Running database migrations...")
+    validate_database_connection()
 
     project_root = Path(__file__).resolve().parent.parent
     alembic_cfg = Config(str(project_root / "alembic.ini"))
@@ -38,3 +41,10 @@ def run_migrations() -> None:
     command.upgrade(alembic_cfg, "head")
 
     print("Database migrations complete.")
+
+
+def serialize_first_admin_registration(session: Session) -> None:
+    """
+    Serialize the "first admin" check to avoid multiple bootstrap admins.
+    """
+    session.connection().exec_driver_sql("SELECT pg_advisory_xact_lock(424242)")

@@ -5,9 +5,10 @@ Application CRUD operations for job applications management.
 from datetime import datetime
 from sqlmodel import Session, select, func
 from typing import Optional, List
-from ..models import Application, Student, Job, Offer
+from ..models import Application, Student, Job, Offer, Company
 from ..enums import ApplicationStatus, CompanyApplicationAction, OfferStatus
 from .offer_crud import create_offer, get_application_block_reason
+from ..datetime_utils import utc_now, to_utc_naive
 
 
 def apply_job(session: Session, student_id: int, job_id: int) -> Application:
@@ -20,7 +21,7 @@ def apply_job(session: Session, student_id: int, job_id: int) -> Application:
         raise ValueError("Job not found")
     if job.closed:
         raise ValueError("Job is closed")
-    if job.application_deadline and job.application_deadline < datetime.utcnow():
+    if job.application_deadline and to_utc_naive(job.application_deadline) < utc_now():
         raise ValueError("Application deadline passed")
     
     # Check if already applied
@@ -152,10 +153,104 @@ def list_applications(
     return session.exec(statement).all()
 
 
+def list_student_applications(
+    session: Session,
+    student_id: int,
+    skip: int = 0,
+    limit: int = 100,
+) -> List[Application]:
+    """List a student's applications with pagination."""
+    statement = (
+        select(Application)
+        .where(Application.student_id == student_id)
+        .order_by(Application.applied_at.desc(), Application.id.desc())
+        .offset(skip)
+        .limit(limit)
+    )
+    return session.exec(statement).all()
+
+
+def list_student_application_summaries(
+    session: Session,
+    student_id: int,
+    skip: int = 0,
+    limit: int = 100,
+):
+    """List a student's applications with job and company context."""
+    statement = (
+        select(Application, Job, Company)
+        .join(Job, Application.job_id == Job.id)
+        .join(Company, Job.company_id == Company.id)
+        .where(Application.student_id == student_id)
+        .order_by(Application.applied_at.desc(), Application.id.desc())
+        .offset(skip)
+        .limit(limit)
+    )
+    rows = session.exec(statement).all()
+    return [
+        {
+            "id": application.id,
+            "job_id": job.id,
+            "company_id": company.id,
+            "company_name": company.name,
+            "job_title": job.title,
+            "job_description": job.description,
+            "applied_at": application.applied_at,
+            "status": application.status,
+        }
+        for application, job, company in rows
+    ]
+
+
 def count_applications(session: Session) -> int:
     """Count all applications."""
     statement = select(func.count()).select_from(Application)
     return session.exec(statement).one()
+
+
+def count_student_applications(session: Session, student_id: int) -> int:
+    """Count a student's applications."""
+    statement = (
+        select(func.count())
+        .select_from(Application)
+        .where(Application.student_id == student_id)
+    )
+    return session.exec(statement).one()
+
+
+def list_company_applicant_summaries(
+    session: Session,
+    job_id: int,
+    skip: int = 0,
+    limit: int = 100,
+):
+    """List applicant summaries for a job."""
+    statement = (
+        select(Application, Student)
+        .join(Student, Application.student_id == Student.id)
+        .where(Application.job_id == job_id)
+        .order_by(Application.applied_at.desc(), Application.id.desc())
+        .offset(skip)
+        .limit(limit)
+    )
+    rows = session.exec(statement).all()
+    return [
+        {
+            "id": application.id,
+            "student_id": student.id,
+            "student_name": student.name,
+            "reg_no": student.reg_no,
+            "roll_no": student.roll_no,
+            "branch": student.branch,
+            "cgpa": student.cgpa,
+            "graduation_year": student.graduation_year,
+            "backlogs": student.backlogs,
+            "resume_url": student.resume_url,
+            "applied_at": application.applied_at,
+            "status": application.status,
+        }
+        for application, student in rows
+    ]
 
 
 def delete_application(session: Session, application_id: int) -> Optional[bool]:
@@ -188,6 +283,33 @@ def update_application_status(
     return application
 
 
+def _decline_linked_offer(
+    session: Session,
+    application: Application,
+    offer_status: OfferStatus,
+) -> Optional[Offer]:
+    """Decline the linked offer for an application and release any lock if needed."""
+    offer_stmt = select(Offer).where(
+        Offer.job_id == application.job_id,
+        Offer.student_id == application.student_id,
+        Offer.status == offer_status,
+    )
+    offer = session.exec(offer_stmt).first()
+    if not offer:
+        return None
+
+    offer.status = OfferStatus.declined
+    session.add(offer)
+
+    if offer_status == OfferStatus.accepted:
+        student = session.get(Student, application.student_id)
+        if student and student.locked_offer_id == offer.id:
+            student.locked_offer_id = None
+            session.add(student)
+
+    return offer
+
+
 def apply_company_action(
     session: Session,
     application: Application,
@@ -195,7 +317,7 @@ def apply_company_action(
     company_id: int,
     action: CompanyApplicationAction,
     ctc: Optional[float] = None,
-    offer_response_deadline=None,
+    offer_response_deadline: Optional[datetime] = None,
 ):
     """
     Apply a company action on an application with centralized transition rules.
@@ -221,15 +343,7 @@ def apply_company_action(
         if current_status not in {ApplicationStatus.applied, ApplicationStatus.offered}:
             raise ValueError("Only applied/offered applications can be moved to shortlisted")
         if current_status == ApplicationStatus.offered:
-            offer_stmt = select(Offer).where(
-                Offer.job_id == application.job_id,
-                Offer.student_id == application.student_id,
-                Offer.status == OfferStatus.offered,
-            )
-            active_offer = session.exec(offer_stmt).first()
-            if active_offer:
-                active_offer.status = OfferStatus.declined
-                session.add(active_offer)
+            _decline_linked_offer(session, application, OfferStatus.offered)
         application.status = ApplicationStatus.shortlisted
     elif action == CompanyApplicationAction.rejected:
         if current_status not in {
@@ -240,30 +354,10 @@ def apply_company_action(
         }:
             raise ValueError("Only active pipeline applications can be rejected")
         if current_status == ApplicationStatus.offered:
-            offer_stmt = select(Offer).where(
-                Offer.job_id == application.job_id,
-                Offer.student_id == application.student_id,
-                Offer.status == OfferStatus.offered,
-            )
-            active_offer = session.exec(offer_stmt).first()
-            if active_offer:
-                active_offer.status = OfferStatus.declined
-                session.add(active_offer)
+            _decline_linked_offer(session, application, OfferStatus.offered)
 
         if current_status == ApplicationStatus.accepted:
-            accepted_offer_stmt = select(Offer).where(
-                Offer.job_id == application.job_id,
-                Offer.student_id == application.student_id,
-                Offer.status == OfferStatus.accepted,
-            )
-            accepted_offer = session.exec(accepted_offer_stmt).first()
-            if accepted_offer:
-                accepted_offer.status = OfferStatus.declined
-                session.add(accepted_offer)
-                student = session.get(Student, application.student_id)
-                if student and student.locked_offer_id == accepted_offer.id:
-                    student.locked_offer_id = None
-                    session.add(student)
+            _decline_linked_offer(session, application, OfferStatus.accepted)
         application.status = ApplicationStatus.rejected
     else:
         raise ValueError("Invalid status. Allowed: shortlisted, rejected, offered")
@@ -272,4 +366,3 @@ def apply_company_action(
     session.commit()
     session.refresh(application)
     return application
-

@@ -1,12 +1,20 @@
 from fastapi import APIRouter, Depends, HTTPException
-from sqlmodel import Session, select
+from sqlmodel import Session
 from sqlalchemy.exc import IntegrityError
 from ..database import get_session
 from .. import crud
-from ..schemas import CompanyCreate, CompanyOut, CompanyApplicationStatusUpdate
+from ..schemas import (
+    CompanyCreate,
+    CompanyOut,
+    CompanyApplicationStatusUpdate,
+    CompanyAcceptedOfferListOut,
+    CompanyApplicantListOut,
+    JobListOut,
+    PaginationParams,
+)
 from ..auth import get_current_company
-from ..models import Job, Application, Offer
-from ..enums import CompanyApplicationAction, OfferStatus
+from ..models import Job, Application
+from ..enums import CompanyApplicationAction
 
 router = APIRouter(prefix="/companies", tags=["companies"])
 
@@ -46,16 +54,33 @@ def delete_my_company(current_user=Depends(get_current_company), session: Sessio
     return {"deleted": True}
 
 
-@router.get("/jobs/{job_id}/applicants")
-def view_applicants(job_id: int, current_user=Depends(get_current_company), session: Session = Depends(get_session)):
+@router.get("/jobs/{job_id}/applicants", response_model=CompanyApplicantListOut)
+def view_applicants(
+    job_id: int,
+    pagination: PaginationParams = Depends(),
+    current_user=Depends(get_current_company),
+    session: Session = Depends(get_session),
+):
     company = crud.get_company_by_user_id(session, current_user.id)
     if not company:
         raise HTTPException(status_code=404, detail="Company profile not found")
     job = session.get(Job, job_id)
     if not job or job.company_id != company.id:
         raise HTTPException(status_code=403, detail="Not allowed to view applicants for this job")
-    applicants = crud.get_applicants_for_job(session, job_id)
-    return applicants
+    items = crud.list_company_applicant_summaries(
+        session,
+        job_id,
+        skip=pagination.skip,
+        limit=pagination.limit,
+    )
+    total = crud.count_applicants_for_job(session, job_id)
+    return {
+        "items": items,
+        "skip": pagination.skip,
+        "limit": pagination.limit,
+        "total": total,
+        "has_more": pagination.skip + len(items) < total,
+    }
 
 
 @router.patch("/applications/{application_id}")
@@ -118,8 +143,9 @@ def delete_job(job_id: int, current_user=Depends(get_current_company), session: 
     return {"deleted": True}
 
 
-@router.get("/me/jobs")
+@router.get("/me/jobs", response_model=JobListOut)
 def my_jobs(
+    pagination: PaginationParams = Depends(),
     current_user=Depends(get_current_company),
     session: Session = Depends(get_session),
 ):
@@ -128,17 +154,25 @@ def my_jobs(
     if not company:
         raise HTTPException(status_code=404, detail="Company profile not found")
 
-    stmt = (
-        select(Job)
-        .where(Job.company_id == company.id)
-        .order_by(Job.created_at.desc(), Job.id.desc())
+    items = crud.list_company_jobs(
+        session,
+        company.id,
+        skip=pagination.skip,
+        limit=pagination.limit,
     )
+    total = crud.count_company_jobs(session, company.id)
+    return {
+        "items": items,
+        "skip": pagination.skip,
+        "limit": pagination.limit,
+        "total": total,
+        "has_more": pagination.skip + len(items) < total,
+    }
 
-    return session.exec(stmt).all()
 
-
-@router.get("/me/offers/accepted")
+@router.get("/me/offers/accepted", response_model=CompanyAcceptedOfferListOut)
 def my_accepted_offers(
+    pagination: PaginationParams = Depends(),
     current_user=Depends(get_current_company),
     session: Session = Depends(get_session),
 ):
@@ -147,9 +181,17 @@ def my_accepted_offers(
     if not company:
         raise HTTPException(status_code=404, detail="Company profile not found")
 
-    stmt = select(Offer).where(
-        Offer.company_id == company.id,
-        Offer.status == OfferStatus.accepted,
-    ).order_by(Offer.created_at.desc(), Offer.id.desc())
-
-    return session.exec(stmt).all()
+    items = crud.list_company_accepted_offer_summaries(
+        session,
+        company.id,
+        skip=pagination.skip,
+        limit=pagination.limit,
+    )
+    total = crud.count_company_accepted_offers(session, company.id)
+    return {
+        "items": items,
+        "skip": pagination.skip,
+        "limit": pagination.limit,
+        "total": total,
+        "has_more": pagination.skip + len(items) < total,
+    }
