@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+{% block title %}Home{% endblock %}
+{% block content %}
+<div class="row g-4">
+    <div class="col-lg-8">
+        <div class="card shadow-sm">
+            <div class="card-body">
+                <h1 class="h3">Backend-first demo UI</h1>
+                <p class="text-muted">This interface is intentionally simple. It helps you show that the FastAPI flows work without turning the project into a frontend-heavy app.</p>
+                <div class="d-flex gap-2 flex-wrap">
+                    {% if current_user %}
+                    <a class="btn btn-primary" href="{{ role_home }}">Go to dashboard</a>
+                    {% else %}
+                    <a class="btn btn-primary" href="/ui/login">Login</a>
+                    <a class="btn btn-outline-primary" href="/ui/register">Register</a>
+                    {% endif %}
+                    <a class="btn btn-outline-secondary" href="/docs">API Docs</a>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-lg-4">
+        <div class="card shadow-sm">
+            <div class="card-body">
+                <h2 class="h5">Quick links</h2>
+                <div class="list-group">
+                    <a class="list-group-item list-group-item-action" href="/ui/verify-email">Verify email</a>
+                    <a class="list-group-item list-group-item-action" href="/ui/forgot-password">Forgot password</a>
+                    <a class="list-group-item list-group-item-action" href="/ui/reset-password">Reset password</a>
+                    <a class="list-group-item list-group-item-action" href="/ui/jobs">Browse jobs</a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="card shadow-sm mt-4">
+    <div class="card-body">
+        <h2 class="h5">Latest verified jobs</h2>
+        <div class="table-responsive">
+            <table class="table align-middle">
+                <thead><tr><th>Title</th><th>Role</th><th>Deadline</th><th></th></tr></thead>
+                <tbody>
+                    {% for job in jobs %}
+                    <tr>
+                        <td>{{ job.title }}</td>
+                        <td>{{ job.role_type.value }}</td>
+                        <td>{{ job.application_deadline|fmt_datetime }}</td>
+                        <td><a class="btn btn-sm btn-outline-primary" href="/ui/jobs/{{ job.id }}">View</a></td>
+                    </tr>
+                    {% else %}
+                    <tr><td colspan="4" class="text-muted">No jobs available yet.</td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}

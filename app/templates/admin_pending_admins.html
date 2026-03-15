@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+{% block title %}Pending Admins{% endblock %}
+{% block content %}
+<h1 class="h3 mb-3">Pending admin approvals</h1>
+<div class="table-responsive">
+    <table class="table table-striped align-middle">
+        <thead><tr><th>ID</th><th>Email</th><th>Created</th><th></th></tr></thead>
+        <tbody>
+            {% for user in pending_admins %}
+            <tr>
+                <td>{{ user.id }}</td>
+                <td>{{ user.email }}</td>
+                <td>{{ user.created_at|fmt_datetime }}</td>
+                <td>
+                    <form method="post" action="/ui/admin/users/{{ user.id }}/verify-admin">
+                        <button class="btn btn-sm btn-primary" type="submit">Verify admin</button>
+                    </form>
+                </td>
+            </tr>
+            {% else %}
+            <tr><td colspan="4" class="text-muted">No pending admins.</td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endblock %}

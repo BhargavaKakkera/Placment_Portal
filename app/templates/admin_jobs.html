@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+{% block title %}Admin Jobs{% endblock %}
+{% block content %}
+<h1 class="h3 mb-3">Jobs</h1>
+<div class="table-responsive">
+    <table class="table table-striped align-middle">
+        <thead><tr><th>ID</th><th>Title</th><th>Company ID</th><th>Closed</th><th></th></tr></thead>
+        <tbody>
+            {% for job in jobs %}
+            <tr>
+                <td>{{ job.id }}</td>
+                <td>{{ job.title }}</td>
+                <td>{{ job.company_id }}</td>
+                <td>{{ "Yes" if job.closed else "No" }}</td>
+                <td>
+                    <div class="d-flex gap-2">
+                        <form method="post" action="/ui/admin/jobs/{{ job.id }}/close"><button class="btn btn-sm btn-outline-primary" type="submit">Close</button></form>
+                        <form method="post" action="/ui/admin/jobs/{{ job.id }}/delete"><button class="btn btn-sm btn-outline-danger" type="submit">Delete</button></form>
+                    </div>
+                </td>
+            </tr>
+            {% else %}
+            <tr><td colspan="5" class="text-muted">No jobs found.</td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endblock %}

@@ -1,0 +1,17 @@
+body {
+    background: #f6f7fb;
+}
+
+.card {
+    border: 0;
+    border-radius: 1rem;
+}
+
+.table td,
+.table th {
+    white-space: nowrap;
+}
+
+textarea.form-control {
+    min-height: 7rem;
+}

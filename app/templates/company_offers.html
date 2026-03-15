@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+{% block title %}Accepted Offers{% endblock %}
+{% block content %}
+<h1 class="h3 mb-3">Accepted offers</h1>
+<div class="table-responsive">
+    <table class="table table-striped align-middle">
+        <thead><tr><th>Student</th><th>Job</th><th>Role</th><th>CTC/Stipend</th><th>Accepted at</th></tr></thead>
+        <tbody>
+            {% for item in offers %}
+            <tr>
+                <td>{{ item.student_name }}</td>
+                <td>{{ item.job_title }}</td>
+                <td>{{ item.role_type.value }}</td>
+                <td>{{ item.ctc or item.stipend or "-" }}</td>
+                <td>{{ item.created_at|fmt_datetime }}</td>
+            </tr>
+            {% else %}
+            <tr><td colspan="5" class="text-muted">No accepted offers yet.</td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endblock %}

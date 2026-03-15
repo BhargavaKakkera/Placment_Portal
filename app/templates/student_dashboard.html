@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+{% block title %}Student Dashboard{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h1 class="h3 mb-0">Student dashboard</h1>
+    <div class="btn-group">
+        <a class="btn btn-outline-primary" href="/ui/student/profile">Profile</a>
+        <a class="btn btn-outline-primary" href="/ui/student/jobs">Eligible jobs</a>
+        <a class="btn btn-outline-primary" href="/ui/student/applications">Applications</a>
+        <a class="btn btn-outline-primary" href="/ui/student/offers">Offers</a>
+    </div>
+</div>
+<div class="row g-4">
+    <div class="col-lg-4">
+        <div class="card shadow-sm"><div class="card-body">
+            <h2 class="h5">Profile summary</h2>
+            {% if student %}
+            <p class="mb-1"><strong>{{ student.name }}</strong></p>
+            <p class="mb-1">{{ student.reg_no }} / {{ student.roll_no }}</p>
+            <p class="mb-1">Branch: {{ student.branch.value }}</p>
+            <p class="mb-0">CGPA: {{ student.cgpa }}</p>
+            {% else %}
+            <p class="text-muted mb-0">Student profile not found.</p>
+            {% endif %}
+        </div></div>
+    </div>
+    <div class="col-lg-8">
+        <div class="card shadow-sm mb-4"><div class="card-body">
+            <h2 class="h5">Recent applications</h2>
+            <ul class="list-group list-group-flush">
+                {% for item in applications %}
+                <li class="list-group-item d-flex justify-content-between"><span>{{ item.job_title }} at {{ item.company_name }}</span><span>{{ item.status.value }}</span></li>
+                {% else %}
+                <li class="list-group-item text-muted">No applications yet.</li>
+                {% endfor %}
+            </ul>
+        </div></div>
+        <div class="card shadow-sm"><div class="card-body">
+            <h2 class="h5">Pending offers</h2>
+            <ul class="list-group list-group-flush">
+                {% for item in offers %}
+                <li class="list-group-item d-flex justify-content-between"><span>{{ item.job_title }} at {{ item.company_name }}</span><span>{{ item.response_deadline|fmt_datetime }}</span></li>
+                {% else %}
+                <li class="list-group-item text-muted">No pending offers.</li>
+                {% endfor %}
+            </ul>
+        </div></div>
+    </div>
+</div>
+{% endblock %}

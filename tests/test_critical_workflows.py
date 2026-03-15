@@ -4,7 +4,7 @@ from datetime import datetime, timedelta, timezone
 
 os.environ["DATABASE_URL"] = os.getenv(
     "TEST_DATABASE_URL",
-    "postgresql+psycopg://postgres:2005@localhost:5432/test_placment_portal",
+    "postgresql+psycopg://postgres:2005@localhost:5432/test_placement_portal",
 )
 os.environ["DEBUG"] = "true"
 
@@ -162,7 +162,7 @@ class CriticalWorkflowTests(unittest.TestCase):
             value = session.exec(text("SELECT current_database()")).one()
         if not isinstance(value, str):
             value = value[0]
-        self.assertEqual(value, "test_placment_portal")
+        self.assertEqual(value, "test_placement_portal")
 
     def test_student_soft_delete_deactivates_account(self):
         admin_token = self._register("admin_soft_delete@example.com", "Password123", "admin")

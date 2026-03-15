@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+{% block title %}Admin Students{% endblock %}
+{% block content %}
+<div class="row g-4">
+    <div class="col-lg-4">
+        <div class="card shadow-sm"><div class="card-body">
+            <h2 class="h5">Provision student</h2>
+            <form method="post" action="/ui/admin/students/provision">
+                <div class="mb-2"><input class="form-control" name="email" placeholder="Email" type="email" required></div>
+                <div class="mb-2"><input class="form-control" name="name" placeholder="Name" required></div>
+                <div class="mb-2"><input class="form-control" name="reg_no" placeholder="Reg No" required></div>
+                <div class="mb-2"><input class="form-control" name="roll_no" placeholder="Roll No" required></div>
+                <div class="mb-2"><input class="form-control" name="cgpa" placeholder="CGPA" type="number" min="0" max="10" step="0.1" required></div>
+                <div class="mb-2"><select class="form-select" name="branch">{% for branch in Branch %}<option value="{{ branch.value }}">{{ branch.value }}</option>{% endfor %}</select></div>
+                <div class="mb-2"><input class="form-control" name="graduation_year" placeholder="Graduation Year" type="number" required></div>
+                <div class="mb-2"><input class="form-control" name="backlogs" placeholder="Backlogs" type="number" min="0" value="0"></div>
+                <button class="btn btn-primary w-100" type="submit">Provision</button>
+            </form>
+        </div></div>
+    </div>
+    <div class="col-lg-8">
+        <div class="card shadow-sm"><div class="card-body">
+            <h2 class="h5">Students</h2>
+            <div class="table-responsive">
+                <table class="table table-striped align-middle">
+                    <thead><tr><th>Name</th><th>Branch</th><th>CGPA</th><th>Active</th><th></th></tr></thead>
+                    <tbody>
+                        {% for student in students %}
+                        <tr>
+                            <td>{{ student.name }}</td>
+                            <td>{{ student.branch.value }}</td>
+                            <td>{{ student.cgpa }}</td>
+                            <td>{{ "Yes" if student.is_active else "No" }}</td>
+                            <td>
+                                <div class="d-flex gap-2">
+                                    <a class="btn btn-sm btn-outline-primary" href="/ui/admin/students/{{ student.id }}">Edit</a>
+                                    <form method="post" action="/ui/admin/students/{{ student.id }}/delete"><button class="btn btn-sm btn-outline-danger" type="submit">Deactivate</button></form>
+                                    <form method="post" action="/ui/admin/students/{{ student.id }}/reactivate"><button class="btn btn-sm btn-outline-success" type="submit">Reactivate</button></form>
+                                </div>
+                            </td>
+                        </tr>
+                        {% else %}
+                        <tr><td colspan="5" class="text-muted">No students found.</td></tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div></div>
+    </div>
+</div>
+{% endblock %}

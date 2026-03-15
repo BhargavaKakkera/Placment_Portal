@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+{% block title %}Admin Companies{% endblock %}
+{% block content %}
+<h1 class="h3 mb-3">Companies</h1>
+<div class="table-responsive">
+    <table class="table table-striped align-middle">
+        <thead><tr><th>ID</th><th>Name</th><th>Verified</th><th>Active</th><th></th></tr></thead>
+        <tbody>
+            {% for company in companies %}
+            <tr>
+                <td>{{ company.id }}</td>
+                <td>{{ company.name }}</td>
+                <td>{{ "Yes" if company.verified else "No" }}</td>
+                <td>{{ "Yes" if company.is_active else "No" }}</td>
+                <td>
+                    <div class="d-flex gap-2">
+                        <form method="post" action="/ui/admin/companies/{{ company.id }}/verify"><button class="btn btn-sm btn-outline-primary" type="submit">Verify</button></form>
+                        <form method="post" action="/ui/admin/companies/{{ company.id }}/delete"><button class="btn btn-sm btn-outline-danger" type="submit">Deactivate</button></form>
+                        <form method="post" action="/ui/admin/companies/{{ company.id }}/reactivate"><button class="btn btn-sm btn-outline-success" type="submit">Reactivate</button></form>
+                    </div>
+                </td>
+            </tr>
+            {% else %}
+            <tr><td colspan="5" class="text-muted">No companies found.</td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endblock %}

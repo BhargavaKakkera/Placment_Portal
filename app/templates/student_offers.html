@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+{% block title %}My Offers{% endblock %}
+{% block content %}
+<h1 class="h3 mb-3">My offers</h1>
+<div class="card shadow-sm mb-4"><div class="card-body">
+    <h2 class="h5">Pending offers</h2>
+    <div class="table-responsive">
+        <table class="table align-middle">
+            <thead><tr><th>Company</th><th>Job</th><th>Deadline</th><th></th></tr></thead>
+            <tbody>
+                {% for item in offered %}
+                <tr>
+                    <td>{{ item.company_name }}</td>
+                    <td>{{ item.job_title }}</td>
+                    <td>{{ item.response_deadline|fmt_datetime }}</td>
+                    <td>
+                        <div class="d-flex gap-2">
+                            <form method="post" action="/ui/student/offers/{{ item.id }}/accept"><button class="btn btn-sm btn-success" type="submit">Accept</button></form>
+                            <form method="post" action="/ui/student/offers/{{ item.id }}/decline"><button class="btn btn-sm btn-outline-danger" type="submit">Decline</button></form>
+                        </div>
+                    </td>
+                </tr>
+                {% else %}
+                <tr><td colspan="4" class="text-muted">No pending offers.</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div></div>
+<div class="card shadow-sm"><div class="card-body">
+    <h2 class="h5">Accepted offers</h2>
+    <ul class="list-group list-group-flush">
+        {% for item in accepted %}
+        <li class="list-group-item">{{ item.company_name }} - {{ item.job_title }} ({{ item.created_at|fmt_datetime }})</li>
+        {% else %}
+        <li class="list-group-item text-muted">No accepted offers.</li>
+        {% endfor %}
+    </ul>
+</div></div>
+{% endblock %}

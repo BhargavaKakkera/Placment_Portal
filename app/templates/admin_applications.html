@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+{% block title %}Admin Applications{% endblock %}
+{% block content %}
+<h1 class="h3 mb-3">Applications</h1>
+<div class="table-responsive">
+    <table class="table table-striped align-middle">
+        <thead><tr><th>ID</th><th>Student ID</th><th>Job ID</th><th>Status</th><th>Applied at</th><th></th></tr></thead>
+        <tbody>
+            {% for item in applications %}
+            <tr>
+                <td>{{ item.id }}</td>
+                <td>{{ item.student_id }}</td>
+                <td>{{ item.job_id }}</td>
+                <td>{{ item.status.value }}</td>
+                <td>{{ item.applied_at|fmt_datetime }}</td>
+                <td>
+                    <form method="post" action="/ui/admin/applications/{{ item.id }}/delete">
+                        <button class="btn btn-sm btn-outline-danger" type="submit">Delete</button>
+                    </form>
+                </td>
+            </tr>
+            {% else %}
+            <tr><td colspan="6" class="text-muted">No applications found.</td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endblock %}

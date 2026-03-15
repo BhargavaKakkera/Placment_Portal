@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% block title %}Company Profile{% endblock %}
+{% block content %}
+<h1 class="h3 mb-3">Company profile</h1>
+{% if company %}
+<div class="card shadow-sm">
+    <div class="card-body">
+        <p><strong>Name:</strong> {{ company.name }}</p>
+        <p><strong>Verified:</strong> {{ "Yes" if company.verified else "No" }}</p>
+        <form method="post" action="/ui/company/delete">
+            <button class="btn btn-outline-danger" type="submit">Deactivate company</button>
+        </form>
+    </div>
+</div>
+{% else %}
+<div class="card shadow-sm">
+    <div class="card-body">
+        <form method="post" action="/ui/company/profile">
+            <div class="mb-3"><label class="form-label">Company name</label><input class="form-control" name="name" required></div>
+            <button class="btn btn-primary" type="submit">Create company profile</button>
+        </form>
+    </div>
+</div>
+{% endif %}
+{% endblock %}

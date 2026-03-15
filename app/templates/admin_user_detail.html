@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+{% block title %}User Detail{% endblock %}
+{% block content %}
+<a class="btn btn-sm btn-outline-secondary mb-3" href="/ui/admin/users">Back to users</a>
+<div class="card shadow-sm">
+    <div class="card-body">
+        <h1 class="h4">{{ user_detail.email }}</h1>
+        <p><strong>ID:</strong> {{ user_detail.id }}</p>
+        <p><strong>Role:</strong> {{ user_detail.role.value }}</p>
+        <p><strong>Email verified:</strong> {{ "Yes" if user_detail.email_verified else "No" }}</p>
+        <p><strong>Admin verified:</strong> {{ "Yes" if user_detail.verified else "No" }}</p>
+        <p><strong>Created:</strong> {{ user_detail.created_at|fmt_datetime }}</p>
+    </div>
+</div>
+{% endblock %}

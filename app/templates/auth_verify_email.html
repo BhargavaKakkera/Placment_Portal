@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+{% block title %}Verify Email{% endblock %}
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-6 col-lg-5">
+        <div class="card shadow-sm">
+            <div class="card-body">
+                <h1 class="h4 mb-3">Verify email</h1>
+                <form method="post" action="/ui/verify-email">
+                    <div class="mb-3"><label class="form-label">Verification token</label><textarea class="form-control" name="token" rows="4" required></textarea></div>
+                    <button class="btn btn-primary w-100" type="submit">Verify</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

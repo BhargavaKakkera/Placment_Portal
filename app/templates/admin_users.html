@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+{% block title %}Admin Users{% endblock %}
+{% block content %}
+<h1 class="h3 mb-3">All users</h1>
+<div class="table-responsive">
+    <table class="table table-striped align-middle">
+        <thead><tr><th>ID</th><th>Email</th><th>Role</th><th>Verified</th><th></th></tr></thead>
+        <tbody>
+            {% for user in users %}
+            <tr>
+                <td>{{ user.id }}</td>
+                <td>{{ user.email }}</td>
+                <td>{{ user.role.value }}</td>
+                <td>{{ "Yes" if user.verified else "No" }}</td>
+                <td><a class="btn btn-sm btn-outline-primary" href="/ui/admin/users/{{ user.id }}">Details</a></td>
+            </tr>
+            {% else %}
+            <tr><td colspan="5" class="text-muted">No users found.</td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endblock %}

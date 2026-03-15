@@ -1,0 +1,61 @@
+{% extends "base.html" %}
+{% block title %}Company Jobs{% endblock %}
+{% block content %}
+<div class="row g-4">
+    <div class="col-lg-5">
+        <div class="card shadow-sm"><div class="card-body">
+            <h2 class="h5">Create job</h2>
+            <form method="post" action="/ui/company/jobs">
+                <div class="mb-3"><label class="form-label">Title</label><input class="form-control" name="title" required></div>
+                <div class="mb-3"><label class="form-label">Description</label><textarea class="form-control" name="description"></textarea></div>
+                <div class="row g-3">
+                    <div class="col-md-6"><label class="form-label">Role type</label><select class="form-select" name="role_type"><option value="full_time">Full-time</option><option value="internship">Internship</option></select></div>
+                    <div class="col-md-6"><label class="form-label">Deadline</label><input class="form-control" name="application_deadline" type="datetime-local"></div>
+                    <div class="col-md-6"><label class="form-label">Min CGPA</label><input class="form-control" name="min_cgpa" type="number" min="0" max="10" step="0.1"></div>
+                    <div class="col-md-6"><label class="form-label">Max backlogs</label><input class="form-control" name="max_backlogs" type="number" min="0"></div>
+                    <div class="col-md-6"><label class="form-label">CTC</label><input class="form-control" name="ctc" type="number" min="0" step="0.1"></div>
+                    <div class="col-md-6"><label class="form-label">Stipend</label><input class="form-control" name="stipend" type="number" min="0" step="0.1"></div>
+                    <div class="col-md-6"><label class="form-label">Internship duration</label><input class="form-control" name="internship_duration"></div>
+                    <div class="col-md-6"><label class="form-label">PPO available</label><div class="form-check mt-2"><input class="form-check-input" name="ppo_available" type="checkbox"></div></div>
+                    <div class="col-12">
+                        <label class="form-label">Allowed branches</label>
+                        <select class="form-select" name="allowed_branches" multiple>
+                            {% for branch in Branch %}
+                            <option value="{{ branch.value }}">{{ branch.value }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                </div>
+                <button class="btn btn-primary mt-3" type="submit">Create job</button>
+            </form>
+        </div></div>
+    </div>
+    <div class="col-lg-7">
+        <div class="card shadow-sm"><div class="card-body">
+            <h2 class="h5">My jobs</h2>
+            <div class="table-responsive">
+                <table class="table align-middle">
+                    <thead><tr><th>Title</th><th>Role</th><th>Status</th><th></th></tr></thead>
+                    <tbody>
+                        {% for job in jobs %}
+                        <tr>
+                            <td>{{ job.title }}</td>
+                            <td>{{ job.role_type.value }}</td>
+                            <td>{{ "Closed" if job.closed else "Open" }}</td>
+                            <td>
+                                <div class="d-flex gap-2">
+                                    <a class="btn btn-sm btn-outline-secondary" href="/ui/company/jobs/{{ job.id }}/applicants">Applicants</a>
+                                    <form method="post" action="/ui/company/jobs/{{ job.id }}/delete"><button class="btn btn-sm btn-outline-danger" type="submit">Delete</button></form>
+                                </div>
+                            </td>
+                        </tr>
+                        {% else %}
+                        <tr><td colspan="4" class="text-muted">No jobs created yet.</td></tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div></div>
+    </div>
+</div>
+{% endblock %}

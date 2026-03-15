@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+{% block title %}Eligible Jobs{% endblock %}
+{% block content %}
+<h1 class="h3 mb-3">Eligible jobs</h1>
+<div class="table-responsive">
+    <table class="table table-striped align-middle">
+        <thead><tr><th>Title</th><th>Role</th><th>Deadline</th><th></th></tr></thead>
+        <tbody>
+            {% for job in jobs %}
+            <tr>
+                <td>{{ job.title }}</td>
+                <td>{{ job.role_type.value }}</td>
+                <td>{{ job.application_deadline|fmt_datetime }}</td>
+                <td>
+                    <div class="d-flex gap-2">
+                        <a class="btn btn-sm btn-outline-secondary" href="/ui/jobs/{{ job.id }}">View</a>
+                        <form method="post" action="/ui/student/jobs/{{ job.id }}/apply">
+                            <button class="btn btn-sm btn-primary" type="submit">Apply</button>
+                        </form>
+                    </div>
+                </td>
+            </tr>
+            {% else %}
+            <tr><td colspan="4" class="text-muted">No eligible jobs right now.</td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endblock %}

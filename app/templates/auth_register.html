@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% block title %}Register{% endblock %}
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-6 col-lg-5">
+        <div class="card shadow-sm">
+            <div class="card-body">
+                <h1 class="h4 mb-3">Register company or admin</h1>
+                <form method="post" action="/ui/register">
+                    <div class="mb-3"><label class="form-label">Email</label><input class="form-control" name="email" type="email" required></div>
+                    <div class="mb-3"><label class="form-label">Password</label><input class="form-control" name="password" type="password" minlength="8" required></div>
+                    <div class="mb-3">
+                        <label class="form-label">Role</label>
+                        <select class="form-select" name="role">
+                            <option value="company">Company</option>
+                            <option value="admin">Admin</option>
+                        </select>
+                    </div>
+                    <button class="btn btn-primary w-100" type="submit">Register</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

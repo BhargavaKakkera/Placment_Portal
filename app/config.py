@@ -4,7 +4,7 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-DEFAULT_DATABASE_URL = "postgresql+psycopg://postgres:2005@localhost:5432/placment_portal"
+DEFAULT_DATABASE_URL = "postgresql+psycopg://postgres:2005@localhost:5432/placement_portal"
 DATABASE_URL = os.getenv("DATABASE_URL", DEFAULT_DATABASE_URL)
 DB_CONNECT_TIMEOUT_SECONDS = int(os.getenv("DB_CONNECT_TIMEOUT_SECONDS", "5"))
 

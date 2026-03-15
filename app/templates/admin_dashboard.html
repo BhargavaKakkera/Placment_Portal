@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+{% block title %}Admin Dashboard{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h1 class="h3 mb-0">Admin dashboard</h1>
+    <div class="btn-group">
+        <a class="btn btn-outline-primary" href="/ui/admin/users">Users</a>
+        <a class="btn btn-outline-primary" href="/ui/admin/pending-admins">Pending admins</a>
+        <a class="btn btn-outline-primary" href="/ui/admin/students">Students</a>
+        <a class="btn btn-outline-primary" href="/ui/admin/companies">Companies</a>
+        <a class="btn btn-outline-primary" href="/ui/admin/jobs">Jobs</a>
+        <a class="btn btn-outline-primary" href="/ui/admin/applications">Applications</a>
+    </div>
+</div>
+<div class="row g-3">
+    <div class="col-md-4"><div class="card shadow-sm"><div class="card-body"><div class="text-muted">Students</div><div class="display-6">{{ stats.total_students }}</div></div></div></div>
+    <div class="col-md-4"><div class="card shadow-sm"><div class="card-body"><div class="text-muted">Placed students</div><div class="display-6">{{ stats.placed_students }}</div></div></div></div>
+    <div class="col-md-4"><div class="card shadow-sm"><div class="card-body"><div class="text-muted">Active jobs</div><div class="display-6">{{ stats.active_jobs }}</div></div></div></div>
+    <div class="col-md-4"><div class="card shadow-sm"><div class="card-body"><div class="text-muted">Total jobs</div><div class="display-6">{{ stats.total_jobs }}</div></div></div></div>
+    <div class="col-md-4"><div class="card shadow-sm"><div class="card-body"><div class="text-muted">Verified companies</div><div class="display-6">{{ stats.total_companies }}</div></div></div></div>
+    <div class="col-md-4"><div class="card shadow-sm"><div class="card-body"><div class="text-muted">Pending companies</div><div class="display-6">{{ stats.pending_companies }}</div></div></div></div>
+</div>
+<div class="card shadow-sm mt-4"><div class="card-body">
+    <h2 class="h5">Branch placement stats</h2>
+    <div class="table-responsive">
+        <table class="table table-striped"><thead><tr><th>Branch</th><th>Total</th><th>Placed</th><th>Rate</th></tr></thead><tbody>
+            {% for item in stats.branch_stats %}
+            <tr><td>{{ item.branch.value }}</td><td>{{ item.total_students }}</td><td>{{ item.placed_students }}</td><td>{{ item.placement_rate }}%</td></tr>
+            {% else %}
+            <tr><td colspan="4" class="text-muted">No branch stats available.</td></tr>
+            {% endfor %}
+        </tbody></table>
+    </div>
+</div></div>
+{% endblock %}

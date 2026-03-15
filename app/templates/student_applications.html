@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+{% block title %}My Applications{% endblock %}
+{% block content %}
+<h1 class="h3 mb-3">My applications</h1>
+<div class="table-responsive">
+    <table class="table table-striped align-middle">
+        <thead><tr><th>ID</th><th>Company</th><th>Job</th><th>Status</th><th>Applied at</th></tr></thead>
+        <tbody>
+            {% for item in applications %}
+            <tr>
+                <td>{{ item.id }}</td>
+                <td>{{ item.company_name }}</td>
+                <td>{{ item.job_title }}</td>
+                <td>{{ item.status.value }}</td>
+                <td>{{ item.applied_at|fmt_datetime }}</td>
+            </tr>
+            {% else %}
+            <tr><td colspan="5" class="text-muted">No applications found.</td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endblock %}
