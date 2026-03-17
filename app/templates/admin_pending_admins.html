@@ -13,7 +13,7 @@
                 <td>{{ user.created_at|fmt_datetime }}</td>
                 <td>
                     <form method="post" action="/ui/admin/users/{{ user.id }}/verify-admin">
-                        <button class="btn btn-sm btn-primary" type="submit">Verify admin</button>
+                        <button class="btn btn-sm btn-primary" type="submit" data-loading-text="Verifying...">Verify admin</button>
                     </form>
                 </td>
             </tr>

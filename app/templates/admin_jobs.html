@@ -11,11 +11,25 @@
                 <td>{{ job.id }}</td>
                 <td>{{ job.title }}</td>
                 <td>{{ job.company_id }}</td>
-                <td>{{ "Yes" if job.closed else "No" }}</td>
+                <td>
+                    {% if job.closed %}
+                    <span class="badge text-bg-secondary">Closed</span>
+                    {% else %}
+                    <span class="badge text-bg-success">Open</span>
+                    {% endif %}
+                </td>
                 <td>
                     <div class="d-flex gap-2">
-                        <form method="post" action="/ui/admin/jobs/{{ job.id }}/close"><button class="btn btn-sm btn-outline-primary" type="submit">Close</button></form>
-                        <form method="post" action="/ui/admin/jobs/{{ job.id }}/delete"><button class="btn btn-sm btn-outline-danger" type="submit">Delete</button></form>
+                        {% if not job.closed %}
+                        <form method="post" action="/ui/admin/jobs/{{ job.id }}/close" data-confirm="Close {{ job.title }}?">
+                            <button class="btn btn-sm btn-outline-primary" type="submit" data-loading-text="Closing...">Close</button>
+                        </form>
+                        {% else %}
+                        <span class="btn btn-sm btn-light disabled">Already closed</span>
+                        {% endif %}
+                        <form method="post" action="/ui/admin/jobs/{{ job.id }}/delete" data-confirm="Delete {{ job.title }}?">
+                            <button class="btn btn-sm btn-outline-danger" type="submit" data-loading-text="Deleting...">Delete</button>
+                        </form>
                     </div>
                 </td>
             </tr>

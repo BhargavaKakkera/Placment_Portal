@@ -41,5 +41,26 @@
         {% endif %}
         {% block content %}{% endblock %}
     </main>
+    <script>
+        document.addEventListener("submit", function (event) {
+            const form = event.target;
+            if (!(form instanceof HTMLFormElement)) {
+                return;
+            }
+
+            if (form.dataset.confirm && !window.confirm(form.dataset.confirm)) {
+                event.preventDefault();
+                return;
+            }
+
+            const submitter = event.submitter;
+            if (submitter instanceof HTMLButtonElement) {
+                submitter.disabled = true;
+                const originalText = submitter.dataset.originalText || submitter.textContent;
+                submitter.dataset.originalText = originalText;
+                submitter.textContent = submitter.dataset.loadingText || "Working...";
+            }
+        });
+    </script>
 </body>
 </html>

@@ -30,12 +30,25 @@
                             <td>{{ student.name }}</td>
                             <td>{{ student.branch.value }}</td>
                             <td>{{ student.cgpa }}</td>
-                            <td>{{ "Yes" if student.is_active else "No" }}</td>
+                            <td>
+                                {% if student.is_active %}
+                                <span class="badge text-bg-success">Active</span>
+                                {% else %}
+                                <span class="badge text-bg-secondary">Inactive</span>
+                                {% endif %}
+                            </td>
                             <td>
                                 <div class="d-flex gap-2">
                                     <a class="btn btn-sm btn-outline-primary" href="/ui/admin/students/{{ student.id }}">Edit</a>
-                                    <form method="post" action="/ui/admin/students/{{ student.id }}/delete"><button class="btn btn-sm btn-outline-danger" type="submit">Deactivate</button></form>
-                                    <form method="post" action="/ui/admin/students/{{ student.id }}/reactivate"><button class="btn btn-sm btn-outline-success" type="submit">Reactivate</button></form>
+                                    {% if student.is_active %}
+                                    <form method="post" action="/ui/admin/students/{{ student.id }}/delete" data-confirm="Deactivate {{ student.name }}?">
+                                        <button class="btn btn-sm btn-outline-danger" type="submit" data-loading-text="Deactivating...">Deactivate</button>
+                                    </form>
+                                    {% else %}
+                                    <form method="post" action="/ui/admin/students/{{ student.id }}/reactivate">
+                                        <button class="btn btn-sm btn-outline-success" type="submit" data-loading-text="Reactivating...">Reactivate</button>
+                                    </form>
+                                    {% endif %}
                                 </div>
                             </td>
                         </tr>

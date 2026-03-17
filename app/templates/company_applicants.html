@@ -14,18 +14,45 @@
                 <td>{{ item.student_name }}<br><small class="text-muted">{{ item.reg_no }}</small></td>
                 <td>{{ item.branch.value }}</td>
                 <td>{{ item.cgpa }}</td>
-                <td>{{ item.status.value }}</td>
                 <td>
+                    {% if item.status.value == "applied" %}
+                    <span class="badge text-bg-primary">Applied</span>
+                    {% elif item.status.value == "shortlisted" %}
+                    <span class="badge text-bg-info">Shortlisted</span>
+                    {% elif item.status.value == "offered" %}
+                    <span class="badge text-bg-warning">Offered</span>
+                    {% elif item.status.value == "accepted" %}
+                    <span class="badge text-bg-success">Accepted</span>
+                    {% elif item.status.value == "rejected" %}
+                    <span class="badge text-bg-danger">Rejected</span>
+                    {% else %}
+                    <span class="badge text-bg-secondary">{{ item.status.value|title }}</span>
+                    {% endif %}
+                </td>
+                <td>
+                    {% if item.status.value in ["rejected", "declined"] %}
+                    <span class="text-muted small">No further actions</span>
+                    {% else %}
                     <form method="post" action="/ui/company/applications/{{ item.id }}" class="row g-2">
                         <div class="col-12"><select class="form-select form-select-sm" name="status">
+                            {% if item.status.value == "applied" %}
                             <option value="shortlisted">Shortlist</option>
                             <option value="rejected">Reject</option>
+                            {% elif item.status.value == "shortlisted" %}
                             <option value="offered">Offer</option>
+                            <option value="rejected">Reject</option>
+                            {% elif item.status.value == "offered" %}
+                            <option value="shortlisted">Move back to shortlisted</option>
+                            <option value="rejected">Reject</option>
+                            {% elif item.status.value == "accepted" %}
+                            <option value="rejected">Reject accepted application</option>
+                            {% endif %}
                         </select></div>
                         <div class="col-6"><input class="form-control form-control-sm" name="ctc" placeholder="CTC"></div>
                         <div class="col-6"><input class="form-control form-control-sm" name="offer_response_deadline" type="datetime-local"></div>
-                        <div class="col-12"><button class="btn btn-sm btn-primary w-100" type="submit">Update</button></div>
+                        <div class="col-12"><button class="btn btn-sm btn-primary w-100" type="submit" data-loading-text="Updating...">Update</button></div>
                     </form>
+                    {% endif %}
                 </td>
             </tr>
             {% else %}

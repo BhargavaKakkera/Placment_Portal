@@ -10,13 +10,38 @@
             <tr>
                 <td>{{ company.id }}</td>
                 <td>{{ company.name }}</td>
-                <td>{{ "Yes" if company.verified else "No" }}</td>
-                <td>{{ "Yes" if company.is_active else "No" }}</td>
+                <td>
+                    {% if company.verified %}
+                    <span class="badge text-bg-success">Verified</span>
+                    {% else %}
+                    <span class="badge text-bg-warning">Pending</span>
+                    {% endif %}
+                </td>
+                <td>
+                    {% if company.is_active %}
+                    <span class="badge text-bg-success">Active</span>
+                    {% else %}
+                    <span class="badge text-bg-secondary">Inactive</span>
+                    {% endif %}
+                </td>
                 <td>
                     <div class="d-flex gap-2">
-                        <form method="post" action="/ui/admin/companies/{{ company.id }}/verify"><button class="btn btn-sm btn-outline-primary" type="submit">Verify</button></form>
-                        <form method="post" action="/ui/admin/companies/{{ company.id }}/delete"><button class="btn btn-sm btn-outline-danger" type="submit">Deactivate</button></form>
-                        <form method="post" action="/ui/admin/companies/{{ company.id }}/reactivate"><button class="btn btn-sm btn-outline-success" type="submit">Reactivate</button></form>
+                        {% if not company.verified and company.is_active %}
+                        <form method="post" action="/ui/admin/companies/{{ company.id }}/verify">
+                            <button class="btn btn-sm btn-outline-primary" type="submit" data-loading-text="Verifying...">Verify</button>
+                        </form>
+                        {% else %}
+                        <span class="btn btn-sm btn-light disabled">Verify</span>
+                        {% endif %}
+                        {% if company.is_active %}
+                        <form method="post" action="/ui/admin/companies/{{ company.id }}/delete" data-confirm="Deactivate {{ company.name }}?">
+                            <button class="btn btn-sm btn-outline-danger" type="submit" data-loading-text="Deactivating...">Deactivate</button>
+                        </form>
+                        {% else %}
+                        <form method="post" action="/ui/admin/companies/{{ company.id }}/reactivate">
+                            <button class="btn btn-sm btn-outline-success" type="submit" data-loading-text="Reactivating...">Reactivate</button>
+                        </form>
+                        {% endif %}
                     </div>
                 </td>
             </tr>

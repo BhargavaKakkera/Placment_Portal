@@ -15,8 +15,12 @@
                     <td>{{ item.response_deadline|fmt_datetime }}</td>
                     <td>
                         <div class="d-flex gap-2">
-                            <form method="post" action="/ui/student/offers/{{ item.id }}/accept"><button class="btn btn-sm btn-success" type="submit">Accept</button></form>
-                            <form method="post" action="/ui/student/offers/{{ item.id }}/decline"><button class="btn btn-sm btn-outline-danger" type="submit">Decline</button></form>
+                            <form method="post" action="/ui/student/offers/{{ item.id }}/accept">
+                                <button class="btn btn-sm btn-success" type="submit" data-loading-text="Accepting...">Accept</button>
+                            </form>
+                            <form method="post" action="/ui/student/offers/{{ item.id }}/decline" data-confirm="Decline this offer?">
+                                <button class="btn btn-sm btn-outline-danger" type="submit" data-loading-text="Declining...">Decline</button>
+                            </form>
                         </div>
                     </td>
                 </tr>

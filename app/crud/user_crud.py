@@ -60,9 +60,6 @@ def update_user_password(session: Session, user_id: int, new_password: str) -> O
     if not user or not getattr(user, "is_active", True):
         return None
     user.password_hash = hash_password(new_password)
-    if not getattr(user, "email_verified", False):
-        user.email_verified = True
-        user.email_verified_at = utc_now()
     session.add(user)
     session.commit()
     session.refresh(user)

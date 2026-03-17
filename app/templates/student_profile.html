@@ -28,8 +28,8 @@
                 <button class="btn btn-primary" type="submit">Save profile</button>
             </div>
         </form>
-        <form method="post" action="/ui/student/delete" class="mt-3">
-            <button class="btn btn-outline-danger" type="submit">Deactivate student account</button>
+        <form method="post" action="/ui/student/delete" class="mt-3" data-confirm="Deactivate your student account?">
+            <button class="btn btn-outline-danger" type="submit" data-loading-text="Deactivating...">Deactivate student account</button>
         </form>
     </div>
 </div>

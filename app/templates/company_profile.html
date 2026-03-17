@@ -6,9 +6,21 @@
 <div class="card shadow-sm">
     <div class="card-body">
         <p><strong>Name:</strong> {{ company.name }}</p>
-        <p><strong>Verified:</strong> {{ "Yes" if company.verified else "No" }}</p>
-        <form method="post" action="/ui/company/delete">
-            <button class="btn btn-outline-danger" type="submit">Deactivate company</button>
+        <p>
+            <strong>Verified:</strong>
+            {% if company.verified %}
+            <span class="badge text-bg-success">Verified</span>
+            {% else %}
+            <span class="badge text-bg-warning">Pending admin approval</span>
+            {% endif %}
+        </p>
+        {% if not company.verified %}
+        <div class="alert alert-warning mb-3">
+            Your profile exists, but job creation stays locked until an admin verifies the company.
+        </div>
+        {% endif %}
+        <form method="post" action="/ui/company/delete" data-confirm="Deactivate company profile for {{ company.name }}?">
+            <button class="btn btn-outline-danger" type="submit" data-loading-text="Deactivating...">Deactivate company</button>
         </form>
     </div>
 </div>
@@ -17,7 +29,7 @@
     <div class="card-body">
         <form method="post" action="/ui/company/profile">
             <div class="mb-3"><label class="form-label">Company name</label><input class="form-control" name="name" required></div>
-            <button class="btn btn-primary" type="submit">Create company profile</button>
+            <button class="btn btn-primary" type="submit" data-loading-text="Creating...">Create company profile</button>
         </form>
     </div>
 </div>

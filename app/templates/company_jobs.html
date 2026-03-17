@@ -5,7 +5,13 @@
     <div class="col-lg-5">
         <div class="card shadow-sm"><div class="card-body">
             <h2 class="h5">Create job</h2>
+            {% if not company.verified %}
+            <div class="alert alert-warning">
+                Admin verification is pending. You can review your profile and existing jobs, but new job creation is disabled until verification.
+            </div>
+            {% endif %}
             <form method="post" action="/ui/company/jobs">
+                <fieldset {% if not company.verified %}disabled{% endif %}>
                 <div class="mb-3"><label class="form-label">Title</label><input class="form-control" name="title" required></div>
                 <div class="mb-3"><label class="form-label">Description</label><textarea class="form-control" name="description"></textarea></div>
                 <div class="row g-3">
@@ -26,7 +32,8 @@
                         </select>
                     </div>
                 </div>
-                <button class="btn btn-primary mt-3" type="submit">Create job</button>
+                <button class="btn btn-primary mt-3" type="submit" data-loading-text="Creating...">Create job</button>
+                </fieldset>
             </form>
         </div></div>
     </div>
@@ -41,11 +48,19 @@
                         <tr>
                             <td>{{ job.title }}</td>
                             <td>{{ job.role_type.value }}</td>
-                            <td>{{ "Closed" if job.closed else "Open" }}</td>
+                            <td>
+                                {% if job.closed %}
+                                <span class="badge text-bg-secondary">Closed</span>
+                                {% else %}
+                                <span class="badge text-bg-success">Open</span>
+                                {% endif %}
+                            </td>
                             <td>
                                 <div class="d-flex gap-2">
                                     <a class="btn btn-sm btn-outline-secondary" href="/ui/company/jobs/{{ job.id }}/applicants">Applicants</a>
-                                    <form method="post" action="/ui/company/jobs/{{ job.id }}/delete"><button class="btn btn-sm btn-outline-danger" type="submit">Delete</button></form>
+                                    <form method="post" action="/ui/company/jobs/{{ job.id }}/delete" data-confirm="Delete {{ job.title }}?">
+                                        <button class="btn btn-sm btn-outline-danger" type="submit" data-loading-text="Deleting...">Delete</button>
+                                    </form>
                                 </div>
                             </td>
                         </tr>

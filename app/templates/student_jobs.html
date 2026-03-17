@@ -2,6 +2,9 @@
 {% block title %}Eligible Jobs{% endblock %}
 {% block content %}
 <h1 class="h3 mb-3">Eligible jobs</h1>
+<div class="alert alert-light border">
+    This list already hides jobs you are not eligible for and jobs you have already applied to.
+</div>
 <div class="table-responsive">
     <table class="table table-striped align-middle">
         <thead><tr><th>Title</th><th>Role</th><th>Deadline</th><th></th></tr></thead>
@@ -15,7 +18,7 @@
                     <div class="d-flex gap-2">
                         <a class="btn btn-sm btn-outline-secondary" href="/ui/jobs/{{ job.id }}">View</a>
                         <form method="post" action="/ui/student/jobs/{{ job.id }}/apply">
-                            <button class="btn btn-sm btn-primary" type="submit">Apply</button>
+                            <button class="btn btn-sm btn-primary" type="submit" data-loading-text="Applying...">Apply</button>
                         </form>
                     </div>
                 </td>
