@@ -8,6 +8,7 @@ from sqlmodel import Session, select
 from ...database import get_session
 from ... import crud
 from ...auth import get_verified_admin
+from ...audit import log_audit
 from ...models import User
 from ...enums import Role
 from ...schemas import PaginationParams, UserAdminOut, UserAdminListOut
@@ -22,11 +23,15 @@ router = APIRouter(
 @router.get("/", response_model=UserAdminListOut)
 def admin_list_users(
     pagination: PaginationParams = Depends(),
+    admin_user: User = Depends(get_verified_admin),
     session: Session = Depends(get_session),
 ):
     """List all users with pagination (requires verified admin)."""
     items = crud.get_all_users(session, skip=pagination.skip, limit=pagination.limit)
     total = crud.count_users(session)
+    
+    # Log sensitive read
+    log_audit("admin.users.listed", admin_id=admin_user.id, count=len(items), total=total)
 
     return {
         "items": items,

@@ -18,6 +18,7 @@
             <div class="collapse navbar-collapse" id="appNav">
                 <div class="navbar-nav me-auto">
                     <a class="nav-link" href="/ui/jobs">Jobs</a>
+                    <a class="nav-link" href="/policy/lifecycle">Policy</a>
                     {% if current_user and current_user.role == Role.student %}
                     <a class="nav-link" href="/ui/student">Student</a>
                     {% elif current_user and current_user.role == Role.company %}

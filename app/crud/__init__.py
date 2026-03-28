@@ -71,7 +71,6 @@ from .job_crud import (
 from .application_crud import (
     apply_job,
     get_application_by_id,
-    withdraw_application,
     shortlist_applicant,
     reject_applicant,
     list_applications,
@@ -154,7 +153,6 @@ __all__ = [
     # Application
     "apply_job",
     "get_application_by_id",
-    "withdraw_application",
     "shortlist_applicant",
     "reject_applicant",
     "list_applications",

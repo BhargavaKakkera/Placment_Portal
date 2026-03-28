@@ -8,7 +8,7 @@ import logging
 from pathlib import Path
 from typing import Any, Dict
 
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, Request, HTTPException
 from fastapi.responses import RedirectResponse
 from fastapi.exceptions import RequestValidationError
 from starlette.middleware.sessions import SessionMiddleware
@@ -22,6 +22,7 @@ from . import crud
 from .config import SESSION_SECRET_KEY, DEBUG, LOG_LEVEL
 from .exceptions import ApplicationException
 from .logger import configure_logging, get_logger, configure_uvicorn_logging
+from .security_alerts import record_server_error
 
 # Configure logging before anything else
 configure_logging(log_level=LOG_LEVEL)
@@ -126,12 +127,12 @@ from .routers import auth, jobs, students, companies
 from .routers.admin import router as admin_router
 from .ui import router as ui_router
 
-app.include_router(auth.router, tags=["Authentication"])
-app.include_router(jobs.router, tags=["Jobs"])
-app.include_router(students.router, tags=["Students"])
-app.include_router(companies.router, tags=["Companies"])
-app.include_router(admin_router, tags=["Admin"])
-app.include_router(ui_router, tags=["UI"])
+app.include_router(auth.router)
+app.include_router(jobs.router)
+app.include_router(students.router)
+app.include_router(companies.router)
+app.include_router(admin_router)
+app.include_router(ui_router,include_in_schema=False)
 
 logger.info("All routers registered")
 
@@ -156,12 +157,26 @@ async def request_validation_exception_handler(request: Request, exc: RequestVal
     )
 
 
+@app.exception_handler(HTTPException)
+async def http_exception_handler(request: Request, exc: HTTPException):
+    detail = exc.detail if isinstance(exc.detail, str) else "Request failed"
+    return JSONResponse(
+        status_code=exc.status_code,
+        content={
+            "detail": detail,
+            "error_code": f"HTTP_{exc.status_code}",
+        },
+        headers=exc.headers,
+    )
+
+
 @app.exception_handler(Exception)
 async def unhandled_exception_handler(request: Request, exc: Exception):
     logger.error(
         f"Unhandled error at {request.method} {request.url.path}: {str(exc)}",
         exc_info=True,
     )
+    record_server_error(request.url.path)
     return JSONResponse(
         status_code=500,
         content={"detail": "Internal server error"},

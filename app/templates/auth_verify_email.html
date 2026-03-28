@@ -7,7 +7,7 @@
             <div class="card-body">
                 <h1 class="h4 mb-3">Verify email</h1>
                 <form method="post" action="/ui/verify-email">
-                    <div class="mb-3"><label class="form-label">Verification token</label><textarea class="form-control" name="token" rows="4" required></textarea></div>
+                    <div class="mb-3"><label class="form-label">Verification token</label><textarea class="form-control" name="token" rows="4" required>{{ token or '' }}</textarea></div>
                     <button class="btn btn-primary w-100" type="submit">Verify</button>
                 </form>
             </div>

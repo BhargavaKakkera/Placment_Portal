@@ -89,15 +89,6 @@ def get_application_by_id(session: Session, application_id: int) -> Optional[App
     return session.get(Application, application_id)
 
 
-def withdraw_application(
-    session: Session, 
-    application_id: int, 
-    student_id: int
-) -> Optional[bool]:
-    """Application withdrawal is disabled by business rule."""
-    return False
-
-
 def shortlist_applicant(
     session: Session, 
     application_id: int, 

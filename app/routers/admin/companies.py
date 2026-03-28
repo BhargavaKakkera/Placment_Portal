@@ -8,6 +8,8 @@ from sqlmodel import Session
 from ...database import get_session
 from ... import crud
 from ...auth import get_verified_admin
+from ...audit import log_audit
+from ...models import User
 from ...schemas import CompanyListOut, PaginationParams
 
 router = APIRouter(
@@ -35,6 +37,7 @@ def admin_list_companies(
     pagination: PaginationParams = Depends(),
     verified: bool = Query(None, description="Filter by verification status"),
     include_inactive: bool = Query(False, description="Include deactivated companies"),
+    admin_user: User = Depends(get_verified_admin),
     session: Session = Depends(get_session),
 ):
     """List all companies with pagination (requires verified admin)."""
@@ -46,6 +49,9 @@ def admin_list_companies(
         include_inactive=include_inactive,
     )
     total = crud.count_companies(session, verified=verified, include_inactive=include_inactive)
+    
+    # Log sensitive read
+    log_audit("admin.companies.listed", admin_id=admin_user.id, count=len(items), total=total, verified=verified, include_inactive=include_inactive)
 
     return {
         "items": items,

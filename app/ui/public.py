@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, BackgroundTasks, Request
 from fastapi.responses import RedirectResponse
 from pydantic import ValidationError
 from sqlalchemy.exc import IntegrityError
@@ -8,6 +8,7 @@ from .. import crud
 from ..auth import create_access_token, create_email_verification_token, create_password_reset_token
 from ..config import DEBUG
 from ..database import engine
+from ..email_service import send_email_verification_email, send_password_reset_email
 from ..enums import Role
 from ..models import Company, User
 from ..schemas import EmailVerificationConfirmIn, PasswordResetConfirmIn, PasswordResetRequestIn, RegisterIn
@@ -87,7 +88,7 @@ def register_page(request: Request):
 
 
 @router.post("/register", name="ui_register_post")
-async def register_submit(request: Request):
+async def register_submit(request: Request, background_tasks: BackgroundTasks):
     try:
         form = await read_form_with_csrf(request)
     except ValueError as exc:
@@ -116,6 +117,8 @@ async def register_submit(request: Request):
             session.rollback()
             return redirect_to(request, "ui_register", "Email already registered.", "danger")
         token = create_email_verification_token(user.id) if role in {Role.admin, Role.company} else None
+    if token:
+        background_tasks.add_task(send_email_verification_email, str(email), token)
     if token and DEBUG_MODE:
         return redirect_to(
             request,
@@ -136,7 +139,13 @@ async def register_submit(request: Request):
 @router.get("/verify-email", name="ui_verify_email")
 def verify_email_page(request: Request):
     with Session(engine) as session:
-        return render(request, "auth_verify_email.html", current_user=current_user(request, session), role_home="/ui/")
+        return render(
+            request,
+            "auth_verify_email.html",
+            current_user=current_user(request, session),
+            role_home="/ui/",
+            token=str(request.query_params.get("token", "")),
+        )
 
 
 @router.post("/verify-email", name="ui_verify_email_post")
@@ -167,7 +176,7 @@ def forgot_password_page(request: Request):
 
 
 @router.post("/forgot-password", name="ui_forgot_password_post")
-async def forgot_password_submit(request: Request):
+async def forgot_password_submit(request: Request, background_tasks: BackgroundTasks):
     try:
         form = await read_form_with_csrf(request)
     except ValueError as exc:
@@ -179,6 +188,8 @@ async def forgot_password_submit(request: Request):
     with Session(engine) as session:
         user = crud.get_user_by_email(session, payload.email)
         token = create_password_reset_token(user.id) if user else None
+    if token:
+        background_tasks.add_task(send_password_reset_email, payload.email, token)
     if token and DEBUG_MODE:
         return redirect_to(request, "ui_reset_password", f"Demo reset token: {token}", "info")
     return redirect_to(
@@ -192,7 +203,13 @@ async def forgot_password_submit(request: Request):
 @router.get("/reset-password", name="ui_reset_password")
 def reset_password_page(request: Request):
     with Session(engine) as session:
-        return render(request, "auth_reset_password.html", current_user=current_user(request, session), role_home="/ui/")
+        return render(
+            request,
+            "auth_reset_password.html",
+            current_user=current_user(request, session),
+            role_home="/ui/",
+            token=str(request.query_params.get("token", "")),
+        )
 
 
 @router.post("/reset-password", name="ui_reset_password_post")

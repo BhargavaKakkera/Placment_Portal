@@ -12,6 +12,7 @@ from sqlmodel import Session, select
 from ...database import get_session
 from ... import crud
 from ...auth import get_verified_admin, hash_password, create_password_reset_token
+from ...audit import log_audit
 from ...config import DEBUG
 from ...schemas import (
     StudentAdminUpdate,
@@ -24,6 +25,7 @@ from ...models import User, Student
 from ...enums import Branch
 from ...enums import Role
 from ...logger import get_logger
+from ...email_service import send_student_invite_email
 
 router = APIRouter(
     prefix="/students",
@@ -39,7 +41,7 @@ def _send_student_invite_email(email: str, token: str) -> None:
     Demo background task.
     Replace with real email provider integration.
     """
-    logger.info(f"Student invite email queued for: {email}")
+    send_student_invite_email(email, token)
 
 
 @router.post("/provision", response_model=AdminStudentProvisionOut)
@@ -113,6 +115,7 @@ def admin_list_students(
     pagination: PaginationParams = Depends(),
     branch: Optional[Branch] = Query(None, description="Filter by branch"),
     include_inactive: bool = Query(False, description="Include deactivated students"),
+    admin_user: User = Depends(get_verified_admin),
     session: Session = Depends(get_session),
 ):
     """List all students with pagination (requires verified admin)."""
@@ -128,6 +131,9 @@ def admin_list_students(
         branch=branch,
         include_inactive=include_inactive,
     )
+    
+    # Log sensitive read
+    log_audit("admin.students.listed", admin_id=admin_user.id, count=len(items), total=total, branch=str(branch) if branch else None, include_inactive=include_inactive)
 
     return {
         "items": items,

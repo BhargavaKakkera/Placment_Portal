@@ -8,6 +8,7 @@ from ..models import Student, User, Offer
 from ..enums import Branch
 from ..enums import OfferStatus
 from ..datetime_utils import utc_now
+from ..audit import log_audit
 
 
 def create_student(session: Session, user_id: int, **data) -> Student:
@@ -76,6 +77,7 @@ def delete_student(session: Session, student_id: int) -> Optional[bool]:
             session.add(user)
 
         session.commit()
+        log_audit("student.deactivated", student_id=student_id, user_id=student.user_id)
         return True
     except Exception:
         session.rollback()
@@ -102,6 +104,7 @@ def reactivate_student(session: Session, student_id: int) -> Optional[bool]:
             session.add(user)
 
         session.commit()
+        log_audit("student.reactivated", student_id=student_id, user_id=student.user_id)
         return True
     except Exception:
         session.rollback()

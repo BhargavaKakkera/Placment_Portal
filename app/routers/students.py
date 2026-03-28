@@ -214,21 +214,6 @@ def delete_my_student(
 # WITHDRAW APPLICATION
 # ---------------------------
 
-@router.delete(
-    "/applications/{application_id}",
-    dependencies=[Depends(get_current_student)],
-)
-def withdraw_application(
-    application_id: int,
-    session: Session = Depends(get_session),
-):
-    raise HTTPException(
-        status_code=405,
-        detail="Application withdrawal is disabled after applying"
-    )
-
-
-
 @router.get("/me/offers", response_model=list[StudentOfferItemOut])
 def my_offers(
     current_user=Depends(get_current_student),

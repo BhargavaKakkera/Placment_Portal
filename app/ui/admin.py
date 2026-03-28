@@ -1,6 +1,6 @@
 import secrets
 
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, BackgroundTasks, Request
 from pydantic import ValidationError
 from sqlmodel import Session, select
 
@@ -8,6 +8,7 @@ from .. import crud
 from ..auth import create_password_reset_token, hash_password
 from ..config import DEBUG
 from ..database import engine
+from ..email_service import send_student_invite_email
 from ..enums import Branch, Role
 from ..models import Student, User
 from ..schemas import AdminStudentProvisionIn, StudentAdminUpdate
@@ -99,7 +100,7 @@ def admin_students_page(request: Request):
 
 
 @router.post("/students/provision", name="ui_admin_students_provision")
-async def admin_students_provision_submit(request: Request):
+async def admin_students_provision_submit(request: Request, background_tasks: BackgroundTasks):
     try:
         form = await read_form_with_csrf(request)
     except ValueError as exc:
@@ -162,6 +163,7 @@ async def admin_students_provision_submit(request: Request):
     if not new_user_id:
         return redirect_to(request, "ui_admin_students", "Could not provision student.", "danger")
     invite_token = create_password_reset_token(new_user_id)
+    background_tasks.add_task(send_student_invite_email, str(email), invite_token)
     if DEBUG_MODE:
         return redirect_to(
             request,

@@ -18,6 +18,7 @@ from .config import (
     ACCESS_TOKEN_EXPIRE_MINUTES,
     ALGORITHM,
     PASSWORD_RESET_TOKEN_EXPIRE_MINUTES,
+    EMAIL_VERIFICATION_TOKEN_EXPIRE_MINUTES,
     JWT_SECRET_KEY,
 )
 from .models import User
@@ -175,7 +176,7 @@ def create_email_verification_token(user_id: int, expires_delta: Optional[timede
     """
     try:
         expire = utc_now_aware() + (
-            expires_delta or timedelta(minutes=PASSWORD_RESET_TOKEN_EXPIRE_MINUTES)
+            expires_delta or timedelta(minutes=EMAIL_VERIFICATION_TOKEN_EXPIRE_MINUTES)
         )
         payload = {
             "sub": str(user_id),
@@ -330,7 +331,7 @@ def get_current_student(user: User = Depends(get_current_user)) -> User:
     Raises:
         HTTPException: If user is not a student
     """
-    if user.role != "student":
+    if user.role != Role.student:
         logger.warning(f"Student access denied for non-student user: {user.id}")
         raise AuthorizationError("Only students allowed")
     return user
@@ -349,7 +350,7 @@ def get_current_company(user: User = Depends(get_current_user)) -> User:
     Raises:
         HTTPException: If user is not a company or email not verified
     """
-    if user.role != "company":
+    if user.role != Role.company:
         logger.warning(f"Company access denied for non-company user: {user.id}")
         raise AuthorizationError("Only companies allowed")
 
@@ -373,7 +374,7 @@ def get_current_admin(user: User = Depends(get_current_user)) -> User:
     Raises:
         HTTPException: If user is not an admin
     """
-    if user.role != "admin":
+    if user.role != Role.admin:
         logger.warning(f"Admin access denied for non-admin user: {user.id}")
         raise AuthorizationError("Only admins allowed")
     return user
@@ -385,7 +386,7 @@ def get_verified_admin(user: User = Depends(get_current_admin)):
     - First admin (is_first_admin=True) is automatically verified
     - Other admins need to be verified by first admin
     """
-    if user.role != "admin":
+    if user.role != Role.admin:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only admins allowed")
     
     if not getattr(user, "email_verified", False):

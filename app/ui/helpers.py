@@ -12,7 +12,7 @@ from pydantic import ValidationError
 from sqlmodel import Session, select
 
 from .. import crud
-from ..crud.offer_crud import get_application_block_reason
+from ..crud.offer_crud import get_application_block_reason, get_student_acceptance_state
 from ..datetime_utils import to_utc_naive, utc_now
 from ..enums import Branch, CompanyApplicationAction, Role, RoleType
 from ..models import Application, Company, Job, Student, User
@@ -176,6 +176,10 @@ def eligible_jobs(session: Session, student: Student) -> list[Job]:
             select(Application.job_id).where(Application.student_id == student.id)
         ).all()
     )
+    
+    # Cache acceptance state to avoid N+1 query (fetch once instead of per job)
+    acceptance_state = get_student_acceptance_state(session, student.id)
+    
     eligible = []
     for job in jobs:
         if job.id in applied_job_ids:
@@ -191,7 +195,13 @@ def eligible_jobs(session: Session, student: Student) -> list[Job]:
                 continue
         if job.application_deadline and to_utc_naive(job.application_deadline) < utc_now():
             continue
-        if get_application_block_reason(session, student.id, getattr(job, "role_type", None)):
+        
+        # Check application block reason using cached state
+        role_type = job.role_type if hasattr(job, "role_type") else RoleType.full_time
+        if acceptance_state["has_accepted_full_time"] and role_type == RoleType.full_time:
             continue
+        if acceptance_state["has_accepted_internship"] and role_type == RoleType.internship:
+            continue
+        
         eligible.append(job)
     return eligible

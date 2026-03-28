@@ -8,6 +8,7 @@ from typing import Optional, List
 from ..models import Offer, Application, Student, Job, Company
 from ..enums import RoleType, ApplicationStatus, OfferStatus
 from ..datetime_utils import utc_now, to_utc_naive
+from ..audit import log_audit
 
 
 def _normalize_role_type(role_type) -> RoleType:
@@ -306,6 +307,13 @@ def accept_offer(session: Session, offer_id: int, student_id: int) -> Optional[O
                 session.add(other_app)
         session.commit()
         session.refresh(offer)
+        log_audit(
+            "offer.accepted",
+            offer_id=offer.id,
+            student_id=student_id,
+            job_id=offer.job_id,
+            company_id=offer.company_id,
+        )
         return offer
     except Exception:
         session.rollback()
@@ -339,6 +347,13 @@ def decline_offer(session: Session, offer_id: int, student_id: int) -> Optional[
 
     session.commit()
     session.refresh(offer)
+    log_audit(
+        "offer.declined",
+        offer_id=offer.id,
+        student_id=student_id,
+        job_id=offer.job_id,
+        company_id=offer.company_id,
+    )
     return offer
 
 

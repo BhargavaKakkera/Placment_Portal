@@ -6,6 +6,7 @@ from sqlmodel import Session, select, func
 from typing import Optional, List
 from ..models import Company, User, Job
 from ..datetime_utils import utc_now
+from ..audit import log_audit
 
 
 def create_company(session: Session, user_id: int, name: str) -> Company:
@@ -72,6 +73,7 @@ def delete_company(session: Session, company_id: int) -> Optional[bool]:
             session.add(user)
 
         session.commit()
+        log_audit("company.deactivated", company_id=company_id, user_id=company.user_id)
         return True
     except Exception:
         session.rollback()
@@ -98,6 +100,7 @@ def reactivate_company(session: Session, company_id: int) -> Optional[bool]:
             session.add(user)
 
         session.commit()
+        log_audit("company.reactivated", company_id=company_id, user_id=company.user_id)
         return True
     except Exception:
         session.rollback()
@@ -140,4 +143,5 @@ def verify_company(session: Session, company_id: int) -> Optional[Company]:
     session.add(company)
     session.commit()
     session.refresh(company)
+    log_audit("company.verified", company_id=company_id, user_id=company.user_id)
     return company

@@ -8,6 +8,8 @@ from sqlmodel import Session
 from ...database import get_session
 from ... import crud
 from ...auth import get_verified_admin
+from ...audit import log_audit
+from ...models import User
 from ...schemas import ApplicationListOut, PaginationParams
 
 router = APIRouter(
@@ -20,6 +22,7 @@ router = APIRouter(
 @router.get("/", response_model=ApplicationListOut)
 def admin_list_applications(
     pagination: PaginationParams = Depends(),
+    admin_user: User = Depends(get_verified_admin),
     session: Session = Depends(get_session),
 ):
     """List all applications with pagination (requires verified admin)."""
@@ -29,6 +32,9 @@ def admin_list_applications(
         limit=pagination.limit,
     )
     total = crud.count_applications(session)
+    
+    # Log sensitive read
+    log_audit("admin.applications.listed", admin_id=admin_user.id, skip=pagination.skip, limit=pagination.limit, total=total)
 
     return {
         "items": items,

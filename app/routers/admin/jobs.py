@@ -8,6 +8,8 @@ from sqlmodel import Session
 from ...database import get_session
 from ... import crud
 from ...auth import get_verified_admin
+from ...audit import log_audit
+from ...models import User
 from ...schemas import JobListOut, PaginationParams
 
 router = APIRouter(
@@ -20,11 +22,15 @@ router = APIRouter(
 @router.get("/", response_model=JobListOut)
 def admin_list_jobs(
     pagination: PaginationParams = Depends(),
+    admin_user: User = Depends(get_verified_admin),
     session: Session = Depends(get_session),
 ):
     """List all jobs with pagination (requires verified admin)."""
     items = crud.list_jobs(session, skip=pagination.skip, limit=pagination.limit)
     total = crud.count_jobs(session)
+    
+    # Log sensitive read
+    log_audit("admin.jobs.listed", admin_id=admin_user.id, count=len(items), total=total)
 
     return {
         "items": items,

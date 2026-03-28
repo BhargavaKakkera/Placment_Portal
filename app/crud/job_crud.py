@@ -7,6 +7,7 @@ from typing import Optional, List
 from ..models import Job, Company, Application, Offer
 from ..enums import RoleType
 from ..datetime_utils import utc_now
+from ..audit import log_audit
 
 
 def create_job(session: Session, company_id: int, **data) -> Job:
@@ -190,6 +191,7 @@ def close_job(session: Session, job_id: int) -> Optional[Job]:
     session.add(job)
     session.commit()
     session.refresh(job)
+    log_audit("job.closed", job_id=job_id, company_id=job.company_id)
     return job
 
 
@@ -207,8 +209,10 @@ def delete_job(session: Session, job_id: int) -> Optional[bool]:
         raise ValueError("Cannot delete job with existing applications/offers. Close the job instead.")
 
     try:
+        company_id = job.company_id
         session.delete(job)
         session.commit()
+        log_audit("job.deleted", job_id=job_id, company_id=company_id)
         return True
     except Exception:
         session.rollback()
