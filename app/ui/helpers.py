@@ -3,6 +3,7 @@ from __future__ import annotations
 from datetime import datetime
 from pathlib import Path
 from typing import Optional
+import secrets
 
 from fastapi import Request
 from fastapi.responses import RedirectResponse
@@ -31,9 +32,15 @@ def set_flash(request: Request, message: str, category: str = "info") -> None:
 
 
 def render(request: Request, template: str, **context):
+    csrf_token = request.session.get("_csrf_token")
+    if not csrf_token:
+        csrf_token = secrets.token_urlsafe(32)
+        request.session["_csrf_token"] = csrf_token
+
     base = {
         "request": request,
         "flash": request.session.pop("_flash", None),
+        "csrf_token": csrf_token,
         "Role": Role,
         "Branch": Branch,
         "RoleType": RoleType,
@@ -88,6 +95,21 @@ def validation_message(exc: ValidationError | ValueError) -> str:
             return "; ".join(str(item.get("msg", "Invalid input")) for item in errors)
         return "Invalid input"
     return str(exc) or "Invalid input"
+
+
+async def read_form_with_csrf(request: Request):
+    """
+    Read POST form data and validate CSRF token against session token.
+
+    Raises:
+        ValueError: If CSRF token is missing or invalid
+    """
+    form = await request.form()
+    form_token = str(form.get("csrf_token", "")).strip()
+    session_token = str(request.session.get("_csrf_token", "")).strip()
+    if not form_token or not session_token or not secrets.compare_digest(form_token, session_token):
+        raise ValueError("Invalid or missing CSRF token. Please refresh and try again.")
+    return form
 
 
 def current_user(request: Request, session: Session) -> Optional[User]:

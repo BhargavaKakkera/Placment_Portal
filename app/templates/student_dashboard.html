@@ -39,7 +39,15 @@
             <h2 class="h5">Pending offers</h2>
             <ul class="list-group list-group-flush">
                 {% for item in offers %}
-                <li class="list-group-item d-flex justify-content-between"><span>{{ item.job_title }} at {{ item.company_name }}</span><span>{{ item.response_deadline|fmt_datetime }}</span></li>
+                <li class="list-group-item d-flex justify-content-between">
+                    <span>
+                        {{ item.job_title }} at {{ item.company_name }}
+                        {% if item.company_active is defined and not item.company_active %}
+                        <span class="badge text-bg-warning ms-2">Company inactive</span>
+                        {% endif %}
+                    </span>
+                    <span>{{ item.response_deadline|fmt_datetime }}</span>
+                </li>
                 {% else %}
                 <li class="list-group-item text-muted">No pending offers.</li>
                 {% endfor %}

@@ -140,6 +140,13 @@ def create_offer(
         raise ValueError("Job not found")
     if job.company_id != company_id:
         raise ValueError("Company not authorized for this job")
+    if job.closed:
+        raise ValueError("Cannot create offer for a closed job")
+    company = session.get(Company, company_id)
+    if not company or not getattr(company, "is_active", True):
+        raise ValueError("Company is deactivated")
+    if not getattr(company, "verified", False):
+        raise ValueError("Company is not verified")
 
     role_type = _normalize_role_type(getattr(job, "role_type", RoleType.full_time))
 
@@ -206,6 +213,9 @@ def accept_offer(session: Session, offer_id: int, student_id: int) -> Optional[O
     if not offer or offer.student_id != student_id:
         return None
     if offer.status != OfferStatus.offered:
+        return None
+    company = session.get(Company, offer.company_id)
+    if not company or not getattr(company, "is_active", True):
         return None
     if offer.response_deadline and to_utc_naive(offer.response_deadline) < utc_now():
         offer.status = OfferStatus.declined
@@ -356,6 +366,7 @@ def list_student_offer_summaries(
             "job_id": job.id,
             "company_id": company.id,
             "company_name": company.name,
+            "company_active": bool(getattr(company, "is_active", True)),
             "job_title": job.title,
             "job_description": job.description,
             "role_type": job.role_type,

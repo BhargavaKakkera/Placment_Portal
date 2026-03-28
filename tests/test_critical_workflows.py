@@ -2,11 +2,18 @@ import os
 import unittest
 from datetime import datetime, timedelta, timezone
 
+# Set environment variables BEFORE importing app
 os.environ["DATABASE_URL"] = os.getenv(
     "TEST_DATABASE_URL",
     "postgresql+psycopg://postgres:2005@localhost:5432/test_placement_portal",
 )
+os.environ["TEST_DATABASE_URL"] = "postgresql+psycopg://postgres:2005@localhost:5432/test_placement_portal"
 os.environ["DEBUG"] = "true"
+os.environ["LOG_LEVEL"] = "ERROR"
+os.environ["ENABLE_RATE_LIMITING"] = "false"  # Disable rate limiting in tests
+os.environ["SECRET_KEY"] = "588b4257178a991143c21aa7e42c102999c2c2d32e5069d6cc8389c2b3fc0fb5"
+os.environ["JWT_SECRET_KEY"] = "a1b2c3d4e5f6g7h8i9j0k1l2m3n4o5p6q7r8s9t0u1v2w3x4y5z6a7b8c9d0e1f2"
+os.environ["SESSION_SECRET_KEY"] = "z9y8x7w6v5u4t3s2r1q0p9o8n7m6l5k4j3i2h1g0f9e8d7c6b5a4z3y2x1w0v9"
 
 from fastapi.testclient import TestClient
 from sqlmodel import Session
@@ -103,11 +110,11 @@ class CriticalWorkflowTests(unittest.TestCase):
         return resp.json()["access_token"]
 
     def test_root_does_not_expose_users(self):
-        resp = self.client.get("/")
+        resp = self.client.get("/", follow_redirects=True)
         self.assertEqual(resp.status_code, 200)
-        payload = resp.json()
-        self.assertIn("users", payload)
-        self.assertIsInstance(payload["users"], list)
+        # Root redirects to UI, which is HTML, not JSON
+        # Just verify it returns 200 and is HTML
+        self.assertIn("html", resp.text.lower())
 
     def test_password_reset_flow(self):
         admin_token = self._register("admin_reset@example.com", "Password123", "admin")
@@ -627,6 +634,267 @@ class CriticalWorkflowTests(unittest.TestCase):
             headers=self._auth_header(student_token),
         )
         self.assertEqual(blocked_intern_after_full_time.status_code, 409, blocked_intern_after_full_time.text)
+
+    def test_company_deactivation_closes_jobs_and_blocks_new_applications(self):
+        admin_token = self._register("admin_deact_jobs@example.com", "Password123", "admin")
+        company_token = self._register("company_deact_jobs@example.com", "Password123", "company")
+        student_token, _ = self._provision_student(
+            admin_token,
+            "student_deact_jobs@example.com",
+            "Password123",
+            "Student Deact",
+            "REGD001",
+            "ROLLD001",
+            8.5,
+            "CSE",
+            2027,
+        )
+
+        company_profile = self.client.post(
+            "/companies/",
+            headers=self._auth_header(company_token),
+            json={"name": "Deact Jobs Corp"},
+        )
+        self.assertEqual(company_profile.status_code, 200, company_profile.text)
+        company_id = company_profile.json()["id"]
+
+        verify_company = self.client.post(
+            f"/admin/companies/{company_id}/verify",
+            headers=self._auth_header(admin_token),
+        )
+        self.assertEqual(verify_company.status_code, 200, verify_company.text)
+
+        job_resp = self.client.post(
+            "/jobs/",
+            headers=self._auth_header(company_token),
+            json={
+                "title": "Deact-Guard Role",
+                "description": "Role should close when company deactivates",
+                "role_type": "full_time",
+                "ctc": 11.0,
+                "application_deadline": (
+                    datetime.now(timezone.utc) + timedelta(days=3)
+                ).isoformat(),
+            },
+        )
+        self.assertEqual(job_resp.status_code, 200, job_resp.text)
+        job_id = job_resp.json()["id"]
+
+        deactivate_resp = self.client.delete(
+            "/companies/me",
+            headers=self._auth_header(company_token),
+        )
+        self.assertEqual(deactivate_resp.status_code, 200, deactivate_resp.text)
+
+        public_job_resp = self.client.get(f"/jobs/{job_id}")
+        self.assertEqual(public_job_resp.status_code, 404, public_job_resp.text)
+
+        apply_resp = self.client.post(
+            f"/jobs/{job_id}/apply",
+            headers=self._auth_header(student_token),
+        )
+        self.assertEqual(apply_resp.status_code, 400, apply_resp.text)
+
+        admin_jobs = self.client.get(
+            "/admin/jobs",
+            headers=self._auth_header(admin_token),
+        )
+        self.assertEqual(admin_jobs.status_code, 200, admin_jobs.text)
+        matching = [item for item in admin_jobs.json()["items"] if item["id"] == job_id]
+        self.assertEqual(len(matching), 1, admin_jobs.text)
+        self.assertTrue(matching[0]["closed"], admin_jobs.text)
+
+    def test_pending_offer_cannot_be_accepted_after_company_deactivation(self):
+        admin_token = self._register("admin_deact_offer@example.com", "Password123", "admin")
+        company_token = self._register("company_deact_offer@example.com", "Password123", "company")
+        student_token, _ = self._provision_student(
+            admin_token,
+            "student_deact_offer@example.com",
+            "Password123",
+            "Student Offer",
+            "REGD002",
+            "ROLLD002",
+            8.2,
+            "CSE",
+            2027,
+        )
+
+        company_profile = self.client.post(
+            "/companies/",
+            headers=self._auth_header(company_token),
+            json={"name": "Deact Offer Corp"},
+        )
+        self.assertEqual(company_profile.status_code, 200, company_profile.text)
+        company_id = company_profile.json()["id"]
+
+        verify_company = self.client.post(
+            f"/admin/companies/{company_id}/verify",
+            headers=self._auth_header(admin_token),
+        )
+        self.assertEqual(verify_company.status_code, 200, verify_company.text)
+
+        job_resp = self.client.post(
+            "/jobs/",
+            headers=self._auth_header(company_token),
+            json={
+                "title": "Offer Guard Role",
+                "description": "Offer should become non-actionable after company deactivation",
+                "role_type": "full_time",
+                "ctc": 12.5,
+                "application_deadline": (
+                    datetime.now(timezone.utc) + timedelta(days=3)
+                ).isoformat(),
+            },
+        )
+        self.assertEqual(job_resp.status_code, 200, job_resp.text)
+        job_id = job_resp.json()["id"]
+
+        apply_resp = self.client.post(
+            f"/jobs/{job_id}/apply",
+            headers=self._auth_header(student_token),
+        )
+        self.assertEqual(apply_resp.status_code, 200, apply_resp.text)
+
+        applicants_resp = self.client.get(
+            f"/companies/jobs/{job_id}/applicants",
+            headers=self._auth_header(company_token),
+        )
+        self.assertEqual(applicants_resp.status_code, 200, applicants_resp.text)
+        application_id = applicants_resp.json()["items"][0]["id"]
+
+        shortlist_resp = self.client.patch(
+            f"/companies/applications/{application_id}",
+            headers=self._auth_header(company_token),
+            json={"status": "shortlisted"},
+        )
+        self.assertEqual(shortlist_resp.status_code, 200, shortlist_resp.text)
+
+        offer_resp = self.client.patch(
+            f"/companies/applications/{application_id}",
+            headers=self._auth_header(company_token),
+            json={
+                "status": "offered",
+                "ctc": 12.5,
+                "offer_response_deadline": (
+                    datetime.now(timezone.utc) + timedelta(days=2)
+                ).isoformat(),
+            },
+        )
+        self.assertEqual(offer_resp.status_code, 200, offer_resp.text)
+        offer_id = offer_resp.json()["id"]
+
+        deactivate_resp = self.client.delete(
+            "/companies/me",
+            headers=self._auth_header(company_token),
+        )
+        self.assertEqual(deactivate_resp.status_code, 200, deactivate_resp.text)
+
+        accept_resp = self.client.post(
+            f"/students/offers/{offer_id}/accept",
+            headers=self._auth_header(student_token),
+        )
+        self.assertEqual(accept_resp.status_code, 400, accept_resp.text)
+
+    def test_accepted_offer_remains_after_company_deactivation(self):
+        admin_token = self._register("admin_hist_offer@example.com", "Password123", "admin")
+        company_token = self._register("company_hist_offer@example.com", "Password123", "company")
+        student_token, _ = self._provision_student(
+            admin_token,
+            "student_hist_offer@example.com",
+            "Password123",
+            "Student History",
+            "REGD003",
+            "ROLLD003",
+            8.7,
+            "CSE",
+            2027,
+        )
+
+        company_profile = self.client.post(
+            "/companies/",
+            headers=self._auth_header(company_token),
+            json={"name": "History Corp"},
+        )
+        self.assertEqual(company_profile.status_code, 200, company_profile.text)
+        company_id = company_profile.json()["id"]
+
+        verify_company = self.client.post(
+            f"/admin/companies/{company_id}/verify",
+            headers=self._auth_header(admin_token),
+        )
+        self.assertEqual(verify_company.status_code, 200, verify_company.text)
+
+        job_resp = self.client.post(
+            "/jobs/",
+            headers=self._auth_header(company_token),
+            json={
+                "title": "History Role",
+                "description": "Accepted offer should remain historical after deactivation",
+                "role_type": "full_time",
+                "ctc": 13.0,
+                "application_deadline": (
+                    datetime.now(timezone.utc) + timedelta(days=3)
+                ).isoformat(),
+            },
+        )
+        self.assertEqual(job_resp.status_code, 200, job_resp.text)
+        job_id = job_resp.json()["id"]
+
+        apply_resp = self.client.post(
+            f"/jobs/{job_id}/apply",
+            headers=self._auth_header(student_token),
+        )
+        self.assertEqual(apply_resp.status_code, 200, apply_resp.text)
+
+        applicants_resp = self.client.get(
+            f"/companies/jobs/{job_id}/applicants",
+            headers=self._auth_header(company_token),
+        )
+        self.assertEqual(applicants_resp.status_code, 200, applicants_resp.text)
+        application_id = applicants_resp.json()["items"][0]["id"]
+
+        shortlist_resp = self.client.patch(
+            f"/companies/applications/{application_id}",
+            headers=self._auth_header(company_token),
+            json={"status": "shortlisted"},
+        )
+        self.assertEqual(shortlist_resp.status_code, 200, shortlist_resp.text)
+
+        offer_resp = self.client.patch(
+            f"/companies/applications/{application_id}",
+            headers=self._auth_header(company_token),
+            json={
+                "status": "offered",
+                "ctc": 13.0,
+                "offer_response_deadline": (
+                    datetime.now(timezone.utc) + timedelta(days=2)
+                ).isoformat(),
+            },
+        )
+        self.assertEqual(offer_resp.status_code, 200, offer_resp.text)
+        offer_id = offer_resp.json()["id"]
+
+        accept_resp = self.client.post(
+            f"/students/offers/{offer_id}/accept",
+            headers=self._auth_header(student_token),
+        )
+        self.assertEqual(accept_resp.status_code, 200, accept_resp.text)
+
+        deactivate_resp = self.client.delete(
+            "/companies/me",
+            headers=self._auth_header(company_token),
+        )
+        self.assertEqual(deactivate_resp.status_code, 200, deactivate_resp.text)
+
+        accepted_offers = self.client.get(
+            "/students/me/offers/accepted",
+            headers=self._auth_header(student_token),
+        )
+        self.assertEqual(accepted_offers.status_code, 200, accepted_offers.text)
+        offers = accepted_offers.json()
+        self.assertEqual(len(offers), 1, accepted_offers.text)
+        self.assertEqual(offers[0]["status"], "accepted", accepted_offers.text)
+        self.assertFalse(offers[0]["company_active"], accepted_offers.text)
 
 
 if __name__ == "__main__":

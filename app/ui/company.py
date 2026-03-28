@@ -8,7 +8,7 @@ from ..database import engine
 from ..enums import CompanyApplicationAction, Role, RoleType
 from ..models import Application, Job
 from ..schemas import CompanyCreate, CompanyApplicationStatusUpdate, JobCreate
-from .helpers import branches, dt, flt, home_for, int_or_none, redirect_path, redirect_to, render, require_company_profile, require_user, txt, validation_message
+from .helpers import branches, dt, flt, home_for, int_or_none, read_form_with_csrf, redirect_path, redirect_to, render, require_company_profile, require_user, txt, validation_message
 
 router = APIRouter(prefix="/company")
 
@@ -38,7 +38,10 @@ def company_profile_page(request: Request):
 
 @router.post("/profile", name="ui_company_profile_post")
 async def company_profile_submit(request: Request):
-    form = await request.form()
+    try:
+        form = await read_form_with_csrf(request)
+    except ValueError as exc:
+        return redirect_to(request, "ui_company_profile", str(exc), "warning")
     try:
         payload = CompanyCreate.model_validate({"name": str(form.get("name", "")).strip()})
     except ValidationError as exc:
@@ -58,7 +61,11 @@ async def company_profile_submit(request: Request):
 
 
 @router.post("/delete", name="ui_company_delete")
-def company_delete_submit(request: Request):
+async def company_delete_submit(request: Request):
+    try:
+        await read_form_with_csrf(request)
+    except ValueError as exc:
+        return redirect_to(request, "ui_company_profile", str(exc), "warning")
     with Session(engine) as session:
         user, redirect = require_user(request, session, Role.company)
         if redirect:
@@ -87,7 +94,10 @@ def company_jobs_page(request: Request):
 
 @router.post("/jobs", name="ui_company_jobs_post")
 async def company_jobs_submit(request: Request):
-    form = await request.form()
+    try:
+        form = await read_form_with_csrf(request)
+    except ValueError as exc:
+        return redirect_to(request, "ui_company_jobs", str(exc), "warning")
     with Session(engine) as session:
         user, redirect = require_user(request, session, Role.company)
         if redirect:
@@ -101,7 +111,11 @@ async def company_jobs_submit(request: Request):
                     "title": str(form.get("title", "")).strip(),
                     "description": txt(form.get("description")),
                     "min_cgpa": flt(form.get("min_cgpa")),
-                    "allowed_branches": branches(list(form.getlist("allowed_branches"))),
+                    "allowed_branches": (
+                        None
+                        if "__all__" in list(form.getlist("allowed_branches"))
+                        else branches(list(form.getlist("allowed_branches")))
+                    ),
                     "max_backlogs": int_or_none(form.get("max_backlogs")),
                     "role_type": str(form.get("role_type", RoleType.full_time.value)),
                     "internship_duration": txt(form.get("internship_duration")),
@@ -125,7 +139,11 @@ async def company_jobs_submit(request: Request):
 
 
 @router.post("/jobs/{job_id}/delete", name="ui_company_job_delete")
-def company_job_delete_submit(job_id: int, request: Request):
+async def company_job_delete_submit(job_id: int, request: Request):
+    try:
+        await read_form_with_csrf(request)
+    except ValueError as exc:
+        return redirect_to(request, "ui_company_jobs", str(exc), "warning")
     with Session(engine) as session:
         user, redirect = require_user(request, session, Role.company)
         if redirect:
@@ -162,7 +180,10 @@ def company_applicants_page(job_id: int, request: Request):
 
 @router.post("/applications/{application_id}", name="ui_company_application_action")
 async def company_application_action_submit(application_id: int, request: Request):
-    form = await request.form()
+    try:
+        form = await read_form_with_csrf(request)
+    except ValueError as exc:
+        return redirect_to(request, "ui_company_jobs", str(exc), "warning")
     with Session(engine) as session:
         user, redirect = require_user(request, session, Role.company)
         if redirect:

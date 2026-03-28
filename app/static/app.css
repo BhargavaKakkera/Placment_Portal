@@ -9,9 +9,14 @@ body {
 
 .table td,
 .table th {
-    white-space: nowrap;
+    white-space: normal;
+    vertical-align: middle;
 }
 
 textarea.form-control {
     min-height: 7rem;
+}
+
+.table-responsive {
+    border-radius: 0.75rem;
 }

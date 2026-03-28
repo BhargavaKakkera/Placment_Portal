@@ -10,7 +10,12 @@
             <tbody>
                 {% for item in offered %}
                 <tr>
-                    <td>{{ item.company_name }}</td>
+                    <td>
+                        {{ item.company_name }}
+                        {% if item.company_active is defined and not item.company_active %}
+                        <span class="badge text-bg-warning ms-2">Inactive</span>
+                        {% endif %}
+                    </td>
                     <td>{{ item.job_title }}</td>
                     <td>{{ item.response_deadline|fmt_datetime }}</td>
                     <td>
@@ -32,10 +37,13 @@
     </div>
 </div></div>
 <div class="card shadow-sm"><div class="card-body">
-    <h2 class="h5">Accepted offers</h2>
-    <ul class="list-group list-group-flush">
+        <h2 class="h5">Accepted offers</h2>
+        <ul class="list-group list-group-flush">
         {% for item in accepted %}
-        <li class="list-group-item">{{ item.company_name }} - {{ item.job_title }} ({{ item.created_at|fmt_datetime }})</li>
+        <li class="list-group-item">
+            {{ item.company_name }}{% if item.company_active is defined and not item.company_active %} (Inactive){% endif %}
+            - {{ item.job_title }} ({{ item.created_at|fmt_datetime }})
+        </li>
         {% else %}
         <li class="list-group-item text-muted">No accepted offers.</li>
         {% endfor %}

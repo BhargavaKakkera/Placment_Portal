@@ -1,6 +1,7 @@
 from pydantic import BaseModel, EmailStr, Field, ConfigDict, model_validator, field_validator, HttpUrl
 from typing import Optional, List
 from datetime import datetime
+import re
 
 from .enums import (
     Role,
@@ -19,10 +20,33 @@ class RegisterIn(BaseModel):
     password: str = Field(
         min_length=8,
         max_length=100,
-        description="Password must be at least 8 characters"
+        description="Password must be at least 8 characters with uppercase, lowercase, and digit"
     )
 
     role: Role
+
+    @field_validator("password")
+    @classmethod
+    def validate_password(cls, v: str) -> str:
+        """
+        Validate password meets complexity requirements.
+
+        Args:
+            v: Password to validate
+
+        Returns:
+            Validated password
+
+        Raises:
+            ValueError: If password doesn't meet requirements
+        """
+        if not re.search(r"[A-Z]", v):
+            raise ValueError("Password must contain at least one uppercase letter")
+        if not re.search(r"[a-z]", v):
+            raise ValueError("Password must contain at least one lowercase letter")
+        if not re.search(r"\d", v):
+            raise ValueError("Password must contain at least one digit")
+        return v
 
 
 class Token(BaseModel):
@@ -46,6 +70,7 @@ class EmailVerificationConfirmIn(BaseModel):
 
 class EmailVerificationRequestIn(BaseModel):
     email: EmailStr = Field(max_length=120)
+
 
 
 class PasswordResetConfirmIn(BaseModel):
@@ -282,6 +307,7 @@ class StudentApplicationItemOut(BaseModel):
     job_id: int
     company_id: int
     company_name: str
+    company_active: bool = True
     job_title: str
     job_description: Optional[str]
     applied_at: datetime
@@ -354,6 +380,7 @@ class StudentOfferItemOut(BaseModel):
     job_id: int
     company_id: int
     company_name: str
+    company_active: bool = True
     job_title: str
     job_description: Optional[str]
     role_type: RoleType

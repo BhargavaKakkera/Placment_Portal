@@ -23,11 +23,7 @@ def verify_company(
     session: Session = Depends(get_session),
 ):
     """Verify a company (requires verified admin)."""
-    try:
-        verified = crud.verify_company(session, company_id)
-    except Exception:
-        raise HTTPException(status_code=400, detail="Unable to verify company")
-
+    verified = crud.verify_company(session, company_id)
     if not verified:
         raise HTTPException(status_code=404, detail="Company not found")
 

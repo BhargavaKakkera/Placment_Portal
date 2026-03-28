@@ -118,4 +118,12 @@ def get_job(job_id: int, session: Session = Depends(get_session)):
     job = crud.get_job_by_id(session, job_id)
     if not job:
         raise HTTPException(status_code=404, detail="Job not found")
+    company = crud.get_company_by_id(session, job.company_id)
+    if (
+        not company
+        or not getattr(company, "verified", False)
+        or job.closed
+        or (job.application_deadline and to_utc_naive(job.application_deadline) < utc_now())
+    ):
+        raise HTTPException(status_code=404, detail="Job not found")
     return job

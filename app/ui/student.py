@@ -6,7 +6,7 @@ from .. import crud
 from ..database import engine
 from ..enums import OfferStatus, Role
 from ..schemas import StudentUpdate
-from .helpers import eligible_jobs, home_for, redirect_to, render, require_student_profile, require_user, txt, validation_message
+from .helpers import eligible_jobs, home_for, read_form_with_csrf, redirect_to, render, require_student_profile, require_user, txt, validation_message
 
 router = APIRouter(prefix="/student")
 
@@ -39,7 +39,10 @@ def student_profile_page(request: Request):
 
 @router.post("/profile", name="ui_student_profile_post")
 async def student_profile_submit(request: Request):
-    form = await request.form()
+    try:
+        form = await read_form_with_csrf(request)
+    except ValueError as exc:
+        return redirect_to(request, "ui_student_profile", str(exc), "warning")
     with Session(engine) as session:
         user, redirect = require_user(request, session, Role.student)
         if redirect:
@@ -76,7 +79,11 @@ async def student_profile_submit(request: Request):
 
 
 @router.post("/delete", name="ui_student_delete")
-def student_delete_submit(request: Request):
+async def student_delete_submit(request: Request):
+    try:
+        await read_form_with_csrf(request)
+    except ValueError as exc:
+        return redirect_to(request, "ui_student_profile", str(exc), "warning")
     with Session(engine) as session:
         user, redirect = require_user(request, session, Role.student)
         if redirect:
@@ -103,7 +110,11 @@ def student_jobs_page(request: Request):
 
 
 @router.post("/jobs/{job_id}/apply", name="ui_student_apply")
-def student_apply_submit(job_id: int, request: Request):
+async def student_apply_submit(job_id: int, request: Request):
+    try:
+        await read_form_with_csrf(request)
+    except ValueError as exc:
+        return redirect_to(request, "ui_student_jobs", str(exc), "warning")
     with Session(engine) as session:
         user, redirect = require_user(request, session, Role.student)
         if redirect:
@@ -146,7 +157,11 @@ def student_offers_page(request: Request):
 
 
 @router.post("/offers/{offer_id}/accept", name="ui_student_offer_accept")
-def student_accept_offer(offer_id: int, request: Request):
+async def student_accept_offer(offer_id: int, request: Request):
+    try:
+        await read_form_with_csrf(request)
+    except ValueError as exc:
+        return redirect_to(request, "ui_student_offers", str(exc), "warning")
     with Session(engine) as session:
         user, redirect = require_user(request, session, Role.student)
         if redirect:
@@ -160,7 +175,11 @@ def student_accept_offer(offer_id: int, request: Request):
 
 
 @router.post("/offers/{offer_id}/decline", name="ui_student_offer_decline")
-def student_decline_offer(offer_id: int, request: Request):
+async def student_decline_offer(offer_id: int, request: Request):
+    try:
+        await read_form_with_csrf(request)
+    except ValueError as exc:
+        return redirect_to(request, "ui_student_offers", str(exc), "warning")
     with Session(engine) as session:
         user, redirect = require_user(request, session, Role.student)
         if redirect:

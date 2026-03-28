@@ -4,7 +4,7 @@ Company CRUD operations for company profile management.
 
 from sqlmodel import Session, select, func
 from typing import Optional, List
-from ..models import Company, User
+from ..models import Company, User, Job
 from ..datetime_utils import utc_now
 
 
@@ -56,6 +56,14 @@ def delete_company(session: Session, company_id: int) -> Optional[bool]:
         company.is_active = False
         company.deactivated_at = utc_now()
         session.add(company)
+
+        # Business rule: when a company is deactivated, all still-open jobs become closed.
+        open_jobs = session.exec(
+            select(Job).where(Job.company_id == company.id).where(Job.closed == False)
+        ).all()
+        for job in open_jobs:
+            job.closed = True
+            session.add(job)
 
         user = session.get(User, company.user_id)
         if user and getattr(user, "is_active", True):

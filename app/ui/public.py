@@ -6,13 +6,15 @@ from sqlmodel import Session, select
 
 from .. import crud
 from ..auth import create_access_token, create_email_verification_token, create_password_reset_token
+from ..config import DEBUG
 from ..database import engine
 from ..enums import Role
 from ..models import Company, User
 from ..schemas import EmailVerificationConfirmIn, PasswordResetConfirmIn, PasswordResetRequestIn, RegisterIn
-from .helpers import current_user, home_for, is_public_job_visible, redirect_to, render, validation_message
+from .helpers import current_user, home_for, is_public_job_visible, read_form_with_csrf, redirect_to, render, validation_message
 
 router = APIRouter()
+DEBUG_MODE = DEBUG
 
 
 @router.get("/", name="ui_home")
@@ -50,7 +52,10 @@ def login_page(request: Request):
 
 @router.post("/login", name="ui_login_post")
 async def login_submit(request: Request):
-    form = await request.form()
+    try:
+        form = await read_form_with_csrf(request)
+    except ValueError as exc:
+        return redirect_to(request, "ui_login", str(exc), "warning")
     with Session(engine) as session:
         user = crud.authenticate_user(session, str(form.get("email", "")).strip(), str(form.get("password", "")))
         if not user:
@@ -59,13 +64,18 @@ async def login_submit(request: Request):
             return redirect_to(request, "ui_verify_email", "Please verify email first.", "warning")
         if user.role == Role.admin and not user.is_first_admin and not user.verified:
             return redirect_to(request, "ui_login", "Admin approval is still pending.", "warning")
+        request.session.clear()
         request.session["ui_user_id"] = user.id
         request.session["ui_access_token"] = create_access_token({"sub": str(user.id), "role": user.role})
     return RedirectResponse(home_for(user), status_code=303)
 
 
 @router.post("/logout", name="ui_logout")
-def logout_submit(request: Request):
+async def logout_submit(request: Request):
+    try:
+        await read_form_with_csrf(request)
+    except ValueError as exc:
+        return redirect_to(request, "ui_home", str(exc), "warning")
     request.session.clear()
     return redirect_to(request, "ui_home", "Logged out.", "info")
 
@@ -78,7 +88,10 @@ def register_page(request: Request):
 
 @router.post("/register", name="ui_register_post")
 async def register_submit(request: Request):
-    form = await request.form()
+    try:
+        form = await read_form_with_csrf(request)
+    except ValueError as exc:
+        return redirect_to(request, "ui_register", str(exc), "warning")
     try:
         payload = RegisterIn.model_validate(
             {
@@ -92,6 +105,8 @@ async def register_submit(request: Request):
     email = payload.email
     password = payload.password
     role = payload.role
+    if role == Role.student:
+        return redirect_to(request, "ui_register", "Student self-registration is disabled.", "warning")
     with Session(engine) as session:
         crud.purge_expired_unverified_users(session, older_than_days=15, email=email)
         is_first_admin = role == Role.admin and session.exec(select(User).where(User.role == Role.admin)).first() is None
@@ -101,8 +116,20 @@ async def register_submit(request: Request):
             session.rollback()
             return redirect_to(request, "ui_register", "Email already registered.", "danger")
         token = create_email_verification_token(user.id) if role in {Role.admin, Role.company} else None
+    if token and DEBUG_MODE:
+        return redirect_to(
+            request,
+            "ui_verify_email",
+            f"Registration successful. Demo verification token: {token}",
+            "success",
+        )
     if token:
-        return redirect_to(request, "ui_verify_email", f"Registration successful. Demo verification token: {token}", "success")
+        return redirect_to(
+            request,
+            "ui_verify_email",
+            "Registration successful. Verification instructions generated.",
+            "success",
+        )
     return redirect_to(request, "ui_login", "Registration successful.", "success")
 
 
@@ -116,7 +143,10 @@ def verify_email_page(request: Request):
 async def verify_email_submit(request: Request):
     from ..auth import verify_email_verification_token
 
-    form = await request.form()
+    try:
+        form = await read_form_with_csrf(request)
+    except ValueError as exc:
+        return redirect_to(request, "ui_verify_email", str(exc), "warning")
     try:
         payload = EmailVerificationConfirmIn.model_validate({"token": str(form.get("token", "")).strip()})
     except ValidationError as exc:
@@ -138,7 +168,10 @@ def forgot_password_page(request: Request):
 
 @router.post("/forgot-password", name="ui_forgot_password_post")
 async def forgot_password_submit(request: Request):
-    form = await request.form()
+    try:
+        form = await read_form_with_csrf(request)
+    except ValueError as exc:
+        return redirect_to(request, "ui_forgot_password", str(exc), "warning")
     try:
         payload = PasswordResetRequestIn.model_validate({"email": str(form.get("email", "")).strip()})
     except ValidationError as exc:
@@ -146,7 +179,14 @@ async def forgot_password_submit(request: Request):
     with Session(engine) as session:
         user = crud.get_user_by_email(session, payload.email)
         token = create_password_reset_token(user.id) if user else None
-    return redirect_to(request, "ui_reset_password", f"Demo reset token: {token}" if token else "If the account exists, reset instructions were generated.", "info")
+    if token and DEBUG_MODE:
+        return redirect_to(request, "ui_reset_password", f"Demo reset token: {token}", "info")
+    return redirect_to(
+        request,
+        "ui_reset_password",
+        "If the account exists, reset instructions were generated.",
+        "info",
+    )
 
 
 @router.get("/reset-password", name="ui_reset_password")
@@ -159,7 +199,10 @@ def reset_password_page(request: Request):
 async def reset_password_submit(request: Request):
     from ..auth import verify_password_reset_token
 
-    form = await request.form()
+    try:
+        form = await read_form_with_csrf(request)
+    except ValueError as exc:
+        return redirect_to(request, "ui_reset_password", str(exc), "warning")
     try:
         payload = PasswordResetConfirmIn.model_validate(
             {

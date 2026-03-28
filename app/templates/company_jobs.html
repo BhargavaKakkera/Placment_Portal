@@ -25,11 +25,23 @@
                     <div class="col-md-6"><label class="form-label">PPO available</label><div class="form-check mt-2"><input class="form-check-input" name="ppo_available" type="checkbox"></div></div>
                     <div class="col-12">
                         <label class="form-label">Allowed branches</label>
-                        <select class="form-select" name="allowed_branches" multiple>
-                            {% for branch in Branch %}
-                            <option value="{{ branch.value }}">{{ branch.value }}</option>
-                            {% endfor %}
-                        </select>
+                        <div class="card border-0 bg-light-subtle p-3">
+                            <div class="form-check mb-2">
+                                <input class="form-check-input" id="branch_all" name="allowed_branches" type="checkbox" value="__all__" checked>
+                                <label class="form-check-label" for="branch_all"><strong>All branches</strong></label>
+                            </div>
+                            <div class="row g-2">
+                                {% for branch in Branch %}
+                                <div class="col-md-4 col-6">
+                                    <div class="form-check">
+                                        <input class="form-check-input branch-item" id="branch_{{ branch.value }}" name="allowed_branches" type="checkbox" value="{{ branch.value }}" disabled>
+                                        <label class="form-check-label" for="branch_{{ branch.value }}">{{ branch.value }}</label>
+                                    </div>
+                                </div>
+                                {% endfor %}
+                            </div>
+                            <small class="text-muted d-block mt-2">Leave "All branches" selected to allow everyone, or uncheck it and tick specific branches.</small>
+                        </div>
                     </div>
                 </div>
                 <button class="btn btn-primary mt-3" type="submit" data-loading-text="Creating...">Create job</button>
@@ -73,4 +85,25 @@
         </div></div>
     </div>
 </div>
+<script>
+    document.addEventListener("DOMContentLoaded", function () {
+        const allToggle = document.getElementById("branch_all");
+        const branchItems = Array.from(document.querySelectorAll(".branch-item"));
+
+        function refreshBranchState() {
+            const allChecked = !!(allToggle && allToggle.checked);
+            branchItems.forEach(function (item) {
+                item.disabled = allChecked;
+                if (allChecked) {
+                    item.checked = false;
+                }
+            });
+        }
+
+        if (allToggle) {
+            allToggle.addEventListener("change", refreshBranchState);
+            refreshBranchState();
+        }
+    });
+</script>
 {% endblock %}

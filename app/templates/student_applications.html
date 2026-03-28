@@ -9,7 +9,12 @@
             {% for item in applications %}
             <tr>
                 <td>{{ item.id }}</td>
-                <td>{{ item.company_name }}</td>
+                <td>
+                    {{ item.company_name }}
+                    {% if item.company_active is defined and not item.company_active %}
+                    <span class="badge text-bg-warning ms-2">Company inactive</span>
+                    {% endif %}
+                </td>
                 <td>{{ item.job_title }}</td>
                 <td>{{ item.status.value }}</td>
                 <td>{{ item.applied_at|fmt_datetime }}</td>

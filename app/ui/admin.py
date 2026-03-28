@@ -6,17 +6,20 @@ from sqlmodel import Session, select
 
 from .. import crud
 from ..auth import create_password_reset_token, hash_password
+from ..config import DEBUG
 from ..database import engine
 from ..enums import Branch, Role
 from ..models import Student, User
 from ..schemas import AdminStudentProvisionIn, StudentAdminUpdate
-from .helpers import home_for, redirect_path, redirect_to, render, require_user, txt, validation_message
+from .helpers import home_for, read_form_with_csrf, redirect_path, redirect_to, render, require_user, txt, validation_message
 
 router = APIRouter(prefix="/admin")
+DEBUG_MODE = DEBUG
 
 
 @router.get("", name="ui_admin_dashboard")
 def admin_dashboard(request: Request):
+    new_user_id = None
     with Session(engine) as session:
         user, redirect = require_user(request, session, Role.admin, verified_admin=True)
         if redirect:
@@ -70,7 +73,11 @@ def admin_pending_admins_page(request: Request):
 
 
 @router.post("/users/{user_id}/verify-admin", name="ui_admin_verify_admin")
-def admin_verify_admin_submit(user_id: int, request: Request):
+async def admin_verify_admin_submit(user_id: int, request: Request):
+    try:
+        await read_form_with_csrf(request)
+    except ValueError as exc:
+        return redirect_to(request, "ui_admin_pending_admins", str(exc), "warning")
     with Session(engine) as session:
         user, redirect = require_user(request, session, Role.admin, verified_admin=True)
         if redirect:
@@ -93,7 +100,10 @@ def admin_students_page(request: Request):
 
 @router.post("/students/provision", name="ui_admin_students_provision")
 async def admin_students_provision_submit(request: Request):
-    form = await request.form()
+    try:
+        form = await read_form_with_csrf(request)
+    except ValueError as exc:
+        return redirect_to(request, "ui_admin_students", str(exc), "warning")
     try:
         payload = AdminStudentProvisionIn.model_validate(
             {
@@ -145,10 +155,26 @@ async def admin_students_provision_submit(request: Request):
             )
             session.add(student)
             session.commit()
+            new_user_id = new_user.id
         except Exception:
             session.rollback()
             return redirect_to(request, "ui_admin_students", "Could not provision student.", "danger")
-    return redirect_to(request, "ui_admin_students", f"Student provisioned. Demo invite token: {create_password_reset_token(new_user.id)}", "success")
+    if not new_user_id:
+        return redirect_to(request, "ui_admin_students", "Could not provision student.", "danger")
+    invite_token = create_password_reset_token(new_user_id)
+    if DEBUG_MODE:
+        return redirect_to(
+            request,
+            "ui_admin_students",
+            f"Student provisioned. Demo invite token: {invite_token}",
+            "success",
+        )
+    return redirect_to(
+        request,
+        "ui_admin_students",
+        "Student provisioned and invite instructions generated.",
+        "success",
+    )
 
 
 @router.get("/students/{student_id}", name="ui_admin_student_edit")
@@ -165,7 +191,10 @@ def admin_student_edit_page(student_id: int, request: Request):
 
 @router.post("/students/{student_id}", name="ui_admin_student_edit_post")
 async def admin_student_edit_submit(student_id: int, request: Request):
-    form = await request.form()
+    try:
+        form = await read_form_with_csrf(request)
+    except ValueError as exc:
+        return redirect_path(request, f"/ui/admin/students/{student_id}", str(exc), "warning")
     with Session(engine) as session:
         user, redirect = require_user(request, session, Role.admin, verified_admin=True)
         if redirect:
@@ -194,7 +223,11 @@ async def admin_student_edit_submit(student_id: int, request: Request):
 
 
 @router.post("/students/{student_id}/delete", name="ui_admin_student_delete")
-def admin_student_delete_submit(student_id: int, request: Request):
+async def admin_student_delete_submit(student_id: int, request: Request):
+    try:
+        await read_form_with_csrf(request)
+    except ValueError as exc:
+        return redirect_to(request, "ui_admin_students", str(exc), "warning")
     with Session(engine) as session:
         user, redirect = require_user(request, session, Role.admin, verified_admin=True)
         if redirect:
@@ -205,7 +238,11 @@ def admin_student_delete_submit(student_id: int, request: Request):
 
 
 @router.post("/students/{student_id}/reactivate", name="ui_admin_student_reactivate")
-def admin_student_reactivate_submit(student_id: int, request: Request):
+async def admin_student_reactivate_submit(student_id: int, request: Request):
+    try:
+        await read_form_with_csrf(request)
+    except ValueError as exc:
+        return redirect_to(request, "ui_admin_students", str(exc), "warning")
     with Session(engine) as session:
         user, redirect = require_user(request, session, Role.admin, verified_admin=True)
         if redirect:
@@ -225,7 +262,11 @@ def admin_companies_page(request: Request):
 
 
 @router.post("/companies/{company_id}/verify", name="ui_admin_company_verify")
-def admin_company_verify_submit(company_id: int, request: Request):
+async def admin_company_verify_submit(company_id: int, request: Request):
+    try:
+        await read_form_with_csrf(request)
+    except ValueError as exc:
+        return redirect_to(request, "ui_admin_companies", str(exc), "warning")
     with Session(engine) as session:
         user, redirect = require_user(request, session, Role.admin, verified_admin=True)
         if redirect:
@@ -236,7 +277,11 @@ def admin_company_verify_submit(company_id: int, request: Request):
 
 
 @router.post("/companies/{company_id}/delete", name="ui_admin_company_delete")
-def admin_company_delete_submit(company_id: int, request: Request):
+async def admin_company_delete_submit(company_id: int, request: Request):
+    try:
+        await read_form_with_csrf(request)
+    except ValueError as exc:
+        return redirect_to(request, "ui_admin_companies", str(exc), "warning")
     with Session(engine) as session:
         user, redirect = require_user(request, session, Role.admin, verified_admin=True)
         if redirect:
@@ -247,7 +292,11 @@ def admin_company_delete_submit(company_id: int, request: Request):
 
 
 @router.post("/companies/{company_id}/reactivate", name="ui_admin_company_reactivate")
-def admin_company_reactivate_submit(company_id: int, request: Request):
+async def admin_company_reactivate_submit(company_id: int, request: Request):
+    try:
+        await read_form_with_csrf(request)
+    except ValueError as exc:
+        return redirect_to(request, "ui_admin_companies", str(exc), "warning")
     with Session(engine) as session:
         user, redirect = require_user(request, session, Role.admin, verified_admin=True)
         if redirect:
@@ -263,11 +312,24 @@ def admin_jobs_page(request: Request):
         user, redirect = require_user(request, session, Role.admin, verified_admin=True)
         if redirect:
             return redirect
-        return render(request, "admin_jobs.html", current_user=user, role_home=home_for(user), jobs=crud.list_jobs(session, 0, 100))
+        jobs = crud.list_jobs(session, 0, 100)
+        companies_by_id = {company.id: company for company in crud.list_companies(session, 0, 1000, include_inactive=True)}
+        return render(
+            request,
+            "admin_jobs.html",
+            current_user=user,
+            role_home=home_for(user),
+            jobs=jobs,
+            companies_by_id=companies_by_id,
+        )
 
 
 @router.post("/jobs/{job_id}/close", name="ui_admin_job_close")
-def admin_job_close_submit(job_id: int, request: Request):
+async def admin_job_close_submit(job_id: int, request: Request):
+    try:
+        await read_form_with_csrf(request)
+    except ValueError as exc:
+        return redirect_to(request, "ui_admin_jobs", str(exc), "warning")
     with Session(engine) as session:
         user, redirect = require_user(request, session, Role.admin, verified_admin=True)
         if redirect:
@@ -280,7 +342,11 @@ def admin_job_close_submit(job_id: int, request: Request):
 
 
 @router.post("/jobs/{job_id}/delete", name="ui_admin_job_delete")
-def admin_job_delete_submit(job_id: int, request: Request):
+async def admin_job_delete_submit(job_id: int, request: Request):
+    try:
+        await read_form_with_csrf(request)
+    except ValueError as exc:
+        return redirect_to(request, "ui_admin_jobs", str(exc), "warning")
     with Session(engine) as session:
         user, redirect = require_user(request, session, Role.admin, verified_admin=True)
         if redirect:
@@ -304,7 +370,11 @@ def admin_applications_page(request: Request):
 
 
 @router.post("/applications/{application_id}/delete", name="ui_admin_application_delete")
-def admin_application_delete_submit(application_id: int, request: Request):
+async def admin_application_delete_submit(application_id: int, request: Request):
+    try:
+        await read_form_with_csrf(request)
+    except ValueError as exc:
+        return redirect_to(request, "ui_admin_applications", str(exc), "warning")
     with Session(engine) as session:
         user, redirect = require_user(request, session, Role.admin, verified_admin=True)
         if redirect:

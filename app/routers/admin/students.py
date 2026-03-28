@@ -23,6 +23,7 @@ from ...schemas import (
 from ...models import User, Student
 from ...enums import Branch
 from ...enums import Role
+from ...logger import get_logger
 
 router = APIRouter(
     prefix="/students",
@@ -30,6 +31,7 @@ router = APIRouter(
     dependencies=[Depends(get_verified_admin)],
 )
 DEBUG_MODE = DEBUG
+logger = get_logger(__name__)
 
 
 def _send_student_invite_email(email: str, token: str) -> None:
@@ -37,7 +39,7 @@ def _send_student_invite_email(email: str, token: str) -> None:
     Demo background task.
     Replace with real email provider integration.
     """
-    print(f"[student-invite] queued email for {email}")
+    logger.info(f"Student invite email queued for: {email}")
 
 
 @router.post("/provision", response_model=AdminStudentProvisionOut)

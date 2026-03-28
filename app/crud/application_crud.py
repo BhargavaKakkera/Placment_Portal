@@ -23,6 +23,12 @@ def apply_job(session: Session, student_id: int, job_id: int) -> Application:
         raise ValueError("Job is closed")
     if job.application_deadline and to_utc_naive(job.application_deadline) < utc_now():
         raise ValueError("Application deadline passed")
+
+    company = session.get(Company, job.company_id)
+    if not company or not getattr(company, "is_active", True):
+        raise ValueError("Company is deactivated for this job")
+    if not getattr(company, "verified", False):
+        raise ValueError("Company is not verified for this job")
     
     # Check if already applied
     statement = select(Application).where(
@@ -193,6 +199,7 @@ def list_student_application_summaries(
             "job_id": job.id,
             "company_id": company.id,
             "company_name": company.name,
+            "company_active": bool(getattr(company, "is_active", True)),
             "job_title": job.title,
             "job_description": job.description,
             "applied_at": application.applied_at,

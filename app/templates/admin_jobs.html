@@ -4,13 +4,25 @@
 <h1 class="h3 mb-3">Jobs</h1>
 <div class="table-responsive">
     <table class="table table-striped align-middle">
-        <thead><tr><th>ID</th><th>Title</th><th>Company ID</th><th>Closed</th><th></th></tr></thead>
+        <thead><tr><th>ID</th><th>Title</th><th>Company ID</th><th>Company State</th><th>Closed</th><th></th></tr></thead>
         <tbody>
             {% for job in jobs %}
+            {% set company = companies_by_id.get(job.company_id) if companies_by_id else None %}
             <tr>
                 <td>{{ job.id }}</td>
                 <td>{{ job.title }}</td>
                 <td>{{ job.company_id }}</td>
+                <td>
+                    {% if not company %}
+                    <span class="badge text-bg-secondary">Unknown</span>
+                    {% elif company.is_active and company.verified %}
+                    <span class="badge text-bg-success">Active</span>
+                    {% elif company.is_active and not company.verified %}
+                    <span class="badge text-bg-warning">Unverified</span>
+                    {% else %}
+                    <span class="badge text-bg-danger">Inactive</span>
+                    {% endif %}
+                </td>
                 <td>
                     {% if job.closed %}
                     <span class="badge text-bg-secondary">Closed</span>
@@ -34,7 +46,7 @@
                 </td>
             </tr>
             {% else %}
-            <tr><td colspan="5" class="text-muted">No jobs found.</td></tr>
+            <tr><td colspan="6" class="text-muted">No jobs found.</td></tr>
             {% endfor %}
         </tbody>
     </table>

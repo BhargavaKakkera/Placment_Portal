@@ -1,25 +1,124 @@
-from pathlib import Path
+"""
+Main FastAPI application.
 
-from fastapi import FastAPI
+Initializes the FastAPI app with middleware, security headers, and startup tasks.
+"""
+
+import logging
+from pathlib import Path
+from typing import Any, Dict
+
+from fastapi import FastAPI, Request
 from fastapi.responses import RedirectResponse
+from fastapi.exceptions import RequestValidationError
 from starlette.middleware.sessions import SessionMiddleware
+from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 from sqlmodel import Session
 
 from .database import run_migrations, engine
 from . import crud
-from .config import SECRET_KEY
+from .config import SESSION_SECRET_KEY, DEBUG, LOG_LEVEL
+from .exceptions import ApplicationException
+from .logger import configure_logging, get_logger, configure_uvicorn_logging
 
-app = FastAPI(title="Placement Portal - Placement Cell API")
-app.add_middleware(SessionMiddleware, secret_key=SECRET_KEY, same_site="lax")
-app.mount("/static", StaticFiles(directory=str(Path(__file__).resolve().parent / "static")), name="static")
+# Configure logging before anything else
+configure_logging(log_level=LOG_LEVEL)
+configure_uvicorn_logging()  # Enable uvicorn access logs
+logger = get_logger(__name__)
+
+app = FastAPI(
+    title="Placement Portal - Placement Cell API",
+    description="API for managing placements, students, companies, and job applications",
+    version="1.0.0",
+    docs_url="/docs",  # Always enable Swagger UI
+    redoc_url="/redoc",  # Always enable ReDoc
+    openapi_url="/openapi.json",  # Always expose OpenAPI schema
+)
+
+
+class SecurityHeadersMiddleware(BaseHTTPMiddleware):
+    """Add security headers to all responses."""
+
+    async def dispatch(self, request, call_next):
+        response = await call_next(request)
+        
+        # Security headers
+        response.headers["X-Content-Type-Options"] = "nosniff"
+        response.headers["X-Frame-Options"] = "DENY"
+        response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+        response.headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=()"
+        response.headers["Content-Security-Policy"] = (
+            "default-src 'self'; "
+            "style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; "
+            "script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; "
+            "img-src 'self' data:; "
+            "font-src 'self' https://cdn.jsdelivr.net; "
+            "object-src 'none'; "
+            "base-uri 'self'; "
+            "frame-ancestors 'none'"
+        )
+        
+        # HSTS header in production
+        if not DEBUG:
+            response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
+        
+        logger.debug(f"Security headers added for {request.method} {request.url.path}")
+        return response
+
+
+# Add security headers middleware
+app.add_middleware(SecurityHeadersMiddleware)
+
+# Add session middleware with secure cookies
+app.add_middleware(
+    SessionMiddleware,
+    secret_key=SESSION_SECRET_KEY,
+    same_site="lax",
+    https_only=not DEBUG,  # HTTPS only in production
+    max_age=60 * 30,  # 30 minutes session timeout
+)
+
+# Mount static files
+static_path = Path(__file__).resolve().parent / "static"
+app.mount("/static", StaticFiles(directory=str(static_path)), name="static")
+logger.info(f"Static files mounted from: {static_path}")
 
 
 @app.on_event("startup")
 def on_startup() -> None:
-    run_migrations()
-    with Session(engine) as session:
-        crud.purge_expired_unverified_users(session, older_than_days=15)
+    """
+    Startup event: Run migrations and cleanup tasks.
+
+    Raises:
+        RuntimeError: If startup tasks fail
+    """
+    try:
+        logger.info("Application startup beginning...")
+        
+        # Run database migrations
+        run_migrations()
+        logger.info("Migrations completed")
+
+        # Cleanup expired unverified users
+        try:
+            with Session(engine) as session:
+                crud.purge_expired_unverified_users(session, older_than_days=15)
+                logger.info("Cleanup of expired unverified users completed")
+        except Exception as e:
+            logger.error(f"Error during user cleanup: {str(e)}", exc_info=True)
+            # Don't fail startup, just log the error
+
+        logger.info("Application startup completed successfully")
+        if DEBUG:
+            logger.warning("DEBUG mode is enabled - do not use in production")
+        logger.info(f"Logging level active: {LOG_LEVEL}")
+        logger.info("=" * 70)
+            
+    except Exception as e:
+        logger.critical(f"Application startup failed: {str(e)}", exc_info=True)
+        raise RuntimeError("Application startup failed") from e
 
 
 # Include routers
@@ -27,14 +126,116 @@ from .routers import auth, jobs, students, companies
 from .routers.admin import router as admin_router
 from .ui import router as ui_router
 
-app.include_router(auth.router)
-app.include_router(jobs.router)
-app.include_router(students.router)
-app.include_router(companies.router)
-app.include_router(admin_router)
-app.include_router(ui_router)
+app.include_router(auth.router, tags=["Authentication"])
+app.include_router(jobs.router, tags=["Jobs"])
+app.include_router(students.router, tags=["Students"])
+app.include_router(companies.router, tags=["Companies"])
+app.include_router(admin_router, tags=["Admin"])
+app.include_router(ui_router, tags=["UI"])
+
+logger.info("All routers registered")
+
+
+@app.exception_handler(ApplicationException)
+async def application_exception_handler(request: Request, exc: ApplicationException):
+    logger.warning(
+        f"Application error at {request.method} {request.url.path}: [{exc.error_code}] {exc.message}"
+    )
+    return JSONResponse(
+        status_code=exc.status_code,
+        content={"detail": exc.message, "error_code": exc.error_code},
+    )
+
+
+@app.exception_handler(RequestValidationError)
+async def request_validation_exception_handler(request: Request, exc: RequestValidationError):
+    logger.info(f"Validation error at {request.method} {request.url.path}: {exc.errors()}")
+    return JSONResponse(
+        status_code=422,
+        content={"detail": "Invalid request payload", "errors": exc.errors()},
+    )
+
+
+@app.exception_handler(Exception)
+async def unhandled_exception_handler(request: Request, exc: Exception):
+    logger.error(
+        f"Unhandled error at {request.method} {request.url.path}: {str(exc)}",
+        exc_info=True,
+    )
+    return JSONResponse(
+        status_code=500,
+        content={"detail": "Internal server error"},
+    )
 
 
 @app.get("/")
 def root():
+    """Redirect root to UI."""
+    logger.debug("Root endpoint accessed, redirecting to /ui/")
     return RedirectResponse(url="/ui/", status_code=307)
+
+
+@app.get("/health")
+def health_check():
+    """Health check endpoint."""
+    logger.debug("Health check called")
+    return {"status": "healthy"}
+
+
+@app.get(
+    "/policy/lifecycle",
+    tags=["Policy"],
+    summary="Lifecycle policy rules for company/job/application/offer behavior",
+)
+def lifecycle_policy() -> Dict[str, Any]:
+    """
+    Canonical policy contract for frontend/admin to enforce lifecycle behavior.
+    """
+    return {
+        "policy_version": "2026-03-27",
+        "description": "Single source of truth for active vs inactive company behavior.",
+        "company_state": {
+            "active": {
+                "can_login": True,
+                "can_create_jobs": True,
+                "can_manage_applications": True,
+                "jobs_publicly_visible_if_verified": True,
+            },
+            "inactive": {
+                "can_login": False,
+                "can_create_jobs": False,
+                "can_manage_applications": False,
+                "jobs_publicly_visible_if_verified": False,
+            },
+        },
+        "job_rules": {
+            "on_company_deactivation": {
+                "close_all_company_jobs": True,
+                "new_applications_blocked": True,
+            },
+            "student_ui_visibility": {
+                "only_active_verified_company_jobs_are_listed": True,
+                "closed_jobs_not_listed_for_new_applications": True,
+            },
+        },
+        "application_rules": {
+            "inactive_company_cannot_progress_application_status": True,
+            "student_cannot_apply_if_company_inactive": True,
+        },
+        "offer_rules": {
+            "offered_pending_if_company_becomes_inactive": {
+                "student_can_accept_or_decline": False,
+                "reason": "Offer actions are blocked once the company is inactive.",
+            },
+            "accepted_offer_if_company_becomes_inactive": {
+                "remains_in_history": True,
+                "status_changes_automatically": False,
+                "ui_hint": "Show company as inactive badge/context only.",
+            },
+        },
+        "admin_rules": {
+            "can_view_inactive_companies": True,
+            "can_view_closed_jobs_from_inactive_companies": True,
+            "can_reactivate_company": True,
+        },
+    }
