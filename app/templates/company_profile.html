@@ -19,9 +19,9 @@
             Your profile exists, but job creation stays locked until an admin verifies the company.
         </div>
         {% endif %}
-        <form method="post" action="/ui/company/delete" data-confirm="Deactivate company profile for {{ company.name }}?">
-            <button class="btn btn-outline-danger" type="submit" data-loading-text="Deactivating...">Deactivate company</button>
-        </form>
+        <div class="alert alert-info mb-0">
+            Company deactivation is managed by admin only. Contact placement admin for deactivation requests.
+        </div>
     </div>
 </div>
 {% else %}

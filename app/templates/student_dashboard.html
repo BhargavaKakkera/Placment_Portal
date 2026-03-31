@@ -18,6 +18,7 @@
             <p class="mb-1"><strong>{{ student.name }}</strong></p>
             <p class="mb-1">{{ student.reg_no }} / {{ student.roll_no }}</p>
             <p class="mb-1">Branch: {{ student.branch.value }}</p>
+            <p class="mb-1">Gender: {{ student.gender.value|title if student.gender else "-" }}</p>
             <p class="mb-0">CGPA: {{ student.cgpa }}</p>
             {% else %}
             <p class="text-muted mb-0">Student profile not found.</p>

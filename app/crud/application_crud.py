@@ -240,6 +240,7 @@ def list_company_applicant_summaries(
             "reg_no": student.reg_no,
             "roll_no": student.roll_no,
             "branch": student.branch,
+            "gender": student.gender,
             "cgpa": student.cgpa,
             "graduation_year": student.graduation_year,
             "backlogs": student.backlogs,

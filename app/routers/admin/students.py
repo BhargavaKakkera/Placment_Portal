@@ -85,6 +85,7 @@ def provision_student(
             roll_no=payload.roll_no,
             cgpa=payload.cgpa,
             branch=payload.branch,
+            gender=payload.gender,
             graduation_year=payload.graduation_year,
             backlogs=payload.backlogs,
         )
@@ -114,6 +115,7 @@ def provision_student(
 def admin_list_students(
     pagination: PaginationParams = Depends(),
     branch: Optional[Branch] = Query(None, description="Filter by branch"),
+    reg_no: Optional[str] = Query(None, description="Filter by registration number (partial match)"),
     include_inactive: bool = Query(False, description="Include deactivated students"),
     admin_user: User = Depends(get_verified_admin),
     session: Session = Depends(get_session),
@@ -124,16 +126,26 @@ def admin_list_students(
         skip=pagination.skip,
         limit=pagination.limit,
         branch=branch,
+        reg_no=reg_no,
         include_inactive=include_inactive,
     )
     total = crud.count_students(
         session,
         branch=branch,
+        reg_no=reg_no,
         include_inactive=include_inactive,
     )
     
     # Log sensitive read
-    log_audit("admin.students.listed", admin_id=admin_user.id, count=len(items), total=total, branch=str(branch) if branch else None, include_inactive=include_inactive)
+    log_audit(
+        "admin.students.listed",
+        admin_id=admin_user.id,
+        count=len(items),
+        total=total,
+        branch=str(branch) if branch else None,
+        reg_no=reg_no,
+        include_inactive=include_inactive,
+    )
 
     return {
         "items": items,
@@ -183,16 +195,15 @@ def admin_delete_student(
     try:
         res = crud.delete_student(session, student_id)
     except ValueError as e:
+        error_msg = str(e)
+        status_code = 404 if "not found" in error_msg.lower() else 409
         raise HTTPException(
-            status_code=409,
-            detail=str(e)
+            status_code=status_code,
+            detail=error_msg
         )
-
+    
     if not res:
-        raise HTTPException(
-            status_code=404,
-            detail="Student not found or could not be deleted"
-        )
+        raise HTTPException(status_code=409, detail="Could not delete student")
 
     return {"deleted": True}
 
@@ -210,4 +221,3 @@ def admin_reactivate_student(
             detail="Student not found or could not be reactivated"
         )
     return {"reactivated": True}
-

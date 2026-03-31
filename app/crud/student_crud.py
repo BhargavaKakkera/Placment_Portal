@@ -3,12 +3,14 @@ Student CRUD operations for student profile management.
 """
 
 from sqlmodel import Session, select, func
+from sqlalchemy.exc import IntegrityError
 from typing import Optional, List
 from ..models import Student, User, Offer
 from ..enums import Branch
 from ..enums import OfferStatus
 from ..datetime_utils import utc_now
 from ..audit import log_audit
+from .state_transitions import deactivate_student_and_cascade
 
 
 def create_student(session: Session, user_id: int, **data) -> Student:
@@ -39,7 +41,7 @@ def update_student(
     student_id: int,
     **data
 ) -> Optional[Student]:
-    """Update student profile."""
+    """Update student profile. Raises ValueError for unique constraint violations."""
     student = session.get(Student, student_id)
     if not student or not getattr(student, "is_active", True):
         return None
@@ -52,6 +54,15 @@ def update_student(
     session.add(student)
     try:
         session.commit()
+    except IntegrityError as e:
+        session.rollback()
+        # Check what caused the integrity error
+        if "reg_no" in str(e):
+            raise ValueError("Registration number already exists for another student.")
+        elif "roll_no" in str(e):
+            raise ValueError("Roll number already exists for another student.")
+        else:
+            raise ValueError("Duplicate entry - please check your input values.")
     except Exception:
         session.rollback()
         return None
@@ -59,29 +70,23 @@ def update_student(
     return student
 
 
-def delete_student(session: Session, student_id: int) -> Optional[bool]:
-    """Soft-delete student profile and linked user account."""
+def delete_student(session: Session, student_id: int) -> bool:
+    """Soft-delete student and cascade to applications/offers (state-driven)."""
     student = session.get(Student, student_id)
-    if not student or not getattr(student, "is_active", True):
-        return None
-
+    if not student:
+        raise ValueError("Student record not found")
+    if not getattr(student, "is_active", True):
+        raise ValueError("Student is already deactivated")
+    
     try:
-        student.is_active = False
-        student.deactivated_at = utc_now()
-        session.add(student)
-
-        user = session.get(User, student.user_id)
-        if user and getattr(user, "is_active", True):
-            user.is_active = False
-            user.deactivated_at = utc_now()
-            session.add(user)
-
-        session.commit()
-        log_audit("student.deactivated", student_id=student_id, user_id=student.user_id)
-        return True
-    except Exception:
-        session.rollback()
-        return None
+        result = deactivate_student_and_cascade(session, student_id)
+        if result:
+            return True
+        raise ValueError("Failed to deactivate student")
+    except ValueError:
+        raise
+    except Exception as e:
+        raise ValueError(f"Unexpected error: {str(e)}")
 
 
 def reactivate_student(session: Session, student_id: int) -> Optional[bool]:
@@ -116,6 +121,7 @@ def list_students(
     skip: int = 0,
     limit: int = 100,
     branch: Optional[Branch] = None,
+    reg_no: Optional[str] = None,
     include_inactive: bool = False,
 ) -> List[Student]:
     """List students with optional branch filtering."""
@@ -124,6 +130,8 @@ def list_students(
         statement = statement.where(Student.is_active == True)
     if branch is not None:
         statement = statement.where(Student.branch == branch)
+    if reg_no:
+        statement = statement.where(Student.reg_no.ilike(f"%{reg_no.strip()}%"))
     statement = statement.order_by(Student.reg_no.asc(), Student.id.asc()).offset(skip).limit(limit)
     return session.exec(statement).all()
 
@@ -131,6 +139,7 @@ def list_students(
 def count_students(
     session: Session,
     branch: Optional[Branch] = None,
+    reg_no: Optional[str] = None,
     include_inactive: bool = False,
 ) -> int:
     """Count students with optional branch filtering."""
@@ -139,6 +148,8 @@ def count_students(
         statement = statement.where(Student.is_active == True)
     if branch is not None:
         statement = statement.where(Student.branch == branch)
+    if reg_no:
+        statement = statement.where(Student.reg_no.ilike(f"%{reg_no.strip()}%"))
     return session.exec(statement).one()
 
 

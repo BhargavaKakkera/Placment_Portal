@@ -6,6 +6,7 @@ import re
 from .enums import (
     Role,
     Branch,
+    Gender,
     RoleType,
     ApplicationStatus,
     OfferStatus,
@@ -155,6 +156,7 @@ class AdminStudentProvisionIn(BaseModel):
     roll_no: str = Field(min_length=2, max_length=30)
     cgpa: float = Field(ge=0, le=10)
     branch: Branch
+    gender: Gender
     graduation_year: int = Field(ge=2000, le=2100)
     backlogs: int = Field(default=0, ge=0, le=20)
 
@@ -179,6 +181,7 @@ class StudentAdminUpdate(BaseModel):
     roll_no: Optional[str] = Field(None, min_length=2, max_length=30)
     cgpa: Optional[float] = Field(None, ge=0, le=10)
     branch: Optional[Branch]
+    gender: Optional[Gender]
     graduation_year: Optional[int] = Field(None, ge=2000, le=2100)
     backlogs: Optional[int] = Field(None, ge=0, le=20)
 
@@ -193,6 +196,7 @@ class StudentOut(BaseModel):
 
     cgpa: float
     branch: Branch
+    gender: Gender
 
     graduation_year: int
     backlogs: int
@@ -267,6 +271,10 @@ class JobCreate(BaseModel):
     @model_validator(mode="after")
     def validate_job_fields(self):
 
+        # Validate branches
+        if self.allowed_branches is not None and len(self.allowed_branches) == 0:
+            raise ValueError("At least one branch must be selected or leave empty for all branches")
+
         if self.role_type == RoleType.internship:
 
             if self.stipend is None:
@@ -287,6 +295,7 @@ class JobOut(BaseModel):
 
     id: int
     company_id: int
+    company_name: Optional[str] = None
     title: str
     description: Optional[str]
 
@@ -366,6 +375,7 @@ class CompanyApplicantItemOut(BaseModel):
     reg_no: str
     roll_no: str
     branch: Branch
+    gender: Gender
     cgpa: float
     graduation_year: int
     backlogs: int
@@ -426,6 +436,14 @@ class StudentOfferItemOut(BaseModel):
     status: OfferStatus
     response_deadline: Optional[datetime]
     created_at: datetime
+
+
+class StudentOfferListOut(BaseModel):
+    items: List[StudentOfferItemOut]
+    skip: int
+    limit: int
+    total: int
+    has_more: bool
 
 
 class CompanyAcceptedOfferItemOut(BaseModel):

@@ -6,15 +6,29 @@
         <div class="card shadow-sm">
             <div class="card-body">
                 <h1 class="h4 mb-3">Register company or admin</h1>
+                {% if error_message %}
+                <div class="alert alert-danger" role="alert">
+                    {{ error_message }}
+                </div>
+                {% endif %}
                 <form method="post" action="/ui/register">
-                    <div class="mb-3"><label class="form-label">Email</label><input class="form-control" name="email" type="email" required></div>
-                    <div class="mb-3"><label class="form-label">Password</label><input class="form-control" name="password" type="password" minlength="8" required></div>
+                    <div class="mb-3">
+                        <label class="form-label">Email</label>
+                        <input class="form-control {% if field_errors.get('email') %}is-invalid{% endif %}" name="email" type="email" value="{{ form_data.get('email', '') }}" required>
+                        {% if field_errors.get('email') %}<div class="invalid-feedback d-block">{{ field_errors['email'] }}</div>{% endif %}
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Password</label>
+                        <input class="form-control {% if field_errors.get('password') %}is-invalid{% endif %}" name="password" type="password" minlength="8" required>
+                        {% if field_errors.get('password') %}<div class="invalid-feedback d-block">{{ field_errors['password'] }}</div>{% endif %}
+                    </div>
                     <div class="mb-3">
                         <label class="form-label">Role</label>
-                        <select class="form-select" name="role">
-                            <option value="company">Company</option>
-                            <option value="admin">Admin</option>
+                        <select class="form-select {% if field_errors.get('role') %}is-invalid{% endif %}" name="role">
+                            <option value="company" {% if form_data.get('role') == 'company' %}selected{% endif %}>Company</option>
+                            <option value="admin" {% if form_data.get('role') == 'admin' %}selected{% endif %}>Admin</option>
                         </select>
+                        {% if field_errors.get('role') %}<div class="invalid-feedback d-block">{{ field_errors['role'] }}</div>{% endif %}
                     </div>
                     <button class="btn btn-primary w-100" type="submit">Register</button>
                 </form>

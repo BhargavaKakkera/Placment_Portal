@@ -10,37 +10,87 @@
                 Admin verification is pending. You can review your profile and existing jobs, but new job creation is disabled until verification.
             </div>
             {% endif %}
+            {% if error_message %}
+            <div class="alert alert-danger" role="alert">
+                {{ error_message }}
+            </div>
+            {% endif %}
             <form method="post" action="/ui/company/jobs">
                 <fieldset {% if not company.verified %}disabled{% endif %}>
-                <div class="mb-3"><label class="form-label">Title</label><input class="form-control" name="title" required></div>
-                <div class="mb-3"><label class="form-label">Description</label><textarea class="form-control" name="description"></textarea></div>
+                <div class="mb-3">
+                    <label class="form-label">Title</label>
+                    <input class="form-control {% if field_errors.get('title') %}is-invalid{% endif %}" name="title" value="{{ form_data.get('title', '') }}" required>
+                    {% if field_errors.get('title') %}<div class="invalid-feedback d-block">{{ field_errors['title'] }}</div>{% endif %}
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Description</label>
+                    <textarea class="form-control {% if field_errors.get('description') %}is-invalid{% endif %}" name="description">{{ form_data.get('description', '') }}</textarea>
+                    {% if field_errors.get('description') %}<div class="invalid-feedback d-block">{{ field_errors['description'] }}</div>{% endif %}
+                </div>
                 <div class="row g-3">
-                    <div class="col-md-6"><label class="form-label">Role type</label><select class="form-select" name="role_type"><option value="full_time">Full-time</option><option value="internship">Internship</option></select></div>
-                    <div class="col-md-6"><label class="form-label">Deadline</label><input class="form-control" name="application_deadline" type="datetime-local"></div>
-                    <div class="col-md-6"><label class="form-label">Min CGPA</label><input class="form-control" name="min_cgpa" type="number" min="0" max="10" step="0.1"></div>
-                    <div class="col-md-6"><label class="form-label">Max backlogs</label><input class="form-control" name="max_backlogs" type="number" min="0"></div>
-                    <div class="col-md-6"><label class="form-label">CTC</label><input class="form-control" name="ctc" type="number" min="0" step="0.1"></div>
-                    <div class="col-md-6"><label class="form-label">Stipend</label><input class="form-control" name="stipend" type="number" min="0" step="0.1"></div>
-                    <div class="col-md-6"><label class="form-label">Internship duration</label><input class="form-control" name="internship_duration"></div>
-                    <div class="col-md-6"><label class="form-label">PPO available</label><div class="form-check mt-2"><input class="form-check-input" name="ppo_available" type="checkbox"></div></div>
+                    <div class="col-md-6">
+                        <label class="form-label">Role type</label>
+                        <select class="form-select {% if field_errors.get('role_type') %}is-invalid{% endif %}" name="role_type">
+                            <option value="full_time" {% if form_data.get('role_type') == 'full_time' %}selected{% endif %}>Full-time</option>
+                            <option value="internship" {% if form_data.get('role_type') == 'internship' %}selected{% endif %}>Internship</option>
+                        </select>
+                        {% if field_errors.get('role_type') %}<div class="invalid-feedback d-block">{{ field_errors['role_type'] }}</div>{% endif %}
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label">Deadline</label>
+                        <input class="form-control {% if field_errors.get('application_deadline') %}is-invalid{% endif %}" name="application_deadline" type="datetime-local" value="{{ form_data.get('application_deadline', '') }}">
+                        {% if field_errors.get('application_deadline') %}<div class="invalid-feedback d-block">{{ field_errors['application_deadline'] }}</div>{% endif %}
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label">Min CGPA</label>
+                        <input class="form-control {% if field_errors.get('min_cgpa') %}is-invalid{% endif %}" name="min_cgpa" type="number" min="0" max="10" step="0.1" value="{{ form_data.get('min_cgpa', '') }}">
+                        {% if field_errors.get('min_cgpa') %}<div class="invalid-feedback d-block">{{ field_errors['min_cgpa'] }}</div>{% endif %}
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label">Max backlogs</label>
+                        <input class="form-control {% if field_errors.get('max_backlogs') %}is-invalid{% endif %}" name="max_backlogs" type="number" min="0" value="{{ form_data.get('max_backlogs', '') }}">
+                        {% if field_errors.get('max_backlogs') %}<div class="invalid-feedback d-block">{{ field_errors['max_backlogs'] }}</div>{% endif %}
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label">CTC</label>
+                        <input class="form-control {% if field_errors.get('ctc') %}is-invalid{% elif '__root__' in field_errors and 'CTC' in field_errors['__root__'] %}is-invalid{% endif %}" name="ctc" type="number" min="0" step="0.1" value="{{ form_data.get('ctc', '') }}">
+                        {% if field_errors.get('ctc') %}<div class="invalid-feedback d-block">{{ field_errors['ctc'] }}</div>{% elif '__root__' in field_errors and 'CTC' in field_errors['__root__'] %}<div class="invalid-feedback d-block">{{ field_errors['__root__'] }}</div>{% endif %}
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label">Stipend</label>
+                        <input class="form-control {% if field_errors.get('stipend') %}is-invalid{% elif '__root__' in field_errors and 'stipend' in field_errors['__root__'] %}is-invalid{% endif %}" name="stipend" type="number" min="0" step="0.1" value="{{ form_data.get('stipend', '') }}">
+                        {% if field_errors.get('stipend') %}<div class="invalid-feedback d-block">{{ field_errors['stipend'] }}</div>{% elif '__root__' in field_errors and 'stipend' in field_errors['__root__'] %}<div class="invalid-feedback d-block">{{ field_errors['__root__'] }}</div>{% endif %}
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label">Internship duration</label>
+                        <input class="form-control {% if field_errors.get('internship_duration') %}is-invalid{% elif '__root__' in field_errors and 'duration' in field_errors['__root__'] %}is-invalid{% endif %}" name="internship_duration" value="{{ form_data.get('internship_duration', '') }}">
+                        {% if field_errors.get('internship_duration') %}<div class="invalid-feedback d-block">{{ field_errors['internship_duration'] }}</div>{% elif '__root__' in field_errors and 'duration' in field_errors['__root__'] %}<div class="invalid-feedback d-block">{{ field_errors['__root__'] }}</div>{% endif %}
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label">PPO available</label>
+                        <div class="form-check mt-2">
+                            <input class="form-check-input" name="ppo_available" type="checkbox" {% if form_data.get('ppo_available') %}checked{% endif %}>
+                        </div>
+                    </div>
                     <div class="col-12">
                         <label class="form-label">Allowed branches</label>
-                        <div class="card border-0 bg-light-subtle p-3">
+                        <div class="card border-0 bg-light-subtle p-3 {% if field_errors.get('allowed_branches') %}border-danger{% endif %}">
                             <div class="form-check mb-2">
-                                <input class="form-check-input" id="branch_all" name="allowed_branches" type="checkbox" value="__all__" checked>
+                                <input class="form-check-input" id="branch_all" name="allowed_branches" type="checkbox" value="__all__" {% if '__all__' in form_data.get('allowed_branches', []) or form_data.get('allowed_branches', ['__all__']) == [] %}checked{% endif %}>
                                 <label class="form-check-label" for="branch_all"><strong>All branches</strong></label>
                             </div>
                             <div class="row g-2">
                                 {% for branch in Branch %}
                                 <div class="col-md-4 col-6">
                                     <div class="form-check">
-                                        <input class="form-check-input branch-item" id="branch_{{ branch.value }}" name="allowed_branches" type="checkbox" value="{{ branch.value }}" disabled>
+                                        <input class="form-check-input branch-item" id="branch_{{ branch.value }}" name="allowed_branches" type="checkbox" value="{{ branch.value }}" {% if branch.value in form_data.get('allowed_branches', []) %}checked{% endif %} {% if '__all__' in form_data.get('allowed_branches', ['__all__']) or form_data.get('allowed_branches', ['__all__']) == [] %}disabled{% endif %}>
                                         <label class="form-check-label" for="branch_{{ branch.value }}">{{ branch.value }}</label>
                                     </div>
                                 </div>
                                 {% endfor %}
                             </div>
                             <small class="text-muted d-block mt-2">Leave "All branches" selected to allow everyone, or uncheck it and tick specific branches.</small>
+                            {% if field_errors.get('allowed_branches') %}<div class="invalid-feedback d-block mt-2">{{ field_errors['allowed_branches'] }}</div>{% endif %}
                         </div>
                     </div>
                 </div>
@@ -54,12 +104,17 @@
             <h2 class="h5">My jobs</h2>
             <div class="table-responsive">
                 <table class="table align-middle">
-                    <thead><tr><th>Title</th><th>Role</th><th>Status</th><th></th></tr></thead>
+                    <thead><tr><th>Company</th><th>Title</th><th>Role</th><th>CTC/Stipend</th><th>Duration</th><th>PPO</th><th>Eligible branches</th><th>Status</th><th></th></tr></thead>
                     <tbody>
                         {% for job in jobs %}
                         <tr>
+                            <td>{{ company.name }}</td>
                             <td>{{ job.title }}</td>
                             <td>{{ job.role_type.value }}</td>
+                            <td>{{ job.ctc or job.stipend or "-" }}</td>
+                            <td>{{ job.internship_duration or "-" }}</td>
+                            <td>{{ "Yes" if job.ppo_available else "No" }}</td>
+                            <td>{{ job.allowed_branches or "All" }}</td>
                             <td>
                                 {% if job.closed %}
                                 <span class="badge text-bg-secondary">Closed</span>
@@ -77,7 +132,7 @@
                             </td>
                         </tr>
                         {% else %}
-                        <tr><td colspan="4" class="text-muted">No jobs created yet.</td></tr>
+                        <tr><td colspan="9" class="text-muted">No jobs created yet.</td></tr>
                         {% endfor %}
                     </tbody>
                 </table>
@@ -106,4 +161,21 @@
         }
     });
 </script>
+{% if pager %}
+<div class="d-flex justify-content-between align-items-center mt-3">
+    <span class="text-muted small">Page {{ pager.page }} | Total {{ pager.total }}</span>
+    <div class="btn-group">
+        {% if pager.has_prev %}
+        <a class="btn btn-outline-secondary btn-sm" href="{{ pager.prev_url }}">Previous</a>
+        {% else %}
+        <span class="btn btn-outline-secondary btn-sm disabled">Previous</span>
+        {% endif %}
+        {% if pager.has_next %}
+        <a class="btn btn-outline-secondary btn-sm" href="{{ pager.next_url }}">Next</a>
+        {% else %}
+        <span class="btn btn-outline-secondary btn-sm disabled">Next</span>
+        {% endif %}
+    </div>
+</div>
+{% endif %}
 {% endblock %}

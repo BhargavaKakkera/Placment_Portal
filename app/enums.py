@@ -17,6 +17,12 @@ class Branch(str, Enum):
     CHE = "CHE"
 
 
+class Gender(str, Enum):
+    male = "male"
+    female = "female"
+    other = "other"
+
+
 class RoleType(str, Enum):
     full_time = "full_time"
     internship = "internship"
@@ -29,12 +35,38 @@ class ApplicationStatus(str, Enum):
     offered = "offered"
     accepted = "accepted"
     declined = "declined"
+    closed_by_job = "closed_by_job"
+    inactive_student = "inactive_student"
+
+
+class ApplicationStatusReason(str, Enum):
+    """Why an application changed status"""
+    initial = "initial"
+    manual_rejection = "manual_rejection"
+    manual_shortlist = "manual_shortlist"
+    manual_offer = "manual_offer"
+    offer_accepted = "offer_accepted"
+    offer_declined = "offer_declined"
+    job_closed = "job_closed"
+    student_deactivated = "student_deactivated"
 
 
 class OfferStatus(str, Enum):
     offered = "offered"
     accepted = "accepted"
     declined = "declined"
+    invalidated = "invalidated"
+
+
+class OfferStatusReason(str, Enum):
+    """Why an offer changed status"""
+    initial = "initial"
+    offer_accepted = "offer_accepted"
+    offer_declined = "offer_declined"
+    competing_offer_accepted = "competing_offer_accepted"
+    job_closed = "job_closed"
+    student_deactivated = "student_deactivated"
+    deadline_passed = "deadline_passed"
 
 
 class CompanyApplicationAction(str, Enum):

@@ -7,6 +7,7 @@ from typing import Optional, List
 from ..models import Company, User, Job
 from ..datetime_utils import utc_now
 from ..audit import log_audit
+from .state_transitions import deactivate_company_and_cascade
 
 
 def create_company(session: Session, user_id: int, name: str) -> Company:
@@ -49,35 +50,11 @@ def update_company(session: Session, company_id: int, **data) -> Optional[Compan
 
 
 def delete_company(session: Session, company_id: int) -> Optional[bool]:
-    """Soft-delete company profile and linked user account."""
+    """Soft-delete company and cascade to jobs/applications/offers (state-driven)."""
     company = session.get(Company, company_id)
     if not company or not getattr(company, "is_active", True):
         return None
-    try:
-        company.is_active = False
-        company.deactivated_at = utc_now()
-        session.add(company)
-
-        # Business rule: when a company is deactivated, all still-open jobs become closed.
-        open_jobs = session.exec(
-            select(Job).where(Job.company_id == company.id).where(Job.closed == False)
-        ).all()
-        for job in open_jobs:
-            job.closed = True
-            session.add(job)
-
-        user = session.get(User, company.user_id)
-        if user and getattr(user, "is_active", True):
-            user.is_active = False
-            user.deactivated_at = utc_now()
-            session.add(user)
-
-        session.commit()
-        log_audit("company.deactivated", company_id=company_id, user_id=company.user_id)
-        return True
-    except Exception:
-        session.rollback()
-        return None
+    return deactivate_company_and_cascade(session, company_id)
 
 
 def reactivate_company(session: Session, company_id: int) -> Optional[bool]:

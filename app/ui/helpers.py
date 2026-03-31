@@ -4,6 +4,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Optional
 import secrets
+from urllib.parse import urlencode
 
 from fastapi import Request
 from fastapi.responses import RedirectResponse
@@ -95,6 +96,25 @@ def validation_message(exc: ValidationError | ValueError) -> str:
             return "; ".join(str(item.get("msg", "Invalid input")) for item in errors)
         return "Invalid input"
     return str(exc) or "Invalid input"
+
+
+def extract_field_errors(exc: ValidationError | ValueError) -> dict[str, str]:
+    """
+    Extract field-level error messages from validation exceptions.
+    Returns a dict mapping field names to error messages.
+    """
+    errors_dict = {}
+    if isinstance(exc, ValidationError):
+        for error in exc.errors():
+            field = error.get("loc", (None,))[0]
+            msg = error.get("msg", "Invalid input")
+            if field:
+                errors_dict[str(field)] = str(msg)
+    elif isinstance(exc, ValueError):
+        # For custom errors, map them to a generic field or extract field name if present
+        msg = str(exc)
+        errors_dict["__root__"] = msg
+    return errors_dict
 
 
 async def read_form_with_csrf(request: Request):
@@ -205,3 +225,55 @@ def eligible_jobs(session: Session, student: Student) -> list[Job]:
         
         eligible.append(job)
     return eligible
+
+
+def parse_page_limit(request: Request, default_limit: int = 20, max_limit: int = 100) -> tuple[int, int, int]:
+    """Parse page/limit query params and return (page, limit, skip)."""
+    try:
+        page = int(str(request.query_params.get("page", "1")))
+    except ValueError:
+        page = 1
+    try:
+        limit = int(str(request.query_params.get("limit", str(default_limit))))
+    except ValueError:
+        limit = default_limit
+
+    page = max(page, 1)
+    limit = max(1, min(limit, max_limit))
+    skip = (page - 1) * limit
+    return page, limit, skip
+
+
+def build_pager(
+    request: Request,
+    total: int,
+    page: int,
+    limit: int,
+) -> dict:
+    """Build pager metadata and previous/next URLs preserving existing query params."""
+    has_prev = page > 1
+    has_next = page * limit < total
+    query = dict(request.query_params)
+
+    prev_url = None
+    next_url = None
+
+    if has_prev:
+        query["page"] = str(page - 1)
+        query["limit"] = str(limit)
+        prev_url = f"{request.url.path}?{urlencode(query)}"
+
+    if has_next:
+        query["page"] = str(page + 1)
+        query["limit"] = str(limit)
+        next_url = f"{request.url.path}?{urlencode(query)}"
+
+    return {
+        "page": page,
+        "limit": limit,
+        "total": total,
+        "has_prev": has_prev,
+        "has_next": has_next,
+        "prev_url": prev_url,
+        "next_url": next_url,
+    }

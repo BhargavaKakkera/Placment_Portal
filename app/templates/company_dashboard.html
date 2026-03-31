@@ -26,7 +26,12 @@
             <h2 class="h5">Recent jobs</h2>
             <ul class="list-group list-group-flush">
                 {% for job in jobs %}
-                <li class="list-group-item d-flex justify-content-between"><span>{{ job.title }}</span><a class="btn btn-sm btn-outline-secondary" href="/ui/company/jobs/{{ job.id }}/applicants">Applicants</a></li>
+                <li class="list-group-item d-flex justify-content-between">
+                    <span>
+                        {{ company.name if company else "-" }} | {{ job.title }} | {{ job.role_type.value }} | {{ job.ctc or job.stipend or "-" }} | {{ job.internship_duration or "-" }} | PPO: {{ "Yes" if job.ppo_available else "No" }} | {{ job.allowed_branches or "All" }}
+                    </span>
+                    <a class="btn btn-sm btn-outline-secondary" href="/ui/company/jobs/{{ job.id }}/applicants">Applicants</a>
+                </li>
                 {% else %}
                 <li class="list-group-item text-muted">No jobs yet.</li>
                 {% endfor %}

@@ -39,21 +39,44 @@
         <h2 class="h5">Latest verified jobs</h2>
         <div class="table-responsive">
             <table class="table align-middle">
-                <thead><tr><th>Title</th><th>Role</th><th>Deadline</th><th></th></tr></thead>
+                <thead><tr><th>Company</th><th>Title</th><th>Role</th><th>CTC/Stipend</th><th>Duration</th><th>PPO</th><th>Eligible branches</th><th>Deadline</th><th></th></tr></thead>
                 <tbody>
                     {% for job in jobs %}
                     <tr>
+                        {% set company = companies_by_id.get(job.company_id) if companies_by_id else None %}
+                        <td>{{ company.name if company else "-" }}</td>
                         <td>{{ job.title }}</td>
                         <td>{{ job.role_type.value }}</td>
+                        <td>{{ job.ctc or job.stipend or "-" }}</td>
+                        <td>{{ job.internship_duration or "-" }}</td>
+                        <td>{{ "Yes" if job.ppo_available else "No" }}</td>
+                        <td>{{ job.allowed_branches or "All" }}</td>
                         <td>{{ job.application_deadline|fmt_datetime }}</td>
                         <td><a class="btn btn-sm btn-outline-primary" href="/ui/jobs/{{ job.id }}">View</a></td>
                     </tr>
                     {% else %}
-                    <tr><td colspan="4" class="text-muted">No jobs available yet.</td></tr>
+                    <tr><td colspan="9" class="text-muted">No jobs available yet.</td></tr>
                     {% endfor %}
                 </tbody>
             </table>
         </div>
     </div>
 </div>
+{% if pager %}
+<div class="d-flex justify-content-between align-items-center mt-3">
+    <span class="text-muted small">Page {{ pager.page }} | Total {{ pager.total }}</span>
+    <div class="btn-group">
+        {% if pager.has_prev %}
+        <a class="btn btn-outline-secondary btn-sm" href="{{ pager.prev_url }}">Previous</a>
+        {% else %}
+        <span class="btn btn-outline-secondary btn-sm disabled">Previous</span>
+        {% endif %}
+        {% if pager.has_next %}
+        <a class="btn btn-outline-secondary btn-sm" href="{{ pager.next_url }}">Next</a>
+        {% else %}
+        <span class="btn btn-outline-secondary btn-sm disabled">Next</span>
+        {% endif %}
+    </div>
+</div>
+{% endif %}
 {% endblock %}

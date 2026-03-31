@@ -1,12 +1,13 @@
 from fastapi import APIRouter, Request
 from pydantic import ValidationError
-from sqlmodel import Session
+from sqlmodel import Session, select
 
 from .. import crud
 from ..database import engine
-from ..enums import OfferStatus, Role
+from ..enums import OfferStatus, OfferStatusReason, ApplicationStatus, ApplicationStatusReason, Role
 from ..schemas import StudentUpdate
-from .helpers import eligible_jobs, home_for, read_form_with_csrf, redirect_to, render, require_student_profile, require_user, txt, validation_message
+from ..crud.state_transitions import get_active_offers
+from .helpers import build_pager, eligible_jobs, extract_field_errors, home_for, parse_page_limit, read_form_with_csrf, redirect_to, render, require_student_profile, require_user, txt, validation_message
 
 router = APIRouter(prefix="/student")
 
@@ -34,7 +35,16 @@ def student_profile_page(request: Request):
         student, redirect = require_student_profile(request, session, user)
         if redirect:
             return redirect
-        return render(request, "student_profile.html", current_user=user, role_home=home_for(user), student=student)
+        return render(
+            request,
+            "student_profile.html",
+            current_user=user,
+            role_home=home_for(user),
+            student=student,
+            form_data={},
+            field_errors={},
+            error_message=None,
+        )
 
 
 @router.post("/profile", name="ui_student_profile_post")
@@ -43,6 +53,22 @@ async def student_profile_submit(request: Request):
         form = await read_form_with_csrf(request)
     except ValueError as exc:
         return redirect_to(request, "ui_student_profile", str(exc), "warning")
+    
+    # Prepare form data
+    form_data = {
+        "phone": txt(form.get("phone")) or "",
+        "personal_email": txt(form.get("personal_email")) or "",
+        "address": txt(form.get("address")) or "",
+        "resume_url": txt(form.get("resume_url")) or "",
+        "github_url": txt(form.get("github_url")) or "",
+        "linkedin_url": txt(form.get("linkedin_url")) or "",
+        "leetcode_url": txt(form.get("leetcode_url")) or "",
+        "codeforces_url": txt(form.get("codeforces_url")) or "",
+        "hackerrank_url": txt(form.get("hackerrank_url")) or "",
+        "portfolio_url": txt(form.get("portfolio_url")) or "",
+        "other_coding_url": txt(form.get("other_coding_url")) or "",
+    }
+    
     with Session(engine) as session:
         user, redirect = require_user(request, session, Role.student)
         if redirect:
@@ -51,50 +77,36 @@ async def student_profile_submit(request: Request):
         if redirect:
             return redirect
         try:
-            payload = StudentUpdate.model_validate(
-                {
-                    "phone": txt(form.get("phone")),
-                    "personal_email": txt(form.get("personal_email")),
-                    "address": txt(form.get("address")),
-                    "resume_url": txt(form.get("resume_url")),
-                    "github_url": txt(form.get("github_url")),
-                    "linkedin_url": txt(form.get("linkedin_url")),
-                    "leetcode_url": txt(form.get("leetcode_url")),
-                    "codeforces_url": txt(form.get("codeforces_url")),
-                    "hackerrank_url": txt(form.get("hackerrank_url")),
-                    "portfolio_url": txt(form.get("portfolio_url")),
-                    "other_coding_url": txt(form.get("other_coding_url")),
-                }
-            )
+            payload = StudentUpdate.model_validate(form_data)
         except ValidationError as exc:
-            return redirect_to(request, "ui_student_profile", validation_message(exc), "warning")
+            field_errors = extract_field_errors(exc)
+            return render(
+                request,
+                "student_profile.html",
+                current_user=user,
+                role_home=home_for(user),
+                student=student,
+                form_data=form_data,
+                field_errors=field_errors,
+                error_message=validation_message(exc),
+            )
         updated = crud.update_student(
             session,
             student.id,
             **payload.model_dump(mode="json")
         )
         if not updated:
-            return redirect_to(request, "ui_student_profile", "Could not update profile.", "danger")
+            return render(
+                request,
+                "student_profile.html",
+                current_user=user,
+                role_home=home_for(user),
+                student=student,
+                form_data=form_data,
+                field_errors={},
+                error_message="Could not update profile.",
+            )
     return redirect_to(request, "ui_student_profile", "Profile updated.", "success")
-
-
-@router.post("/delete", name="ui_student_delete")
-async def student_delete_submit(request: Request):
-    try:
-        await read_form_with_csrf(request)
-    except ValueError as exc:
-        return redirect_to(request, "ui_student_profile", str(exc), "warning")
-    with Session(engine) as session:
-        user, redirect = require_user(request, session, Role.student)
-        if redirect:
-            return redirect
-        student, redirect = require_student_profile(request, session, user)
-        if redirect:
-            return redirect
-        if not crud.delete_student(session, student.id):
-            return redirect_to(request, "ui_student_profile", "Could not deactivate student profile.", "danger")
-    request.session.clear()
-    return redirect_to(request, "ui_home", "Student profile deactivated.", "info")
 
 
 @router.get("/jobs", name="ui_student_jobs")
@@ -106,7 +118,22 @@ def student_jobs_page(request: Request):
         student, redirect = require_student_profile(request, session, user)
         if redirect:
             return redirect
-        return render(request, "student_jobs.html", current_user=user, role_home=home_for(user), student=student, jobs=eligible_jobs(session, student))
+        page, limit, skip = parse_page_limit(request, default_limit=20, max_limit=100)
+        all_jobs = eligible_jobs(session, student)
+        total = len(all_jobs)
+        jobs = all_jobs[skip: skip + limit]
+        companies_by_id = {company.id: company for company in crud.list_companies(session, 0, 1000, include_inactive=True)}
+        pager = build_pager(request, total=total, page=page, limit=limit)
+        return render(
+            request,
+            "student_jobs.html",
+            current_user=user,
+            role_home=home_for(user),
+            student=student,
+            jobs=jobs,
+            companies_by_id=companies_by_id,
+            pager=pager,
+        )
 
 
 @router.post("/jobs/{job_id}/apply", name="ui_student_apply")
@@ -138,8 +165,18 @@ def student_applications_page(request: Request):
         student, redirect = require_student_profile(request, session, user)
         if redirect:
             return redirect
-        items = crud.list_student_application_summaries(session, student.id, 0, 50)
-        return render(request, "student_applications.html", current_user=user, role_home=home_for(user), applications=items)
+        page, limit, skip = parse_page_limit(request, default_limit=20, max_limit=100)
+        items = crud.list_student_application_summaries(session, student.id, skip, limit)
+        total = crud.count_student_applications(session, student.id)
+        pager = build_pager(request, total=total, page=page, limit=limit)
+        return render(
+            request,
+            "student_applications.html",
+            current_user=user,
+            role_home=home_for(user),
+            applications=items,
+            pager=pager,
+        )
 
 
 @router.get("/offers", name="ui_student_offers")
@@ -151,9 +188,27 @@ def student_offers_page(request: Request):
         student, redirect = require_student_profile(request, session, user)
         if redirect:
             return redirect
-        offered = crud.list_student_offer_summaries(session, student.id, OfferStatus.offered)
-        accepted = crud.list_student_offer_summaries(session, student.id, OfferStatus.accepted)
-        return render(request, "student_offers.html", current_user=user, role_home=home_for(user), offered=offered, accepted=accepted)
+        page, limit, skip = parse_page_limit(request, default_limit=20, max_limit=100)
+        # Use safe query helper that excludes INVALIDATED offers
+        all_valid_offers = get_active_offers(session, student.id)
+        offered = [o for o in all_valid_offers if o.status == OfferStatus.offered]
+        accepted = [o for o in all_valid_offers if o.status == OfferStatus.accepted]
+        combined = offered + accepted
+        total = len(combined)
+        paged = combined[skip: skip + limit]
+        paged_ids = {o.id for o in paged}
+        offered_paged = [o for o in offered if o.id in paged_ids]
+        accepted_paged = [o for o in accepted if o.id in paged_ids]
+        pager = build_pager(request, total=total, page=page, limit=limit)
+        return render(
+            request,
+            "student_offers.html",
+            current_user=user,
+            role_home=home_for(user),
+            offered=offered_paged,
+            accepted=accepted_paged,
+            pager=pager,
+        )
 
 
 @router.post("/offers/{offer_id}/accept", name="ui_student_offer_accept")

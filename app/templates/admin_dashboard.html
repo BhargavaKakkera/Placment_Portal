@@ -10,6 +10,7 @@
         <a class="btn btn-outline-primary" href="/ui/admin/companies">Companies</a>
         <a class="btn btn-outline-primary" href="/ui/admin/jobs">Jobs</a>
         <a class="btn btn-outline-primary" href="/ui/admin/applications">Applications</a>
+        <a class="btn btn-outline-primary" href="/ui/admin/offers">Offers</a>
     </div>
 </div>
 <div class="row g-3">
@@ -30,6 +31,29 @@
             <tr><td colspan="4" class="text-muted">No branch stats available.</td></tr>
             {% endfor %}
         </tbody></table>
+    </div>
+</div></div>
+<div class="card shadow-sm mt-4"><div class="card-body">
+    <h2 class="h5">Recent jobs</h2>
+    <div class="table-responsive">
+        <table class="table table-striped">
+            <thead><tr><th>Company</th><th>Title</th><th>Role</th><th>CTC/Stipend</th><th>Duration</th><th>PPO</th><th>Eligible branches</th></tr></thead>
+            <tbody>
+                {% for job in recent_jobs %}
+                <tr>
+                    <td>{{ job.company_name or "-" }}</td>
+                    <td>{{ job.title }}</td>
+                    <td>{{ job.role_type.value }}</td>
+                    <td>{{ job.ctc or job.stipend or "-" }}</td>
+                    <td>{{ job.internship_duration or "-" }}</td>
+                    <td>{{ "Yes" if job.ppo_available else "No" }}</td>
+                    <td>{{ job.allowed_branches or "All" }}</td>
+                </tr>
+                {% else %}
+                <tr><td colspan="7" class="text-muted">No jobs available.</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
     </div>
 </div></div>
 {% endblock %}

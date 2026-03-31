@@ -2,7 +2,9 @@
 Admin router for job management.
 """
 
-from fastapi import APIRouter, Depends, HTTPException
+from typing import Optional
+
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlmodel import Session
 
 from ...database import get_session
@@ -10,7 +12,7 @@ from ... import crud
 from ...auth import get_verified_admin
 from ...audit import log_audit
 from ...models import User
-from ...schemas import JobListOut, PaginationParams
+from ...schemas import JobListOut, PaginationParams, JobOut
 
 router = APIRouter(
     prefix="/jobs",
@@ -18,19 +20,41 @@ router = APIRouter(
     dependencies=[Depends(get_verified_admin)],
 )
 
+def _serialize_job_with_company_name(session: Session, job) -> dict:
+    data = JobOut.model_validate(job).model_dump()
+    company = crud.get_company_by_id(session, job.company_id)
+    data["company_name"] = company.name if company else None
+    return data
+
 
 @router.get("/", response_model=JobListOut)
 def admin_list_jobs(
     pagination: PaginationParams = Depends(),
+    company_id: Optional[int] = Query(None, description="Filter by company ID"),
+    company_name: Optional[str] = Query(None, description="Filter by company name (partial match)"),
     admin_user: User = Depends(get_verified_admin),
     session: Session = Depends(get_session),
 ):
     """List all jobs with pagination (requires verified admin)."""
-    items = crud.list_jobs(session, skip=pagination.skip, limit=pagination.limit)
-    total = crud.count_jobs(session)
+    rows = crud.list_jobs(
+        session,
+        skip=pagination.skip,
+        limit=pagination.limit,
+        company_id=company_id,
+        company_name=company_name,
+    )
+    items = [_serialize_job_with_company_name(session, job) for job in rows]
+    total = crud.count_jobs(session, company_id=company_id, company_name=company_name)
     
     # Log sensitive read
-    log_audit("admin.jobs.listed", admin_id=admin_user.id, count=len(items), total=total)
+    log_audit(
+        "admin.jobs.listed",
+        admin_id=admin_user.id,
+        count=len(items),
+        total=total,
+        company_id=company_id,
+        company_name=company_name,
+    )
 
     return {
         "items": items,
@@ -76,4 +100,3 @@ def admin_delete_job(
         )
 
     return {"deleted": True}
-

@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlmodel import Session
 from ..database import get_session
 from .. import crud
-from ..schemas import JobCreate, JobListOut, PaginationParams
+from ..schemas import JobCreate, JobListOut, PaginationParams, JobOut
 from ..auth import get_current_company
 from ..models import Job
 from ..models import Application
@@ -11,6 +11,12 @@ from ..crud.offer_crud import get_application_block_reason
 from ..datetime_utils import utc_now, to_utc_naive
 
 router = APIRouter(prefix="/jobs", tags=["jobs"])
+
+def _serialize_job_with_company_name(session: Session, job: Job) -> dict:
+    data = JobOut.model_validate(job).model_dump()
+    company = crud.get_company_by_id(session, job.company_id)
+    data["company_name"] = company.name if company else None
+    return data
 
 
 @router.post("/", response_model=Job)
@@ -27,7 +33,8 @@ def create_job(job_in: JobCreate, current_user=Depends(get_current_company), ses
 
 @router.get("/", response_model=JobListOut)
 def list_jobs(pagination: PaginationParams = Depends(), session: Session = Depends(get_session)):
-    items = crud.get_verified_jobs(session, skip=pagination.skip, limit=pagination.limit)
+    rows = crud.get_verified_jobs(session, skip=pagination.skip, limit=pagination.limit)
+    items = [_serialize_job_with_company_name(session, job) for job in rows]
     total = crud.count_verified_jobs(session)
     return {
         "items": items,
@@ -62,6 +69,7 @@ def apply_to_job(job_id: int, current_user=Depends(get_current_student), session
 
 @router.get("/eligible")
 def list_eligible_jobs(
+    pagination: PaginationParams = Depends(),
     current_user=Depends(get_current_student),
     session: Session = Depends(get_session),
 ):
@@ -109,10 +117,11 @@ def list_eligible_jobs(
 
         eligible.append(job)
 
-    return eligible
+    paged = eligible[pagination.skip: pagination.skip + pagination.limit]
+    return [_serialize_job_with_company_name(session, job) for job in paged]
 
 
-@router.get("/{job_id}")
+@router.get("/{job_id}", response_model=JobOut)
 def get_job(job_id: int, session: Session = Depends(get_session)):
     """Get job details by ID."""
     job = crud.get_job_by_id(session, job_id)
@@ -126,4 +135,4 @@ def get_job(job_id: int, session: Session = Depends(get_session)):
         or (job.application_deadline and to_utc_naive(job.application_deadline) < utc_now())
     ):
         raise HTTPException(status_code=404, detail="Job not found")
-    return job
+    return _serialize_job_with_company_name(session, job)

@@ -46,6 +46,7 @@ from ..rate_limiter import check_rate_limit, record_attempt, reset_limit
 from ..logger import get_logger
 from ..email_service import send_email_verification_email, send_password_reset_email
 from ..security_alerts import record_auth_failure
+from ..crud.token_crud import mark_token_as_used
 
 logger = get_logger(__name__)
 router = APIRouter(prefix="/auth", tags=["auth"])
@@ -173,7 +174,7 @@ def register(
         }
         if EXPOSE_TOKENS_IN_RESPONSES:
             response["verification_token"] = verification_token
-            logger.debug(f"Verification token exposed")
+            logger.debug(f"Verification token exposed in DEBUG mode")
 
         return response
 
@@ -281,7 +282,7 @@ def verify_email(
     session: Session = Depends(get_session)
 ):
     """
-    Verify user email using verification token.
+    Verify user email using verification token (one-time use).
 
     Args:
         payload: Email verification token
@@ -296,15 +297,18 @@ def verify_email(
     try:
         logger.debug("Email verification attempt")
         
-        user_id = verify_email_verification_token(payload.token)
+        user_id = verify_email_verification_token(payload.token, session=session)
         if user_id is None:
-            logger.warning("Email verification failed - invalid or expired token")
+            logger.warning("Email verification failed - invalid, expired, or already used token")
             raise TokenError("Invalid or expired verification token")
 
         user = crud.mark_user_email_verified(session, user_id)
         if not user:
             logger.warning(f"Email verification failed - user not found: {user_id}")
             raise HTTPException(status_code=404, detail="User not found or inactive")
+
+        # Mark token as consumed to prevent reuse
+        mark_token_as_used(session, payload.token, user_id, "email_verification")
 
         # Issue new token after verification (session rotation)
         new_token = create_access_token({"sub": str(user.id), "role": user.role})
@@ -387,7 +391,7 @@ def resend_verification_email(
         }
         if EXPOSE_TOKENS_IN_RESPONSES:
             response["verification_token"] = verification_token
-            logger.debug("Verification token exposed")
+            logger.debug("Verification token exposed in DEBUG mode")
 
         return response
 
@@ -443,7 +447,7 @@ def forgot_password(
         }
         if EXPOSE_TOKENS_IN_RESPONSES:
             response["reset_token"] = reset_token
-            logger.debug("Reset token exposed")
+            logger.debug("Reset token exposed in DEBUG mode")
 
         # Constant timing to prevent email enumeration
         elapsed = time.time() - start_time
@@ -465,7 +469,7 @@ def reset_password(
     session: Session = Depends(get_session)
 ):
     """
-    Reset password using reset token.
+    Reset password using reset token (one-time use).
 
     Args:
         payload: Reset token and new password
@@ -496,9 +500,9 @@ def reset_password(
         
         logger.debug("Password reset attempt")
         
-        user_id = verify_password_reset_token(payload.token)
+        user_id = verify_password_reset_token(payload.token, session=session)
         if user_id is None:
-            logger.warning("Password reset failed - invalid or expired token")
+            logger.warning("Password reset failed - invalid, expired, or already used token")
             if ENABLE_RATE_LIMITING:
                 record_attempt(identifier, count=1)
             raise TokenError("Invalid or expired reset token")
@@ -509,6 +513,9 @@ def reset_password(
             if ENABLE_RATE_LIMITING:
                 record_attempt(identifier, count=1)
             raise HTTPException(status_code=404, detail="User not found or inactive")
+
+        # Mark token as consumed to prevent reuse
+        mark_token_as_used(session, payload.token, user_id, "password_reset")
 
         if ENABLE_RATE_LIMITING:
             reset_limit(identifier)

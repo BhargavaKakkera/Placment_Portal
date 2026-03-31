@@ -10,6 +10,7 @@ from ..schemas import (
     CompanyAcceptedOfferListOut,
     CompanyApplicantListOut,
     JobListOut,
+    JobOut,
     PaginationParams,
 )
 from ..auth import get_current_company
@@ -17,6 +18,11 @@ from ..models import Job, Application
 from ..enums import CompanyApplicationAction
 
 router = APIRouter(prefix="/companies", tags=["companies"])
+
+def _serialize_company_job(company_name: str, job: Job) -> dict:
+    data = JobOut.model_validate(job).model_dump()
+    data["company_name"] = company_name
+    return data
 
 
 @router.post("/", response_model=CompanyOut)
@@ -38,20 +44,6 @@ def get_my_company(current_user=Depends(get_current_company), session: Session =
     if not company:
         raise HTTPException(status_code=404, detail="Company profile not found")
     return company
-
-
-@router.delete("/me")
-def delete_my_company(current_user=Depends(get_current_company), session: Session = Depends(get_session)):
-    company = crud.get_company_by_user_id(session, current_user.id)
-    if not company:
-        raise HTTPException(status_code=404, detail="Company profile not found")
-    try:
-        res = crud.delete_company(session, company.id)
-    except ValueError as e:
-        raise HTTPException(status_code=409, detail=str(e))
-    if not res:
-        raise HTTPException(status_code=400, detail="Could not delete company")
-    return {"deleted": True}
 
 
 @router.get("/jobs/{job_id}/applicants", response_model=CompanyApplicantListOut)
@@ -154,12 +146,13 @@ def my_jobs(
     if not company:
         raise HTTPException(status_code=404, detail="Company profile not found")
 
-    items = crud.list_company_jobs(
+    rows = crud.list_company_jobs(
         session,
         company.id,
         skip=pagination.skip,
         limit=pagination.limit,
     )
+    items = [_serialize_company_job(company.name, job) for job in rows]
     total = crud.count_company_jobs(session, company.id)
     return {
         "items": items,

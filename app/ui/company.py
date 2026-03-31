@@ -8,7 +8,7 @@ from ..database import engine
 from ..enums import CompanyApplicationAction, Role, RoleType
 from ..models import Application, Job
 from ..schemas import CompanyCreate, CompanyApplicationStatusUpdate, JobCreate
-from .helpers import branches, dt, flt, home_for, int_or_none, read_form_with_csrf, redirect_path, redirect_to, render, require_company_profile, require_user, txt, validation_message
+from .helpers import branches, build_pager, dt, extract_field_errors, flt, home_for, int_or_none, parse_page_limit, read_form_with_csrf, redirect_path, redirect_to, render, require_company_profile, require_user, txt, validation_message
 
 router = APIRouter(prefix="/company")
 
@@ -60,25 +60,6 @@ async def company_profile_submit(request: Request):
     return redirect_to(request, "ui_company_profile", "Company profile created.", "success")
 
 
-@router.post("/delete", name="ui_company_delete")
-async def company_delete_submit(request: Request):
-    try:
-        await read_form_with_csrf(request)
-    except ValueError as exc:
-        return redirect_to(request, "ui_company_profile", str(exc), "warning")
-    with Session(engine) as session:
-        user, redirect = require_user(request, session, Role.company)
-        if redirect:
-            return redirect
-        company, redirect = require_company_profile(request, session, user)
-        if redirect:
-            return redirect
-        if not crud.delete_company(session, company.id):
-            return redirect_to(request, "ui_company_profile", "Could not deactivate company.", "danger")
-    request.session.clear()
-    return redirect_to(request, "ui_home", "Company deactivated.", "info")
-
-
 @router.get("/jobs", name="ui_company_jobs")
 def company_jobs_page(request: Request):
     with Session(engine) as session:
@@ -88,8 +69,22 @@ def company_jobs_page(request: Request):
         company, redirect = require_company_profile(request, session, user)
         if redirect:
             return redirect
-        jobs = crud.list_company_jobs(session, company.id, 0, 50)
-        return render(request, "company_jobs.html", current_user=user, role_home=home_for(user), company=company, jobs=jobs)
+        page, limit, skip = parse_page_limit(request, default_limit=20, max_limit=100)
+        jobs = crud.list_company_jobs(session, company.id, skip, limit)
+        total = crud.count_company_jobs(session, company.id)
+        pager = build_pager(request, total=total, page=page, limit=limit)
+        return render(
+            request,
+            "company_jobs.html",
+            current_user=user,
+            role_home=home_for(user),
+            company=company,
+            jobs=jobs,
+            form_data={},
+            field_errors={},
+            error_message=None,
+            pager=pager,
+        )
 
 
 @router.post("/jobs", name="ui_company_jobs_post")
@@ -98,6 +93,22 @@ async def company_jobs_submit(request: Request):
         form = await read_form_with_csrf(request)
     except ValueError as exc:
         return redirect_to(request, "ui_company_jobs", str(exc), "warning")
+    
+    # Prepare form data for potential re-rendering
+    form_data = {
+        "title": str(form.get("title", "")).strip(),
+        "description": txt(form.get("description")) or "",
+        "min_cgpa": form.get("min_cgpa", ""),
+        "max_backlogs": form.get("max_backlogs", ""),
+        "role_type": str(form.get("role_type", RoleType.full_time.value)),
+        "internship_duration": txt(form.get("internship_duration")) or "",
+        "stipend": form.get("stipend", ""),
+        "ctc": form.get("ctc", ""),
+        "ppo_available": str(form.get("ppo_available", "")) == "on",
+        "application_deadline": form.get("application_deadline", ""),
+        "allowed_branches": list(form.getlist("allowed_branches")),
+    }
+    
     with Session(engine) as session:
         user, redirect = require_user(request, session, Role.company)
         if redirect:
@@ -105,36 +116,107 @@ async def company_jobs_submit(request: Request):
         company, redirect = require_company_profile(request, session, user)
         if redirect:
             return redirect
+
+        # Required-field checks (UI-friendly errors instead of falling through to 500)
+        field_errors = {}
+        role_type_value = form_data["role_type"]
+        selected_branches = [b for b in form_data["allowed_branches"] if b and b != "__all__"]
+
+        if not form_data["title"]:
+            field_errors["title"] = "This field is required."
+        if not role_type_value:
+            field_errors["role_type"] = "This field is required."
+        if "__all__" not in form_data["allowed_branches"] and not selected_branches:
+            field_errors["allowed_branches"] = "Select at least one branch or choose All branches."
+        if role_type_value == RoleType.full_time.value and txt(form_data["ctc"]) is None:
+            field_errors["ctc"] = "This field is required for full-time role."
+        if role_type_value == RoleType.internship.value and txt(form_data["stipend"]) is None:
+            field_errors["stipend"] = "This field is required for internship role."
+        if role_type_value == RoleType.internship.value and txt(form_data["internship_duration"]) is None:
+            field_errors["internship_duration"] = "This field is required for internship role."
+
+        if field_errors:
+            jobs = crud.list_company_jobs(session, company.id, 0, 50)
+            return render(
+                request,
+                "company_jobs.html",
+                current_user=user,
+                role_home=home_for(user),
+                company=company,
+                jobs=jobs,
+                form_data=form_data,
+                field_errors=field_errors,
+                error_message="Please fill all required fields.",
+            )
+
         try:
             payload = JobCreate.model_validate(
                 {
-                    "title": str(form.get("title", "")).strip(),
-                    "description": txt(form.get("description")),
-                    "min_cgpa": flt(form.get("min_cgpa")),
+                    "title": form_data["title"],
+                    "description": form_data["description"] or None,
+                    "min_cgpa": flt(form_data["min_cgpa"]),
                     "allowed_branches": (
                         None
-                        if "__all__" in list(form.getlist("allowed_branches"))
-                        else branches(list(form.getlist("allowed_branches")))
+                        if "__all__" in form_data["allowed_branches"]
+                        else branches(form_data["allowed_branches"]) or []
                     ),
-                    "max_backlogs": int_or_none(form.get("max_backlogs")),
-                    "role_type": str(form.get("role_type", RoleType.full_time.value)),
-                    "internship_duration": txt(form.get("internship_duration")),
-                    "stipend": flt(form.get("stipend")),
-                    "ctc": flt(form.get("ctc")),
-                    "ppo_available": str(form.get("ppo_available", "")) == "on",
-                    "application_deadline": dt(form.get("application_deadline")),
+                    "max_backlogs": int_or_none(form_data["max_backlogs"]),
+                    "role_type": form_data["role_type"],
+                    "internship_duration": form_data["internship_duration"] or None,
+                    "stipend": flt(form_data["stipend"]),
+                    "ctc": flt(form_data["ctc"]),
+                    "ppo_available": form_data["ppo_available"],
+                    "application_deadline": dt(form_data["application_deadline"]),
                 }
             )
         except (ValidationError, ValueError) as exc:
-            return redirect_to(request, "ui_company_jobs", validation_message(exc), "warning")
+            # Re-render the form with errors and data instead of redirecting
+            jobs = crud.list_company_jobs(session, company.id, 0, 50)
+            field_errors = extract_field_errors(exc)
+            return render(
+                request,
+                "company_jobs.html",
+                current_user=user,
+                role_home=home_for(user),
+                company=company,
+                jobs=jobs,
+                form_data=form_data,
+                field_errors=field_errors,
+                error_message=validation_message(exc),
+            )
         try:
             crud.create_job(
                 session,
                 company.id,
                 **payload.model_dump(mode="json")
             )
-        except ValueError as exc:
-            return redirect_to(request, "ui_company_jobs", str(exc), "warning")
+        except (ValueError, IntegrityError) as exc:
+            # Re-render with error message on database error
+            jobs = crud.list_company_jobs(session, company.id, 0, 50)
+            return render(
+                request,
+                "company_jobs.html",
+                current_user=user,
+                role_home=home_for(user),
+                company=company,
+                jobs=jobs,
+                form_data=form_data,
+                field_errors={},
+                error_message=str(exc),
+            )
+        except Exception:
+            jobs = crud.list_company_jobs(session, company.id, 0, 50)
+            return render(
+                request,
+                "company_jobs.html",
+                current_user=user,
+                role_home=home_for(user),
+                company=company,
+                jobs=jobs,
+                form_data=form_data,
+                field_errors={},
+                error_message="Could not create job. Please check required fields and try again.",
+            )
     return redirect_to(request, "ui_company_jobs", "Job created.", "success")
 
 
@@ -175,7 +257,19 @@ def company_applicants_page(job_id: int, request: Request):
         job = session.get(Job, job_id)
         if not company or not job or job.company_id != company.id:
             return redirect_to(request, "ui_company_jobs", "Not allowed to view applicants for that job.", "warning")
-        return render(request, "company_applicants.html", current_user=user, role_home=home_for(user), job=job, applicants=crud.list_company_applicant_summaries(session, job_id, 0, 100))
+        page, limit, skip = parse_page_limit(request, default_limit=20, max_limit=100)
+        applicants = crud.list_company_applicant_summaries(session, job_id, skip, limit)
+        total = crud.count_applicants_for_job(session, job_id)
+        pager = build_pager(request, total=total, page=page, limit=limit)
+        return render(
+            request,
+            "company_applicants.html",
+            current_user=user,
+            role_home=home_for(user),
+            job=job,
+            applicants=applicants,
+            pager=pager,
+        )
 
 
 @router.post("/applications/{application_id}", name="ui_company_application_action")
@@ -231,5 +325,15 @@ def company_offers_page(request: Request):
         company, redirect = require_company_profile(request, session, user)
         if redirect:
             return redirect
-        offers = crud.list_company_accepted_offer_summaries(session, company.id, 0, 100)
-        return render(request, "company_offers.html", current_user=user, role_home=home_for(user), offers=offers)
+        page, limit, skip = parse_page_limit(request, default_limit=20, max_limit=100)
+        offers = crud.list_company_accepted_offer_summaries(session, company.id, skip, limit)
+        total = crud.count_company_accepted_offers(session, company.id)
+        pager = build_pager(request, total=total, page=page, limit=limit)
+        return render(
+            request,
+            "company_offers.html",
+            current_user=user,
+            role_home=home_for(user),
+            offers=offers,
+            pager=pager,
+        )

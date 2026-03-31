@@ -1,27 +1,32 @@
 {% extends "base.html" %}
-{% block title %}Pending Admins{% endblock %}
+{% block title %}Admin Offers{% endblock %}
 {% block content %}
 <div class="d-flex justify-content-between align-items-center mb-3">
-    <h1 class="h3 mb-0">Pending admin approvals</h1>
+    <h1 class="h3 mb-0">Offers</h1>
     <a class="btn btn-outline-secondary" href="/ui/admin">Back to dashboard</a>
 </div>
 <div class="table-responsive">
     <table class="table table-striped align-middle">
-        <thead><tr><th>ID</th><th>Email</th><th>Created</th><th></th></tr></thead>
+        <thead><tr><th>ID</th><th>Student</th><th>Company</th><th>Job</th><th>Role</th><th>CTC/Stipend</th><th>Branches</th><th>Status</th><th></th></tr></thead>
         <tbody>
-            {% for user in pending_admins %}
+            {% for offer in offers %}
             <tr>
-                <td>{{ user.id }}</td>
-                <td>{{ user.email }}</td>
-                <td>{{ user.created_at|fmt_datetime }}</td>
+                <td>{{ offer.id }}</td>
+                <td>{{ offer.student_name }}</td>
+                <td>{{ offer.company_name }}</td>
+                <td>{{ offer.job_title }}</td>
+                <td>{{ offer.role_type.value }}</td>
+                <td>{{ offer.ctc or offer.stipend or "-" }}</td>
+                <td>{{ offer.allowed_branches or "All" }}</td>
+                <td>{{ offer.status.value }}</td>
                 <td>
-                    <form method="post" action="/ui/admin/users/{{ user.id }}/verify-admin">
-                        <button class="btn btn-sm btn-primary" type="submit" data-loading-text="Verifying...">Verify admin</button>
+                    <form method="post" action="/ui/admin/offers/{{ offer.id }}/delete" data-confirm="Delete offer #{{ offer.id }}?">
+                        <button class="btn btn-sm btn-outline-danger" type="submit" data-loading-text="Deleting...">Delete</button>
                     </form>
                 </td>
             </tr>
             {% else %}
-            <tr><td colspan="4" class="text-muted">No pending admins.</td></tr>
+            <tr><td colspan="9" class="text-muted">No offers found.</td></tr>
             {% endfor %}
         </tbody>
     </table>

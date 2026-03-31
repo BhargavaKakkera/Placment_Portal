@@ -210,3 +210,4 @@ __marimo__/
 *.db
 placement.db
 logs
+.vscode

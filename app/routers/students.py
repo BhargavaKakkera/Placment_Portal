@@ -8,6 +8,7 @@ from ..schemas import (
     StudentOut,
     StudentApplicationListOut,
     StudentOfferItemOut,
+    StudentOfferListOut,
     PaginationParams,
 )
 from ..auth import get_current_student
@@ -177,45 +178,12 @@ def decline_offer(
 
 
 # ---------------------------
-# DELETE MY PROFILE
-# ---------------------------
-
-@router.delete("/me")
-def delete_my_student(
-    current_user=Depends(get_current_student),
-    session: Session = Depends(get_session),
-):
-    student = crud.get_student_by_user_id(session, current_user.id)
-
-    if not student:
-        raise HTTPException(
-            status_code=404,
-            detail="Student profile not found"
-        )
-
-    try:
-        res = crud.delete_student(session, student.id)
-    except ValueError as e:
-        raise HTTPException(
-            status_code=409,
-            detail=str(e)
-        )
-
-    if not res:
-        raise HTTPException(
-            status_code=400,
-            detail="Could not delete student"
-        )
-
-    return {"deleted": True}
-
-
-# ---------------------------
 # WITHDRAW APPLICATION
 # ---------------------------
 
-@router.get("/me/offers", response_model=list[StudentOfferItemOut])
+@router.get("/me/offers", response_model=StudentOfferListOut)
 def my_offers(
+    pagination: PaginationParams = Depends(),
     current_user=Depends(get_current_student),
     session: Session = Depends(get_session),
 ):
@@ -224,15 +192,26 @@ def my_offers(
     if not student:
         raise HTTPException(status_code=404, detail="Student profile not found")
 
-    return crud.list_student_offer_summaries(
+    items = crud.list_student_offer_summaries(
         session,
         student.id,
         status=OfferStatus.offered,
+        skip=pagination.skip,
+        limit=pagination.limit,
     )
+    total = crud.count_student_offers(session, student.id, status=OfferStatus.offered)
+    return {
+        "items": items,
+        "skip": pagination.skip,
+        "limit": pagination.limit,
+        "total": total,
+        "has_more": pagination.skip + len(items) < total,
+    }
 
 
-@router.get("/me/offers/accepted", response_model=list[StudentOfferItemOut])
+@router.get("/me/offers/accepted", response_model=StudentOfferListOut)
 def my_accepted_offers(
+    pagination: PaginationParams = Depends(),
     current_user=Depends(get_current_student),
     session: Session = Depends(get_session),
 ):
@@ -241,8 +220,18 @@ def my_accepted_offers(
     if not student:
         raise HTTPException(status_code=404, detail="Student profile not found")
 
-    return crud.list_student_offer_summaries(
+    items = crud.list_student_offer_summaries(
         session,
         student.id,
         status=OfferStatus.accepted,
+        skip=pagination.skip,
+        limit=pagination.limit,
     )
+    total = crud.count_student_offers(session, student.id, status=OfferStatus.accepted)
+    return {
+        "items": items,
+        "skip": pagination.skip,
+        "limit": pagination.limit,
+        "total": total,
+        "has_more": pagination.skip + len(items) < total,
+    }

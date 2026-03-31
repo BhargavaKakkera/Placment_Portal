@@ -1,7 +1,10 @@
 {% extends "base.html" %}
 {% block title %}Admin Companies{% endblock %}
 {% block content %}
-<h1 class="h3 mb-3">Companies</h1>
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h1 class="h3 mb-0">Companies</h1>
+    <a class="btn btn-outline-secondary" href="/ui/admin">Back to dashboard</a>
+</div>
 <div class="table-responsive">
     <table class="table table-striped align-middle">
         <thead><tr><th>ID</th><th>Name</th><th>Verified</th><th>Active</th><th></th></tr></thead>
@@ -51,4 +54,21 @@
         </tbody>
     </table>
 </div>
+{% if pager %}
+<div class="d-flex justify-content-between align-items-center mt-3">
+    <span class="text-muted small">Page {{ pager.page }} | Total {{ pager.total }}</span>
+    <div class="btn-group">
+        {% if pager.has_prev %}
+        <a class="btn btn-outline-secondary btn-sm" href="{{ pager.prev_url }}">Previous</a>
+        {% else %}
+        <span class="btn btn-outline-secondary btn-sm disabled">Previous</span>
+        {% endif %}
+        {% if pager.has_next %}
+        <a class="btn btn-outline-secondary btn-sm" href="{{ pager.next_url }}">Next</a>
+        {% else %}
+        <span class="btn btn-outline-secondary btn-sm disabled">Next</span>
+        {% endif %}
+    </div>
+</div>
+{% endif %}
 {% endblock %}

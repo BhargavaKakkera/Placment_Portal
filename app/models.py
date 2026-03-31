@@ -6,11 +6,15 @@ from sqlalchemy import UniqueConstraint, Column, Integer, ForeignKey
 from .enums import (
     Role,
     Branch,
+    Gender,
     RoleType,
     ApplicationStatus,
-    OfferStatus
+    ApplicationStatusReason,
+    OfferStatus,
+    OfferStatusReason
 )
 from .datetime_utils import utc_now
+from sqlalchemy import Text
 
 
 class User(SQLModel, table=True):
@@ -52,6 +56,7 @@ class Student(SQLModel, table=True):
 
     cgpa: float
     branch: Branch
+    gender: Gender = Field(default=Gender.other)
 
     graduation_year: int
     backlogs: int = 0
@@ -127,8 +132,10 @@ class Job(SQLModel, table=True):
     application_deadline: Optional[datetime] = Field(default=None, index=True)
 
     closed: bool = Field(default=False, index=True)
+    closed_at: Optional[datetime] = None
 
     created_at: datetime = Field(default_factory=utc_now)
+    updated_at: datetime = Field(default_factory=utc_now)
 
 
 class Application(SQLModel, table=True):
@@ -144,6 +151,8 @@ class Application(SQLModel, table=True):
     applied_at: datetime = Field(default_factory=utc_now)
 
     status: ApplicationStatus = Field(default=ApplicationStatus.applied, index=True)
+    status_reason: ApplicationStatusReason = Field(default=ApplicationStatusReason.initial, index=True)
+    updated_at: datetime = Field(default_factory=utc_now)
 
     __table_args__ = (
         UniqueConstraint("student_id", "job_id", name="u_student_job"),
@@ -166,10 +175,28 @@ class Offer(SQLModel, table=True):
     ctc: Optional[float] = None
 
     status: OfferStatus = Field(default=OfferStatus.offered, index=True)
+    status_reason: OfferStatusReason = Field(default=OfferStatusReason.initial, index=True)
     response_deadline: Optional[datetime] = Field(default=None, index=True)
 
     created_at: datetime = Field(default_factory=utc_now)
+    updated_at: datetime = Field(default_factory=utc_now)
 
     __table_args__ = (
         UniqueConstraint("job_id", "student_id", name="u_job_student_offer"),
     )
+
+
+class TokenBlacklist(SQLModel, table=True):
+    """Track used (consumed) password reset and email verification tokens."""
+    id: Optional[int] = Field(default=None, primary_key=True)
+    token_hash: str = Field(index=True, unique=True)  # SHA256 hash of token
+    user_id: int = Field(
+        sa_column=Column(
+            Integer,
+            ForeignKey("user.id", ondelete="CASCADE"),
+            nullable=False,
+            index=True,
+        )
+    )
+    token_purpose: str = Field(index=True)  # 'password_reset' or 'email_verification'
+    consumed_at: datetime = Field(default_factory=utc_now)

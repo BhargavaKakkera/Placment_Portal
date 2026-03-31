@@ -6,7 +6,7 @@ from datetime import datetime, timedelta
 from sqlmodel import Session, select, func
 from typing import Optional, List
 from ..models import Offer, Application, Student, Job, Company
-from ..enums import RoleType, ApplicationStatus, OfferStatus
+from ..enums import RoleType, ApplicationStatus, OfferStatus, ApplicationStatusReason, OfferStatusReason
 from ..datetime_utils import utc_now, to_utc_naive
 from ..audit import log_audit
 
@@ -361,6 +361,8 @@ def list_student_offer_summaries(
     session: Session,
     student_id: int,
     status: Optional[OfferStatus] = None,
+    skip: int = 0,
+    limit: int = 100,
 ):
     """List a student's offers with job and company context."""
     _expire_overdue_offers(session, student_id=student_id)
@@ -373,6 +375,7 @@ def list_student_offer_summaries(
     )
     if status is not None:
         statement = statement.where(Offer.status == status)
+    statement = statement.offset(skip).limit(limit)
 
     rows = session.exec(statement).all()
     return [
@@ -393,6 +396,19 @@ def list_student_offer_summaries(
         }
         for offer, job, company in rows
     ]
+
+
+def count_student_offers(
+    session: Session,
+    student_id: int,
+    status: Optional[OfferStatus] = None,
+) -> int:
+    """Count a student's offers with optional status filter."""
+    _expire_overdue_offers(session, student_id=student_id)
+    statement = select(func.count()).select_from(Offer).where(Offer.student_id == student_id)
+    if status is not None:
+        statement = statement.where(Offer.status == status)
+    return session.exec(statement).one()
 
 
 def list_company_accepted_offer_summaries(
@@ -448,8 +464,8 @@ def count_company_accepted_offers(session: Session, company_id: int) -> int:
 
 
 def count_offers_made(session: Session) -> int:
-    """Count all offers made (offered + accepted + declined)."""
-    statement = select(func.count()).select_from(Offer)
+    """Count all valid offers made (excluding invalidated ones)."""
+    statement = select(func.count()).select_from(Offer).where(Offer.status != OfferStatus.invalidated)
     return session.exec(statement).one()
 
 
@@ -464,3 +480,76 @@ def count_offers_pending_response(session: Session) -> int:
     _expire_overdue_offers(session)
     statement = select(func.count()).select_from(Offer).where(Offer.status == OfferStatus.offered)
     return session.exec(statement).one()
+
+
+def list_offers_admin_summaries(session: Session, skip: int = 0, limit: int = 100):
+    """List offers for admin management with student/job/company context."""
+    statement = (
+        select(Offer, Student, Job, Company)
+        .join(Student, Offer.student_id == Student.id)
+        .join(Job, Offer.job_id == Job.id)
+        .join(Company, Offer.company_id == Company.id)
+        .order_by(Offer.created_at.desc(), Offer.id.desc())
+        .offset(skip)
+        .limit(limit)
+    )
+    rows = session.exec(statement).all()
+    return [
+        {
+            "id": offer.id,
+            "student_id": student.id,
+            "student_name": student.name,
+            "company_id": company.id,
+            "company_name": company.name,
+            "job_id": job.id,
+            "job_title": job.title,
+            "role_type": job.role_type,
+            "ctc": offer.ctc if offer.ctc is not None else job.ctc,
+            "stipend": job.stipend,
+            "allowed_branches": job.allowed_branches,
+            "status": offer.status,
+            "created_at": offer.created_at,
+        }
+        for offer, student, job, company in rows
+    ]
+
+
+def count_offers_all(session: Session) -> int:
+    """Count all offers across statuses."""
+    statement = select(func.count()).select_from(Offer)
+    return session.exec(statement).one()
+
+
+def admin_delete_offer(session: Session, offer_id: int) -> bool:
+    """
+    Hard-delete an offer.
+    If the offer was accepted, unlock student and reset linked application so the student is free again.
+    """
+    offer = session.get(Offer, offer_id)
+    if not offer:
+        return False
+
+    try:
+        student = session.get(Student, offer.student_id)
+        if student and student.locked_offer_id == offer.id:
+            student.locked_offer_id = None
+            session.add(student)
+
+        application = session.exec(
+            select(Application).where(
+                Application.job_id == offer.job_id,
+                Application.student_id == offer.student_id,
+            )
+        ).first()
+        if application and application.status in {ApplicationStatus.offered, ApplicationStatus.accepted}:
+            application.status = ApplicationStatus.rejected
+            application.status_reason = ApplicationStatusReason.manual_rejection
+            session.add(application)
+
+        session.delete(offer)
+        session.commit()
+        log_audit("offer.deleted_by_admin", offer_id=offer_id, student_id=offer.student_id, job_id=offer.job_id)
+        return True
+    except Exception:
+        session.rollback()
+        return False

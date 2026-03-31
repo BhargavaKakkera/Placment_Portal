@@ -7,12 +7,13 @@
 </div>
 <div class="table-responsive">
     <table class="table table-striped align-middle">
-        <thead><tr><th>Student</th><th>Branch</th><th>CGPA</th><th>Status</th><th>Action</th></tr></thead>
+        <thead><tr><th>Student</th><th>Branch</th><th>Gender</th><th>CGPA</th><th>Status</th><th>Reason</th><th>Action</th></tr></thead>
         <tbody>
             {% for item in applicants %}
             <tr>
                 <td>{{ item.student_name }}<br><small class="text-muted">{{ item.reg_no }}</small></td>
                 <td>{{ item.branch.value }}</td>
+                <td>{{ item.gender.value|title if item.gender else "-" }}</td>
                 <td>{{ item.cgpa }}</td>
                 <td>
                     {% if item.status.value == "applied" %}
@@ -25,13 +26,24 @@
                     <span class="badge text-bg-success">Accepted</span>
                     {% elif item.status.value == "rejected" %}
                     <span class="badge text-bg-danger">Rejected</span>
+                    {% elif item.status.value == "closed_by_job" %}
+                    <span class="badge text-bg-secondary">Closed</span>
+                    {% elif item.status.value == "inactive_student" %}
+                    <span class="badge text-bg-secondary">Inactive Student</span>
                     {% else %}
                     <span class="badge text-bg-secondary">{{ item.status.value|title }}</span>
                     {% endif %}
                 </td>
                 <td>
-                    {% if item.status.value in ["rejected", "declined"] %}
-                    <span class="text-muted small">No further actions</span>
+                    {% if item.status_reason is defined %}
+                    <small class="text-muted">{{ item.status_reason.value|replace('_', ' ')|title }}</small>
+                    {% else %}
+                    <small class="text-muted">—</small>
+                    {% endif %}
+                </td>
+                <td>
+                    {% if item.status.value in ["closed_by_job", "inactive_student", "rejected", "declined"] %}
+                    <span class="text-muted small">No actions</span>
                     {% else %}
                     <form method="post" action="/ui/company/applications/{{ item.id }}" class="row g-2">
                         <div class="col-12"><select class="form-select form-select-sm" name="status">
@@ -56,9 +68,26 @@
                 </td>
             </tr>
             {% else %}
-            <tr><td colspan="5" class="text-muted">No applicants yet.</td></tr>
+            <tr><td colspan="7" class="text-muted">No applicants yet.</td></tr>
             {% endfor %}
         </tbody>
     </table>
 </div>
+{% if pager %}
+<div class="d-flex justify-content-between align-items-center mt-3">
+    <span class="text-muted small">Page {{ pager.page }} | Total {{ pager.total }}</span>
+    <div class="btn-group">
+        {% if pager.has_prev %}
+        <a class="btn btn-outline-secondary btn-sm" href="{{ pager.prev_url }}">Previous</a>
+        {% else %}
+        <span class="btn btn-outline-secondary btn-sm disabled">Previous</span>
+        {% endif %}
+        {% if pager.has_next %}
+        <a class="btn btn-outline-secondary btn-sm" href="{{ pager.next_url }}">Next</a>
+        {% else %}
+        <span class="btn btn-outline-secondary btn-sm disabled">Next</span>
+        {% endif %}
+    </div>
+</div>
+{% endif %}
 {% endblock %}

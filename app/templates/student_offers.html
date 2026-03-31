@@ -1,12 +1,15 @@
 {% extends "base.html" %}
 {% block title %}My Offers{% endblock %}
 {% block content %}
-<h1 class="h3 mb-3">My offers</h1>
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h1 class="h3 mb-0">My offers</h1>
+    <a class="btn btn-outline-secondary" href="/ui/student">Back to dashboard</a>
+</div>
 <div class="card shadow-sm mb-4"><div class="card-body">
     <h2 class="h5">Pending offers</h2>
     <div class="table-responsive">
         <table class="table align-middle">
-            <thead><tr><th>Company</th><th>Job</th><th>Deadline</th><th></th></tr></thead>
+            <thead><tr><th>Company</th><th>Job</th><th>Deadline</th><th>Status</th><th></th></tr></thead>
             <tbody>
                 {% for item in offered %}
                 <tr>
@@ -19,6 +22,11 @@
                     <td>{{ item.job_title }}</td>
                     <td>{{ item.response_deadline|fmt_datetime }}</td>
                     <td>
+                        {% if item.status_reason is defined %}
+                        <small class="text-muted">{{ item.status_reason.value|replace('_', ' ')|title }}</small>
+                        {% endif %}
+                    </td>
+                    <td>
                         <div class="d-flex gap-2">
                             <form method="post" action="/ui/student/offers/{{ item.id }}/accept">
                                 <button class="btn btn-sm btn-success" type="submit" data-loading-text="Accepting...">Accept</button>
@@ -30,7 +38,7 @@
                     </td>
                 </tr>
                 {% else %}
-                <tr><td colspan="4" class="text-muted">No pending offers.</td></tr>
+                <tr><td colspan="5" class="text-muted">No pending offers.</td></tr>
                 {% endfor %}
             </tbody>
         </table>
@@ -38,15 +46,43 @@
 </div></div>
 <div class="card shadow-sm"><div class="card-body">
         <h2 class="h5">Accepted offers</h2>
-        <ul class="list-group list-group-flush">
+        <div class="table-responsive">
+        <table class="table align-middle">
+            <thead><tr><th>Company</th><th>Job</th><th>Status Reason</th><th>Accepted at</th></tr></thead>
+            <tbody>
         {% for item in accepted %}
-        <li class="list-group-item">
-            {{ item.company_name }}{% if item.company_active is defined and not item.company_active %} (Inactive){% endif %}
-            - {{ item.job_title }} ({{ item.created_at|fmt_datetime }})
-        </li>
+        <tr>
+            <td>{{ item.company_name }}{% if item.company_active is defined and not item.company_active %} <span class="badge text-bg-warning">Inactive</span>{% endif %}</td>
+            <td>{{ item.job_title }}</td>
+            <td>
+                {% if item.status_reason is defined %}
+                <small class="text-muted">{{ item.status_reason.value|replace('_', ' ')|title }}</small>
+                {% endif %}
+            </td>
+            <td>{{ item.created_at|fmt_datetime }}</td>
+        </tr>
         {% else %}
-        <li class="list-group-item text-muted">No accepted offers.</li>
+        <tr><td colspan="4" class="text-muted">No accepted offers.</td></tr>
         {% endfor %}
-    </ul>
+            </tbody>
+        </table>
+    </div>
 </div></div>
+{% if pager %}
+<div class="d-flex justify-content-between align-items-center mt-3">
+    <span class="text-muted small">Page {{ pager.page }} | Total {{ pager.total }}</span>
+    <div class="btn-group">
+        {% if pager.has_prev %}
+        <a class="btn btn-outline-secondary btn-sm" href="{{ pager.prev_url }}">Previous</a>
+        {% else %}
+        <span class="btn btn-outline-secondary btn-sm disabled">Previous</span>
+        {% endif %}
+        {% if pager.has_next %}
+        <a class="btn btn-outline-secondary btn-sm" href="{{ pager.next_url }}">Next</a>
+        {% else %}
+        <span class="btn btn-outline-secondary btn-sm disabled">Next</span>
+        {% endif %}
+    </div>
+</div>
+{% endif %}
 {% endblock %}

@@ -1,17 +1,45 @@
 {% extends "base.html" %}
 {% block title %}Admin Applications{% endblock %}
 {% block content %}
-<h1 class="h3 mb-3">Applications</h1>
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h1 class="h3 mb-0">Applications</h1>
+    <a class="btn btn-outline-secondary" href="/ui/admin">Back to dashboard</a>
+</div>
 <div class="table-responsive">
     <table class="table table-striped align-middle">
-        <thead><tr><th>ID</th><th>Student ID</th><th>Job ID</th><th>Status</th><th>Applied at</th><th></th></tr></thead>
+        <thead><tr><th>ID</th><th>Student ID</th><th>Job ID</th><th>Status</th><th>Reason</th><th>Applied at</th><th></th></tr></thead>
         <tbody>
             {% for item in applications %}
             <tr>
                 <td>{{ item.id }}</td>
                 <td>{{ item.student_id }}</td>
                 <td>{{ item.job_id }}</td>
-                <td>{{ item.status.value }}</td>
+                <td>
+                    {% if item.status.value == "applied" %}
+                    <span class="badge text-bg-primary">Applied</span>
+                    {% elif item.status.value == "shortlisted" %}
+                    <span class="badge text-bg-info">Shortlisted</span>
+                    {% elif item.status.value == "offered" %}
+                    <span class="badge text-bg-warning">Offered</span>
+                    {% elif item.status.value == "accepted" %}
+                    <span class="badge text-bg-success">Accepted</span>
+                    {% elif item.status.value == "rejected" %}
+                    <span class="badge text-bg-danger">Rejected</span>
+                    {% elif item.status.value == "closed_by_job" %}
+                    <span class="badge text-bg-secondary">Closed (Job)</span>
+                    {% elif item.status.value == "inactive_student" %}
+                    <span class="badge text-bg-secondary">Closed (Student)</span>
+                    {% else %}
+                    <span class="badge text-bg-secondary">{{ item.status.value|title }}</span>
+                    {% endif %}
+                </td>
+                <td>
+                    {% if item.status_reason is defined %}
+                    <small class="text-muted">{{ item.status_reason.value|replace('_', ' ')|title }}</small>
+                    {% else %}
+                    <small class="text-muted">—</small>
+                    {% endif %}
+                </td>
                 <td>{{ item.applied_at|fmt_datetime }}</td>
                 <td>
                     <form method="post" action="/ui/admin/applications/{{ item.id }}/delete">
@@ -20,9 +48,26 @@
                 </td>
             </tr>
             {% else %}
-            <tr><td colspan="6" class="text-muted">No applications found.</td></tr>
+            <tr><td colspan="7" class="text-muted">No applications found.</td></tr>
             {% endfor %}
         </tbody>
     </table>
 </div>
+{% if pager %}
+<div class="d-flex justify-content-between align-items-center mt-3">
+    <span class="text-muted small">Page {{ pager.page }} | Total {{ pager.total }}</span>
+    <div class="btn-group">
+        {% if pager.has_prev %}
+        <a class="btn btn-outline-secondary btn-sm" href="{{ pager.prev_url }}">Previous</a>
+        {% else %}
+        <span class="btn btn-outline-secondary btn-sm disabled">Previous</span>
+        {% endif %}
+        {% if pager.has_next %}
+        <a class="btn btn-outline-secondary btn-sm" href="{{ pager.next_url }}">Next</a>
+        {% else %}
+        <span class="btn btn-outline-secondary btn-sm disabled">Next</span>
+        {% endif %}
+    </div>
+</div>
+{% endif %}
 {% endblock %}

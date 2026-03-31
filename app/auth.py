@@ -26,6 +26,8 @@ from .database import get_session
 from .datetime_utils import utc_now_aware
 from .exceptions import AuthenticationError, AuthorizationError, TokenError
 from .logger import get_logger
+from .crud.token_crud import is_token_used, mark_token_as_used
+from .enums import Role
 
 logger = get_logger(__name__)
 PWD_CONTEXT = CryptContext(schemes=["bcrypt"], deprecated="auto")
@@ -191,12 +193,13 @@ def create_email_verification_token(user_id: int, expires_delta: Optional[timede
         raise TokenError("Failed to create email verification token", original_error=e)
 
 
-def verify_password_reset_token(token: str) -> Optional[int]:
+def verify_password_reset_token(token: str, session: Optional[Session] = None) -> Optional[int]:
     """
-    Verify JWT token is for password reset.
+    Verify JWT token is for password reset and check if already used.
 
     Args:
         token: JWT token to verify
+        session: Optional database session to check blacklist
 
     Returns:
         User ID if valid and token purpose is password_reset, None otherwise
@@ -210,6 +213,12 @@ def verify_password_reset_token(token: str) -> Optional[int]:
         if user_id_raw is None:
             logger.warning("Password reset token missing 'sub' claim")
             return None
+        
+        # Check if token already used
+        if session and is_token_used(session, token):
+            logger.warning(f"Attempted reuse of password reset token for user_id: {user_id_raw}")
+            return None
+        
         logger.debug(f"Password reset token verified for user_id: {user_id_raw}")
         return int(user_id_raw)
     except JWTError as e:
@@ -220,12 +229,13 @@ def verify_password_reset_token(token: str) -> Optional[int]:
         return None
 
 
-def verify_email_verification_token(token: str) -> Optional[int]:
+def verify_email_verification_token(token: str, session: Optional[Session] = None) -> Optional[int]:
     """
-    Verify JWT token is for email verification.
+    Verify JWT token is for email verification and check if already used.
 
     Args:
         token: JWT token to verify
+        session: Optional database session to check blacklist
 
     Returns:
         User ID if valid and token purpose is email_verification, None otherwise
@@ -239,6 +249,12 @@ def verify_email_verification_token(token: str) -> Optional[int]:
         if user_id_raw is None:
             logger.warning("Email verification token missing 'sub' claim")
             return None
+        
+        # Check if token already used
+        if session and is_token_used(session, token):
+            logger.warning(f"Attempted reuse of email verification token for user_id: {user_id_raw}")
+            return None
+        
         logger.debug(f"Email verification token verified for user_id: {user_id_raw}")
         return int(user_id_raw)
     except JWTError as e:

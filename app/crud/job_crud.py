@@ -8,6 +8,7 @@ from ..models import Job, Company, Application, Offer
 from ..enums import RoleType
 from ..datetime_utils import utc_now
 from ..audit import log_audit
+from .state_transitions import close_job_and_cascade
 
 
 def create_job(session: Session, company_id: int, **data) -> Job:
@@ -62,9 +63,22 @@ def get_job_by_id(session: Session, job_id: int) -> Optional[Job]:
     return session.get(Job, job_id)
 
 
-def list_jobs(session: Session, skip: int = 0, limit: int = 100) -> List[Job]:
-    """List all jobs with pagination."""
-    statement = select(Job).order_by(Job.created_at.desc(), Job.id.desc()).offset(skip).limit(limit)
+def list_jobs(
+    session: Session,
+    skip: int = 0,
+    limit: int = 100,
+    company_id: Optional[int] = None,
+    company_name: Optional[str] = None,
+) -> List[Job]:
+    """List jobs with optional company filters and pagination."""
+    statement = select(Job)
+    if company_name:
+        statement = statement.join(Company, Company.id == Job.company_id).where(
+            Company.name.ilike(f"%{company_name.strip()}%")
+        )
+    if company_id is not None:
+        statement = statement.where(Job.company_id == company_id)
+    statement = statement.order_by(Job.created_at.desc(), Job.id.desc()).offset(skip).limit(limit)
     return session.exec(statement).all()
 
 
@@ -109,9 +123,19 @@ def list_verified_jobs(
     return session.exec(statement).all()
 
 
-def count_jobs(session: Session) -> int:
-    """Count all jobs."""
+def count_jobs(
+    session: Session,
+    company_id: Optional[int] = None,
+    company_name: Optional[str] = None,
+) -> int:
+    """Count jobs with optional company filters."""
     statement = select(func.count()).select_from(Job)
+    if company_name:
+        statement = statement.join(Company, Company.id == Job.company_id).where(
+            Company.name.ilike(f"%{company_name.strip()}%")
+        )
+    if company_id is not None:
+        statement = statement.where(Job.company_id == company_id)
     return session.exec(statement).one()
 
 
@@ -183,16 +207,15 @@ def count_applicants_for_job(session: Session, job_id: int) -> int:
 
 
 def close_job(session: Session, job_id: int) -> Optional[Job]:
-    """Close a job posting."""
+    """Close a job posting with cascading to applications/offers (state-driven)."""
     job = session.get(Job, job_id)
     if not job:
         raise ValueError("Job not found")
-    job.closed = True
-    session.add(job)
-    session.commit()
-    session.refresh(job)
-    log_audit("job.closed", job_id=job_id, company_id=job.company_id)
-    return job
+    
+    if close_job_and_cascade(session, job_id):
+        session.refresh(job)
+        return job
+    return None
 
 
 def delete_job(session: Session, job_id: int) -> Optional[bool]:

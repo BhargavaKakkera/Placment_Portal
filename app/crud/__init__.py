@@ -89,11 +89,15 @@ from .offer_crud import (
     accept_offer,
     decline_offer,
     list_student_offer_summaries,
+    count_student_offers,
     list_company_accepted_offer_summaries,
     count_company_accepted_offers,
     count_offers_made,
     count_offers_accepted,
     count_offers_pending_response,
+    list_offers_admin_summaries,
+    count_offers_all,
+    admin_delete_offer,
 )
 
 # Alias for backwards compatibility
@@ -169,10 +173,13 @@ __all__ = [
     "accept_offer",
     "decline_offer",
     "list_student_offer_summaries",
+    "count_student_offers",
     "list_company_accepted_offer_summaries",
     "count_company_accepted_offers",
     "count_offers_made",
     "count_offers_accepted",
     "count_offers_pending_response",
+    "list_offers_admin_summaries",
+    "count_offers_all",
+    "admin_delete_offer",
 ]
-
