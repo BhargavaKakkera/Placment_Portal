@@ -74,8 +74,6 @@ if not DATABASE_URL:
     raise RuntimeError("DATABASE_URL environment variable must be set")
 
 TEST_DATABASE_URL = os.getenv("TEST_DATABASE_URL")
-if not TEST_DATABASE_URL:
-    raise RuntimeError("TEST_DATABASE_URL environment variable must be set")
 
 DB_CONNECT_TIMEOUT_SECONDS = int(os.getenv("DB_CONNECT_TIMEOUT_SECONDS", "5"))
 _validate_positive_int(DB_CONNECT_TIMEOUT_SECONDS, "DB_CONNECT_TIMEOUT_SECONDS")
