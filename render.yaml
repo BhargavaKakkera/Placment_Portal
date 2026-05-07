@@ -1,0 +1,24 @@
+services:
+  - type: web
+    name: placement-portal
+    runtime: python
+    runtimeVersion: 3.12
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT --workers 1
+    plan: starter
+    envVars:
+      - key: DEBUG
+        value: "false"
+      - key: LOG_LEVEL
+        value: INFO
+      - key: EXPOSE_TOKENS_IN_RESPONSES
+        value: "false"
+      - key: ENABLE_EMAIL_DELIVERY
+        value: "false"
+    
+  - type: pserv
+    name: placement-db
+    runtime: postgres
+    plan: free
+    version: 16
+

@@ -3,10 +3,12 @@ Token blacklist CRUD operations for tracking used tokens.
 """
 
 import hashlib
+from datetime import timedelta
 from sqlmodel import Session, select
 from typing import Optional
 from ..models import TokenBlacklist
 from ..logger import get_logger
+from ..datetime_utils import utc_now
 
 logger = get_logger(__name__)
 
@@ -106,4 +108,36 @@ def invalidate_user_tokens(session: Session, user_id: int) -> int:
     except Exception as e:
         session.rollback()
         logger.error(f"Failed to invalidate user tokens: {str(e)}", exc_info=True)
+        return 0
+
+
+def cleanup_expired_tokens(session: Session, older_than_days: int = 2) -> int:
+    """
+    Delete consumed tokens older than specified days from blacklist.
+    Prevents blacklist table from growing indefinitely.
+    
+    Args:
+        session: Database session
+        older_than_days: Delete tokens consumed more than this many days ago (default: 2)
+    
+    Returns:
+        Number of tokens deleted
+    """
+    try:
+        cutoff_time = utc_now() - timedelta(days=older_than_days)
+        
+        entries = session.exec(
+            select(TokenBlacklist).where(TokenBlacklist.consumed_at < cutoff_time)
+        ).all()
+        count = len(entries)
+        
+        for entry in entries:
+            session.delete(entry)
+        
+        session.commit()
+        logger.info(f"Cleaned up {count} expired tokens (older than {older_than_days} days)")
+        return count
+    except Exception as e:
+        session.rollback()
+        logger.error(f"Failed to cleanup expired tokens: {str(e)}", exc_info=True)
         return 0

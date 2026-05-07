@@ -111,6 +111,15 @@ def on_startup() -> None:
             logger.error(f"Error during user cleanup: {str(e)}", exc_info=True)
             # Don't fail startup, just log the error
 
+        # Cleanup expired tokens from blacklist
+        try:
+            with Session(engine) as session:
+                crud.cleanup_expired_tokens(session, older_than_days=2)
+                logger.info("Cleanup of expired tokens completed")
+        except Exception as e:
+            logger.error(f"Error during token cleanup: {str(e)}", exc_info=True)
+            # Don't fail startup, just log the error
+
         logger.info("Application startup completed successfully")
         if DEBUG:
             logger.warning("DEBUG mode is enabled - do not use in production")

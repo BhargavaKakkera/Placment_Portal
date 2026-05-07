@@ -100,6 +100,13 @@ from .offer_crud import (
     admin_delete_offer,
 )
 
+from .token_crud import (
+    cleanup_expired_tokens,
+    mark_token_as_used,
+    is_token_used,
+    invalidate_user_tokens,
+)
+
 # Alias for backwards compatibility
 get_verified_jobs = list_verified_jobs
 
@@ -182,4 +189,9 @@ __all__ = [
     "list_offers_admin_summaries",
     "count_offers_all",
     "admin_delete_offer",
+    # Token
+    "cleanup_expired_tokens",
+    "mark_token_as_used",
+    "is_token_used",
+    "invalidate_user_tokens",
 ]
