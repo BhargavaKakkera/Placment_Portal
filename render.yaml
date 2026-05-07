@@ -1,10 +1,7 @@
 services:
   - type: web
     name: placement-portal
-    runtime: python
-    pythonVersion: 3.12
-    buildCommand: pip install -r requirements.txt
-    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    runtime: docker
     plan: free
 
     envVars:
@@ -19,6 +16,20 @@ services:
 
       - key: ENABLE_EMAIL_DELIVERY
         value: "false"
+
+      - key: DATABASE_URL
+        fromDatabase:
+          name: placement-db
+          property: connectionString
+
+      - key: SECRET_KEY
+        sync: false
+
+      - key: JWT_SECRET_KEY
+        sync: false
+
+      - key: SESSION_SECRET_KEY
+        sync: false
 
 databases:
   - name: placement-db
