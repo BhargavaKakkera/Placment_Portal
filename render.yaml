@@ -19,6 +19,8 @@ services:
       - key: ENABLE_EMAIL_DELIVERY
         value: "false"
 
-  - type: pserv
-    name: placement-db
+databases:
+  - name: placement-db
+    databaseName: placement_portal
+    user: postgres
     plan: free
