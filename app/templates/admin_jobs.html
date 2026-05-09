@@ -8,15 +8,19 @@
 <div class="card shadow-sm mb-3">
     <div class="card-body">
         <form method="get" action="/ui/admin/jobs" class="row g-2 align-items-end">
-            <div class="col-md-3">
+            <div class="col-md-2">
+                <label class="form-label">Job ID</label>
+                <input class="form-control" type="number" name="job_id" value="{{ job_id_filter }}" placeholder="e.g. 5" min="1">
+            </div>
+            <div class="col-md-2">
                 <label class="form-label">Company ID</label>
-                <input class="form-control" name="company_id" value="{{ company_id_filter }}" placeholder="e.g. 12">
+                <input class="form-control" type="number" name="company_id" value="{{ company_id_filter }}" placeholder="e.g. 12" min="1">
             </div>
             <div class="col-md-4">
                 <label class="form-label">Company name</label>
                 <input class="form-control" name="company_name" value="{{ company_name_filter }}" placeholder="e.g. TCS">
             </div>
-            <div class="col-md-5 d-flex gap-2">
+            <div class="col-md-4 d-flex gap-2">
                 <button class="btn btn-primary" type="submit">Apply filters</button>
                 <a class="btn btn-outline-secondary" href="/ui/admin/jobs">Reset</a>
             </div>

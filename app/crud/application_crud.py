@@ -6,7 +6,7 @@ from datetime import datetime
 from sqlmodel import Session, select, func
 from typing import Optional, List
 from ..models import Application, Student, Job, Offer, Company
-from ..enums import ApplicationStatus, CompanyApplicationAction, OfferStatus
+from ..enums import ApplicationStatus, ApplicationStatusReason, CompanyApplicationAction, OfferStatus, OfferStatusReason
 from .offer_crud import create_offer, get_application_block_reason
 from ..datetime_utils import utc_now, to_utc_naive
 
@@ -139,15 +139,40 @@ def list_applications(
     session: Session, 
     skip: int = 0, 
     limit: int = 100
-) -> List[Application]:
-    """List all applications with pagination."""
+) -> List[dict]:
+    """List all applications with student/job/company context."""
     statement = (
-        select(Application)
+        select(Application, Student, Job, Company)
+        .join(Student, Application.student_id == Student.id)
+        .join(Job, Application.job_id == Job.id)
+        .join(Company, Job.company_id == Company.id)
         .order_by(Application.applied_at.desc())
         .offset(skip)
         .limit(limit)
     )
-    return session.exec(statement).all()
+    rows = session.exec(statement).all()
+    return [
+        {
+            "id": app.id,
+            "student_id": student.id,
+            "student_name": student.name,
+            "student_reg_no": student.reg_no,
+            "company_id": company.id,
+            "company_name": company.name,
+            "job_id": job.id,
+            "job_title": job.title,
+            "job_description": job.description,
+            "role_type": job.role_type,
+            "ctc": job.ctc,
+            "stipend": job.stipend,
+            "ppo_available": job.ppo_available,
+            "internship_duration": job.internship_duration,
+            "status": app.status,
+            "status_reason": app.status_reason,
+            "applied_at": app.applied_at,
+        }
+        for app, student, job, company in rows
+    ]
 
 
 def list_student_applications(
@@ -193,8 +218,18 @@ def list_student_application_summaries(
             "company_active": bool(getattr(company, "is_active", True)),
             "job_title": job.title,
             "job_description": job.description,
+            "role_type": job.role_type,
+            "ctc": job.ctc,
+            "stipend": job.stipend,
+            "internship_duration": job.internship_duration,
+            "ppo_available": job.ppo_available,
+            "application_deadline": job.application_deadline,
+            "min_cgpa": job.min_cgpa,
+            "max_backlogs": job.max_backlogs,
+            "created_at": job.created_at,
             "applied_at": application.applied_at,
             "status": application.status,
+            "status_reason": application.status_reason,
         }
         for application, job, company in rows
     ]
@@ -247,6 +282,17 @@ def list_company_applicant_summaries(
             "resume_url": student.resume_url,
             "applied_at": application.applied_at,
             "status": application.status,
+            # Personal details
+            "phone": student.phone,
+            "personal_email": student.personal_email,
+            "address": student.address,
+            "github_url": student.github_url,
+            "linkedin_url": student.linkedin_url,
+            "leetcode_url": student.leetcode_url,
+            "codeforces_url": student.codeforces_url,
+            "hackerrank_url": student.hackerrank_url,
+            "portfolio_url": student.portfolio_url,
+            "other_coding_url": student.other_coding_url,
         }
         for application, student in rows
     ]
@@ -339,11 +385,12 @@ def apply_company_action(
         )
 
     if action == CompanyApplicationAction.shortlisted:
-        if current_status not in {ApplicationStatus.applied, ApplicationStatus.offered}:
-            raise ValueError("Only applied/offered applications can be moved to shortlisted")
+        if current_status not in {ApplicationStatus.applied, ApplicationStatus.offered, ApplicationStatus.offer_expired, ApplicationStatus.rejected, ApplicationStatus.declined}:
+            raise ValueError("Only applied/offered/offer_expired/rejected/declined applications can be moved to shortlisted")
         if current_status == ApplicationStatus.offered:
             _decline_linked_offer(session, application, OfferStatus.offered)
         application.status = ApplicationStatus.shortlisted
+        application.status_reason = ApplicationStatusReason.manual_shortlist
     elif action == CompanyApplicationAction.rejected:
         if current_status not in {
             ApplicationStatus.applied,

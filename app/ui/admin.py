@@ -2,7 +2,7 @@ import secrets
 
 from fastapi import APIRouter, BackgroundTasks, Request
 from pydantic import ValidationError
-from sqlmodel import Session, select
+from sqlmodel import Session, select, func
 
 from .. import crud
 from ..auth import create_password_reset_token, hash_password
@@ -10,7 +10,7 @@ from ..config import DEBUG
 from ..database import engine
 from ..email_service import send_student_invite_email
 from ..enums import Branch, Gender, Role
-from ..models import Student, User
+from ..models import Student, User, Company, Job, Application, Offer
 from ..schemas import AdminStudentProvisionIn, StudentAdminUpdate
 from ..crud.state_transitions import count_valid_offers
 from .helpers import build_pager, extract_field_errors, home_for, parse_page_limit, read_form_with_csrf, redirect_path, redirect_to, render, require_user, txt, validation_message
@@ -536,8 +536,17 @@ async def admin_company_reactivate_submit(company_id: int, request: Request):
 
 @router.get("/jobs", name="ui_admin_jobs")
 def admin_jobs_page(request: Request):
+    job_id_raw = txt(request.query_params.get("job_id"))
     company_id_raw = txt(request.query_params.get("company_id"))
     company_name_filter = txt(request.query_params.get("company_name"))
+    
+    job_id_filter = None
+    if job_id_raw:
+        try:
+            job_id_filter = int(job_id_raw)
+        except ValueError:
+            job_id_filter = None
+    
     company_id_filter = None
     if company_id_raw:
         try:
@@ -556,11 +565,13 @@ def admin_jobs_page(request: Request):
             limit,
             company_id=company_id_filter,
             company_name=company_name_filter,
+            job_id=job_id_filter,
         )
         total = crud.count_jobs(
             session,
             company_id=company_id_filter,
             company_name=company_name_filter,
+            job_id=job_id_filter,
         )
         pager = build_pager(request, total=total, page=page, limit=limit)
         companies_by_id = {company.id: company for company in crud.list_companies(session, 0, 1000, include_inactive=True)}
@@ -571,6 +582,7 @@ def admin_jobs_page(request: Request):
             role_home=home_for(user),
             jobs=jobs,
             companies_by_id=companies_by_id,
+            job_id_filter=job_id_raw or "",
             company_id_filter=company_id_raw or "",
             company_name_filter=company_name_filter or "",
             pager=pager,
@@ -681,3 +693,85 @@ async def admin_application_delete_submit(application_id: int, request: Request)
         if not crud.delete_application(session, application_id):
             return redirect_to(request, "ui_admin_applications", "Could not delete application.", "danger")
     return redirect_to(request, "ui_admin_applications", "Application deleted.", "info")
+
+
+@router.get("/analytics", name="ui_admin_analytics")
+def admin_analytics_page(request: Request):
+    with Session(engine) as session:
+        user, redirect = require_user(request, session, Role.admin, verified_admin=True)
+        if redirect:
+            return redirect
+        
+        # Calculate summary metrics
+        total_students = crud.count_students(session)
+        placed_students = crud.count_placed_students(session)
+        placement_rate = (placed_students / total_students * 100) if total_students > 0 else 0
+        
+        # CTC statistics
+        offers_stmt = select(Offer).where(Offer.status == "accepted")
+        accepted_offers = session.exec(offers_stmt).all()
+        
+        ctc_values = []
+        for offer in accepted_offers:
+            job = session.get(Job, offer.job_id)
+            if job and job.ctc:
+                ctc_values.append(job.ctc)
+        
+        average_ctc = sum(ctc_values) / len(ctc_values) if ctc_values else 0
+        highest_ctc = max(ctc_values) if ctc_values else 0
+        lowest_ctc = min(ctc_values) if ctc_values else 0
+        total_offers = len(accepted_offers)
+        
+        summary = {
+            "total_students": total_students,
+            "placed_students": placed_students,
+            "placement_rate": placement_rate,
+            "average_ctc": average_ctc,
+            "highest_ctc": highest_ctc,
+            "lowest_ctc": lowest_ctc,
+            "total_offers": total_offers,
+        }
+        
+        # Branch-wise statistics
+        branch_stats = crud.get_branch_placement_stats(session)
+        
+        # Company-wise statistics
+        company_metrics = []
+        companies_stmt = select(Company).where(Company.is_active == True)
+        companies = session.exec(companies_stmt).all()
+        
+        for company in companies:
+            offers_made_stmt = select(func.count(Offer.id)).where(Offer.company_id == company.id)
+            offers_made = session.exec(offers_made_stmt).first() or 0
+            
+            offers_accepted_stmt = select(func.count(Offer.id)).where(
+                (Offer.company_id == company.id) & (Offer.status == "accepted")
+            )
+            offers_accepted = session.exec(offers_accepted_stmt).first() or 0
+            
+            acceptance_rate = (offers_accepted / offers_made * 100) if offers_made > 0 else 0
+            
+            if offers_made > 0:  # Only show companies with offers
+                company_metrics.append({
+                    "company_name": company.name,
+                    "offers_made": offers_made,
+                    "offers_accepted": offers_accepted,
+                    "acceptance_rate": acceptance_rate,
+                })
+        
+        # Sort by acceptance rate descending
+        company_metrics.sort(key=lambda x: x["acceptance_rate"], reverse=True)
+        
+        analytics_data = {
+            "summary": summary,
+            "by_branch": branch_stats,
+            "by_company": company_metrics,
+        }
+        
+        return render(
+            request,
+            "admin_analytics.html",
+            current_user=user,
+            role_home=home_for(user),
+            analytics=analytics_data,
+        )

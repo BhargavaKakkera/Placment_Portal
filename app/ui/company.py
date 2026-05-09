@@ -7,7 +7,8 @@ from .. import crud
 from ..database import engine
 from ..enums import CompanyApplicationAction, Role, RoleType
 from ..models import Application, Job
-from ..schemas import CompanyCreate, CompanyApplicationStatusUpdate, JobCreate
+from ..schemas import CompanyCreate, CompanyApplicationStatusUpdate, JobCreate, JobDeadlineUpdate
+from ..datetime_utils import utc_now
 from .helpers import branches, build_pager, dt, extract_field_errors, flt, home_for, int_or_none, parse_page_limit, read_form_with_csrf, redirect_path, redirect_to, render, require_company_profile, require_user, txt, validation_message
 
 router = APIRouter(prefix="/company")
@@ -245,6 +246,71 @@ async def company_job_delete_submit(job_id: int, request: Request):
     return redirect_to(request, "ui_company_jobs", "Job deleted.", "info")
 
 
+@router.post("/jobs/{job_id}/deadline", name="ui_company_job_deadline_update")
+async def company_job_deadline_update_submit(job_id: int, request: Request):
+    try:
+        form = await read_form_with_csrf(request)
+    except ValueError as exc:
+        return redirect_to(request, "ui_company_jobs", str(exc), "warning")
+    with Session(engine) as session:
+        user, redirect = require_user(request, session, Role.company)
+        if redirect:
+            return redirect
+        company, redirect = require_company_profile(request, session, user)
+        if redirect:
+            return redirect
+        job = session.get(Job, job_id)
+        if not company or not job or job.company_id != company.id:
+            return redirect_to(request, "ui_company_jobs", "Job not found.", "warning")
+        try:
+            # Prefer UTC-converted deadline if available, fallback to local datetime
+            deadline_utc_value = form.get("application_deadline_utc")
+            deadline_value = dt(deadline_utc_value) if deadline_utc_value else dt(form.get("application_deadline"))
+            payload = JobDeadlineUpdate.model_validate(
+                {
+                    "application_deadline": deadline_value,
+                }
+            )
+            job.application_deadline = payload.application_deadline
+            job.updated_at = utc_now()
+            session.add(job)
+            session.commit()
+            session.refresh(job)
+            new_deadline = job.application_deadline.strftime("%B %d, %Y at %H:%M") if job.application_deadline else "No deadline"
+        except ValidationError as exc:
+            return redirect_path(request, f"/ui/company/jobs/{job_id}/applicants", validation_message(exc), "warning")
+        except ValueError as exc:
+            return redirect_path(request, f"/ui/company/jobs/{job_id}/applicants", str(exc), "warning")
+    return redirect_to(request, "ui_company_jobs", f"Application deadline updated to: {new_deadline}", "success")
+
+
+@router.post("/jobs/{job_id}/close", name="ui_company_job_close")
+async def company_job_close_submit(job_id: int, request: Request):
+    try:
+        await read_form_with_csrf(request)
+    except ValueError as exc:
+        return redirect_to(request, "ui_company_jobs", str(exc), "warning")
+    with Session(engine) as session:
+        user, redirect = require_user(request, session, Role.company)
+        if redirect:
+            return redirect
+        company, redirect = require_company_profile(request, session, user)
+        if redirect:
+            return redirect
+        job = session.get(Job, job_id)
+        if not company or not job or job.company_id != company.id:
+            return redirect_to(request, "ui_company_jobs", "Job not found.", "warning")
+        if job.closed:
+            return redirect_to(request, "ui_company_jobs", "Job is already closed.", "info")
+        try:
+            ok = crud.close_job(session, job_id)
+        except ValueError as exc:
+            return redirect_to(request, "ui_company_jobs", str(exc), "warning")
+        if not ok:
+            return redirect_to(request, "ui_company_jobs", "Could not close job.", "danger")
+    return redirect_to(request, "ui_company_jobs", "Job closed. All applications have been marked as closed.", "success")
+
+
 @router.get("/jobs/{job_id}/applicants", name="ui_company_applicants")
 def company_applicants_page(job_id: int, request: Request):
     with Session(engine) as session:
@@ -291,16 +357,24 @@ async def company_application_action_submit(application_id: int, request: Reques
         job = session.get(Job, application.job_id)
         if not job or job.company_id != company.id:
             return redirect_to(request, "ui_company_jobs", "Not allowed to modify this application.", "danger")
+        redirect_url = f"/ui/company/jobs/{job.id}/applicants"
+        if job.closed:
+            return redirect_path(request, redirect_url, "Cannot modify applications for a closed job.", "warning")
         try:
+            status_value = str(form.get("status", CompanyApplicationAction.shortlisted.value)).strip()
+            ctc_value = flt(form.get("ctc"))
+            # Prefer UTC-converted deadline if available, fallback to local datetime
+            deadline_utc_value = form.get("offer_response_deadline_utc")
+            deadline_value = dt(deadline_utc_value) if deadline_utc_value else dt(form.get("offer_response_deadline"))
             payload = CompanyApplicationStatusUpdate.model_validate(
                 {
-                    "status": str(form.get("status", CompanyApplicationAction.shortlisted.value)),
-                    "ctc": flt(form.get("ctc")),
-                    "offer_response_deadline": dt(form.get("offer_response_deadline")),
+                    "status": status_value,
+                    "ctc": ctc_value,
+                    "offer_response_deadline": deadline_value,
                 }
             )
         except (ValidationError, ValueError) as exc:
-            return redirect_path(request, f"/ui/company/jobs/{job.id}/applicants", validation_message(exc), "warning")
+            return redirect_path(request, redirect_url, validation_message(exc), "warning")
         try:
             crud.apply_company_action(
                 session,
@@ -312,8 +386,12 @@ async def company_application_action_submit(application_id: int, request: Reques
                 payload.offer_response_deadline,
             )
         except ValueError as exc:
-            return redirect_path(request, f"/ui/company/jobs/{job.id}/applicants", str(exc), "warning")
-    return redirect_path(request, f"/ui/company/jobs/{job.id}/applicants", "Application updated.", "success")
+            session.rollback()
+            return redirect_path(request, redirect_url, str(exc), "warning")
+        except Exception as exc:
+            session.rollback()
+            return redirect_path(request, redirect_url, f"An unexpected error occurred: {str(exc)}", "danger")
+    return redirect_path(request, redirect_url, "Application updated successfully.", "success")
 
 
 @router.get("/offers", name="ui_company_offers")

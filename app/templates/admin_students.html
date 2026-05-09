@@ -88,7 +88,7 @@
             <h2 class="h5">Students</h2>
             <div class="table-responsive">
                 <table class="table table-striped align-middle">
-                    <thead><tr><th>Name</th><th>Branch</th><th>Gender</th><th>CGPA</th><th>Active</th><th></th></tr></thead>
+                    <thead><tr><th>Name</th><th>Branch</th><th>Gender</th><th>CGPA</th><th>Active</th><th>Details</th><th></th></tr></thead>
                     <tbody>
                         {% for student in students %}
                         <tr>
@@ -102,6 +102,22 @@
                                 {% else %}
                                 <span class="badge text-bg-secondary">Inactive</span>
                                 {% endif %}
+                            </td>
+                            <td>
+                                <div class="d-flex gap-2">
+                                    {% if student.resume_url %}
+                                    <a class="btn btn-sm btn-outline-info" href="{{ student.resume_url }}" target="_blank" title="View Resume">
+                                        <span>📄</span>
+                                    </a>
+                                    {% else %}
+                                    <button class="btn btn-sm btn-outline-secondary" disabled title="No resume">
+                                        <span>📄</span>
+                                    </button>
+                                    {% endif %}
+                                    <button class="btn btn-sm btn-outline-primary" data-bs-toggle="modal" data-bs-target="#studentDetailsModal{{ student.id }}" title="View Personal Details">
+                                        <span>👤</span>
+                                    </button>
+                                </div>
                             </td>
                             <td>
                                 <div class="d-flex gap-2">
@@ -119,7 +135,7 @@
                             </td>
                         </tr>
                         {% else %}
-                        <tr><td colspan="6" class="text-muted">No students found.</td></tr>
+                        <tr><td colspan="7" class="text-muted">No students found.</td></tr>
                         {% endfor %}
                     </tbody>
                 </table>
@@ -127,6 +143,113 @@
         </div></div>
     </div>
 </div>
+<!-- Student Details Modals -->
+{% for student in students %}
+<div class="modal fade" id="studentDetailsModal{{ student.id }}" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Personal Details - {{ student.name }}</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="row">
+                    <div class="col-md-6 mb-3">
+                        <label class="form-label text-muted small">Registration No</label>
+                        <p>{{ student.reg_no }}</p>
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <label class="form-label text-muted small">Roll No</label>
+                        <p>{{ student.roll_no }}</p>
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="col-md-6 mb-3">
+                        <label class="form-label text-muted small">Phone</label>
+                        <p>{{ student.phone or "—" }}</p>
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <label class="form-label text-muted small">Personal Email</label>
+                        <p>
+                            {% if student.personal_email %}
+                            <a href="mailto:{{ student.personal_email }}">{{ student.personal_email }}</a>
+                            {% else %}
+                            —
+                            {% endif %}
+                        </p>
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="col-12 mb-3">
+                        <label class="form-label text-muted small">Address</label>
+                        <p>{{ student.address or "—" }}</p>
+                    </div>
+                </div>
+                <hr>
+                <h6 class="mb-3">Coding Profiles</h6>
+                <div class="row">
+                    {% if student.github_url %}
+                    <div class="col-md-6 mb-2">
+                        <a class="btn btn-sm btn-outline-secondary w-100" href="{{ student.github_url }}" target="_blank">
+                            <span>🐙 GitHub</span>
+                        </a>
+                    </div>
+                    {% endif %}
+                    {% if student.linkedin_url %}
+                    <div class="col-md-6 mb-2">
+                        <a class="btn btn-sm btn-outline-secondary w-100" href="{{ student.linkedin_url }}" target="_blank">
+                            <span>💼 LinkedIn</span>
+                        </a>
+                    </div>
+                    {% endif %}
+                    {% if student.leetcode_url %}
+                    <div class="col-md-6 mb-2">
+                        <a class="btn btn-sm btn-outline-secondary w-100" href="{{ student.leetcode_url }}" target="_blank">
+                            <span>💻 LeetCode</span>
+                        </a>
+                    </div>
+                    {% endif %}
+                    {% if student.codeforces_url %}
+                    <div class="col-md-6 mb-2">
+                        <a class="btn btn-sm btn-outline-secondary w-100" href="{{ student.codeforces_url }}" target="_blank">
+                            <span>⚡ CodeForces</span>
+                        </a>
+                    </div>
+                    {% endif %}
+                    {% if student.hackerrank_url %}
+                    <div class="col-md-6 mb-2">
+                        <a class="btn btn-sm btn-outline-secondary w-100" href="{{ student.hackerrank_url }}" target="_blank">
+                            <span>🏆 HackerRank</span>
+                        </a>
+                    </div>
+                    {% endif %}
+                    {% if student.portfolio_url %}
+                    <div class="col-md-6 mb-2">
+                        <a class="btn btn-sm btn-outline-secondary w-100" href="{{ student.portfolio_url }}" target="_blank">
+                            <span>🌐 Portfolio</span>
+                        </a>
+                    </div>
+                    {% endif %}
+                    {% if student.other_coding_url %}
+                    <div class="col-md-6 mb-2">
+                        <a class="btn btn-sm btn-outline-secondary w-100" href="{{ student.other_coding_url }}" target="_blank">
+                            <span>🔗 Other Profile</span>
+                        </a>
+                    </div>
+                    {% endif %}
+                </div>
+                {% if not student.github_url and not student.linkedin_url and not student.leetcode_url and not student.codeforces_url and not student.hackerrank_url and not student.portfolio_url and not student.other_coding_url %}
+                <p class="text-muted small">No coding profiles provided</p>
+                {% endif %}
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endfor %}
+<!-- End Student Details Modals -->
 {% if pager %}
 <div class="d-flex justify-content-between align-items-center mt-3">
     <span class="text-muted small">Page {{ pager.page }} | Total {{ pager.total }}</span>

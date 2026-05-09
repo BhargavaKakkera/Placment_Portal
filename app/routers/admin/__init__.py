@@ -7,6 +7,7 @@ This module contains admin endpoints organized by resource:
 - jobs: Job posting management
 - applications: Application management
 - users: Admin user management (verification of other admins)
+- analytics: Placement analytics and insights
 """
 
 from fastapi import APIRouter
@@ -15,7 +16,7 @@ from fastapi import APIRouter
 router = APIRouter(prefix="/admin")
 
 # Import and include sub-routers
-from . import companies, students, jobs, applications, users, dashboard, offers
+from . import companies, students, jobs, applications, users, dashboard, offers, analytics
 
 router.include_router(companies.router)
 router.include_router(students.router)
@@ -24,6 +25,7 @@ router.include_router(applications.router)
 router.include_router(offers.router)
 router.include_router(users.router)
 router.include_router(dashboard.router)
+router.include_router(analytics.router)
 
 __all__ = ["router"]
 

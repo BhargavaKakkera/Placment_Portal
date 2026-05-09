@@ -38,8 +38,8 @@
                     </div>
                     <div class="col-md-6">
                         <label class="form-label">Deadline</label>
-                        <input class="form-control {% if field_errors.get('application_deadline') %}is-invalid{% endif %}" name="application_deadline" type="datetime-local" value="{{ form_data.get('application_deadline', '') }}">
-                        {% if field_errors.get('application_deadline') %}<div class="invalid-feedback d-block">{{ field_errors['application_deadline'] }}</div>{% endif %}
+                        <input class="form-control deadline-input {% if field_errors.get('application_deadline') %}is-invalid{% endif %}" name="application_deadline" type="datetime-local" value="{{ form_data.get('application_deadline', '') }}">
+                        {% if field_errors.get('application_deadline') %}<div class="invalid-feedback d-block">{{ field_errors['application_deadline'] }}</div>{% else %}<small class="text-danger d-none error-message" role="alert" style="display: block; margin-top: 5px;"></small>{% endif %}
                     </div>
                     <div class="col-md-6">
                         <label class="form-label">Min CGPA</label>
@@ -104,7 +104,7 @@
             <h2 class="h5">My jobs</h2>
             <div class="table-responsive">
                 <table class="table align-middle">
-                    <thead><tr><th>Company</th><th>Title</th><th>Role</th><th>CTC/Stipend</th><th>Duration</th><th>PPO</th><th>Eligible branches</th><th>Status</th><th></th></tr></thead>
+                    <thead><tr><th>Company</th><th>Title</th><th>Role</th><th>CTC/Stipend</th><th>Duration</th><th>PPO</th><th>Eligible branches</th><th>Deadline</th><th>Status</th><th></th></tr></thead>
                     <tbody>
                         {% for job in jobs %}
                         <tr>
@@ -116,6 +116,13 @@
                             <td>{{ "Yes" if job.ppo_available else "No" }}</td>
                             <td>{{ job.allowed_branches or "All" }}</td>
                             <td>
+                                {% if job.application_deadline %}
+                                <small>{{ job.application_deadline.strftime("%d %b, %H:%M") }}</small>
+                                {% else %}
+                                <small class="text-muted">No deadline</small>
+                                {% endif %}
+                            </td>
+                            <td>
                                 {% if job.closed %}
                                 <span class="badge text-bg-secondary">Closed</span>
                                 {% else %}
@@ -123,8 +130,14 @@
                                 {% endif %}
                             </td>
                             <td>
-                                <div class="d-flex gap-2">
+                                <div class="d-flex gap-2 flex-wrap">
                                     <a class="btn btn-sm btn-outline-secondary" href="/ui/company/jobs/{{ job.id }}/applicants">Applicants</a>
+                                    {% if not job.closed %}
+                                    <button class="btn btn-sm btn-outline-info" data-bs-toggle="modal" data-bs-target="#editDeadlineModal{{ job.id }}" title="Edit Application Deadline">📅 Deadline</button>
+                                    <form method="post" action="/ui/company/jobs/{{ job.id }}/close" data-confirm="Close '{{ job.title }}'? You CANNOT offer students after closing. Make sure all offers are made first!">
+                                        <button class="btn btn-sm btn-outline-warning" type="submit" data-loading-text="Closing...">Close</button>
+                                    </form>
+                                    {% endif %}
                                     <form method="post" action="/ui/company/jobs/{{ job.id }}/delete" data-confirm="Delete {{ job.title }}?">
                                         <button class="btn btn-sm btn-outline-danger" type="submit" data-loading-text="Deleting...">Delete</button>
                                     </form>
@@ -132,7 +145,7 @@
                             </td>
                         </tr>
                         {% else %}
-                        <tr><td colspan="9" class="text-muted">No jobs created yet.</td></tr>
+                        <tr><td colspan="10" class="text-muted">No jobs created yet.</td></tr>
                         {% endfor %}
                     </tbody>
                 </table>
@@ -140,6 +153,43 @@
         </div></div>
     </div>
 </div>
+
+<!-- Deadline Edit Modals -->
+{% for job in jobs %}
+<div class="modal fade" id="editDeadlineModal{{ job.id }}" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Update Application Deadline</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form method="post" action="/ui/company/jobs/{{ job.id }}/deadline">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label">Job: <strong>{{ job.title }}</strong></label>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">New Application Deadline</label>
+                        <input type="datetime-local" class="form-control deadline-input" name="application_deadline" 
+                            {% if job.application_deadline %}value="{{ job.application_deadline.strftime("%Y-%m-%dT%H:%M") }}"{% endif %}
+                            title="Set when students can no longer apply. Leave empty to remove deadline.">
+                        <input type="hidden" name="application_deadline_utc" class="deadline-input-utc">
+                        <small class="text-muted">Leave empty to remove deadline (students can apply indefinitely)</small>
+                        <small class="text-danger d-none error-message" role="alert" style="display: block; margin-top: 5px;"></small>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Update Deadline</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endfor %}
+<!-- End Deadline Edit Modals -->
+
 <script>
     document.addEventListener("DOMContentLoaded", function () {
         const allToggle = document.getElementById("branch_all");
@@ -159,6 +209,56 @@
             allToggle.addEventListener("change", refreshBranchState);
             refreshBranchState();
         }
+
+        // Validate deadline inputs - prevent setting past deadlines
+        const deadlineInputs = document.querySelectorAll("input[type='datetime-local'][name='application_deadline']");
+        deadlineInputs.forEach(function (input) {
+            function validateDeadline() {
+                const errorMsg = input.parentElement.querySelector(".error-message");
+                const inputValue = input.value;
+                
+                if (!inputValue) {
+                    if (errorMsg) errorMsg.classList.add("d-none");
+                    return true;
+                }
+                
+                const inputDateTime = new Date(inputValue);
+                const now = new Date();
+                
+                if (inputDateTime <= now) {
+                    if (errorMsg) {
+                        errorMsg.textContent = "❌ Deadline cannot be in the past. Set a future date/time.";
+                        errorMsg.classList.remove("d-none");
+                    }
+                    return false;
+                } else {
+                    if (errorMsg) errorMsg.classList.add("d-none");
+                    return true;
+                }
+            }
+            
+            // Validate on blur and change
+            input.addEventListener("blur", validateDeadline);
+            input.addEventListener("change", validateDeadline);
+            
+            // Prevent form submission if invalid
+            const form = input.closest("form");
+            if (form) {
+                form.addEventListener("submit", function (e) {
+                    if (input.value && !validateDeadline()) {
+                        e.preventDefault();
+                        return false;
+                    }
+                    // Convert local datetime to UTC for accurate backend processing
+                    const deadlineUtcInput = form.querySelector(".deadline-input-utc");
+                    if (input.value && deadlineUtcInput) {
+                        const localDate = new Date(input.value);
+                        // Convert to ISO string (which is UTC)
+                        deadlineUtcInput.value = localDate.toISOString();
+                    }
+                });
+            }
+        });
     });
 </script>
 {% if pager %}

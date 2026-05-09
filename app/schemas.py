@@ -1,5 +1,6 @@
-from pydantic import BaseModel, EmailStr, Field, ConfigDict, model_validator, field_validator, HttpUrl
-from typing import Optional, List
+from pydantic import BaseModel, EmailStr, Field, ConfigDict, model_validator, field_validator, HttpUrl, computed_field
+from pydantic_core import PydanticCustomError
+from typing import Optional, List, Any
 from datetime import datetime
 import re
 
@@ -9,7 +10,9 @@ from .enums import (
     Gender,
     RoleType,
     ApplicationStatus,
+    ApplicationStatusReason,
     OfferStatus,
+    OfferStatusReason,
     CompanyApplicationAction,
 )
 
@@ -121,11 +124,10 @@ class ChangePasswordIn(BaseModel):
 
 
 class StudentUpdate(BaseModel):
+    """Only student-editable fields."""
     phone: Optional[str] = Field(
         None,
-        min_length=10,
-        max_length=15,
-        pattern=r"^\+?[0-9]{10,15}$"
+        description="Phone number must be exactly 10 digits"
     )
 
     personal_email: Optional[EmailStr] = Field(
@@ -133,32 +135,121 @@ class StudentUpdate(BaseModel):
         max_length=120
     )
 
+    cgpa: Optional[float] = Field(None, ge=0.0, le=10.0)
+    backlogs: Optional[int] = Field(None, ge=0, le=8)
+
     address: Optional[str] = Field(
         None,
         min_length=5,
         max_length=300
     )
 
-    resume_url: Optional[HttpUrl] = None
-    github_url: Optional[HttpUrl] = None
-    linkedin_url: Optional[HttpUrl] = None
-    leetcode_url: Optional[HttpUrl] = None
-    codeforces_url: Optional[HttpUrl] = None
-    hackerrank_url: Optional[HttpUrl] = None
-    portfolio_url: Optional[HttpUrl] = None
-    other_coding_url: Optional[HttpUrl] = None
+    resume_url: Optional[str] = None
+    github_url: Optional[str] = None
+    linkedin_url: Optional[str] = None
+    leetcode_url: Optional[str] = None
+    codeforces_url: Optional[str] = None
+    hackerrank_url: Optional[str] = None
+    portfolio_url: Optional[str] = None
+    other_coding_url: Optional[str] = None
+
+    @field_validator("phone", mode="before")
+    @classmethod
+    def validate_phone(cls, v):
+        """Convert empty strings to None and validate non-empty values."""
+        if isinstance(v, str) and v.strip() == "":
+            return None
+        if v is None:
+            return None
+        value = str(v).strip()
+        if not value.isdigit() or len(value) != 10:
+            raise PydanticCustomError(
+                "phone_number",
+                "Phone number must be exactly 10 digits",
+            )
+        return value
+
+    @field_validator("personal_email", mode="before")
+    @classmethod
+    def validate_personal_email(cls, v):
+        """Convert empty strings to None."""
+        if isinstance(v, str) and v.strip() == "":
+            return None
+        return v
+
+    @field_validator("address", mode="before")
+    @classmethod
+    def validate_address(cls, v):
+        """Convert empty strings to None."""
+        if isinstance(v, str) and v.strip() == "":
+            return None
+        return v
+
+    @field_validator("resume_url", "github_url", "linkedin_url", "leetcode_url", "codeforces_url", "hackerrank_url", "portfolio_url", "other_coding_url", mode="before")
+    @classmethod
+    def validate_urls(cls, v):
+        """Convert empty strings to None for URL fields."""
+        if v is None:
+            return None
+        if isinstance(v, str) and v.strip() == "":
+            return None
+        return v
+
+    @field_validator("github_url", mode="after")
+    @classmethod
+    def validate_github(cls, v: Optional[str]) -> Optional[str]:
+        """GitHub URL must point to valid profile if provided."""
+        if v and "github.com" not in str(v):
+            raise ValueError("GitHub URL must be from github.com")
+        return v
+
+    @field_validator("linkedin_url", mode="after")
+    @classmethod
+    def validate_linkedin(cls, v: Optional[str]) -> Optional[str]:
+        """LinkedIn URL must be from LinkedIn if provided."""
+        if v and "linkedin.com" not in str(v):
+            raise ValueError("LinkedIn URL must be from linkedin.com")
+        return v
 
 
 class AdminStudentProvisionIn(BaseModel):
+    """Admin creating student accounts."""
     email: EmailStr = Field(max_length=120)
     name: str = Field(min_length=2, max_length=100)
     reg_no: str = Field(min_length=2, max_length=30)
     roll_no: str = Field(min_length=2, max_length=30)
-    cgpa: float = Field(ge=0, le=10)
+    cgpa: float = Field(ge=0.0, le=10.0)
     branch: Branch
     gender: Gender
-    graduation_year: int = Field(ge=2000, le=2100)
-    backlogs: int = Field(default=0, ge=0, le=20)
+    graduation_year: int = Field(ge=2026, le=2030)
+    backlogs: int = Field(default=0, ge=0, le=8)
+
+    @field_validator("name")
+    @classmethod
+    def validate_name(cls, v: str) -> str:
+        """Name must be alphabetic (with spaces/hyphens)."""
+        if not all(c.isalpha() or c in " -'" for c in v):
+            raise ValueError("Name must contain only letters, spaces, hyphens, or apostrophes")
+        return v.strip()
+
+    @field_validator("reg_no", "roll_no")
+    @classmethod
+    def validate_unique_numbers(cls, v: str) -> str:
+        """Registration/Roll numbers must be non-empty."""
+        if not v or not v.strip():
+            raise ValueError("Cannot be empty")
+        return v.strip().upper()
+
+    @field_validator("graduation_year")
+    @classmethod
+    def validate_graduation(cls, v: int) -> int:
+        """Graduation year must be reasonable."""
+        current_year = datetime.utcnow().year
+        if v < current_year:
+            raise ValueError("Student must not be already graduated")
+        if v > current_year + 5:
+            raise ValueError("Graduation year must be within 5 years")
+        return v
 
     @model_validator(mode="after")
     def _validate_number_fields(self):
@@ -176,14 +267,26 @@ class AdminStudentProvisionOut(BaseModel):
 
 
 class StudentAdminUpdate(BaseModel):
-
+    """Admin-editable student fields with validation."""
     reg_no: Optional[str] = Field(None, min_length=2, max_length=30)
     roll_no: Optional[str] = Field(None, min_length=2, max_length=30)
-    cgpa: Optional[float] = Field(None, ge=0, le=10)
+    cgpa: Optional[float] = Field(None, ge=0.0, le=10.0)
     branch: Optional[Branch]
     gender: Optional[Gender]
-    graduation_year: Optional[int] = Field(None, ge=2000, le=2100)
-    backlogs: Optional[int] = Field(None, ge=0, le=20)
+    graduation_year: Optional[int] = Field(None, ge=2026, le=2030)
+    backlogs: Optional[int] = Field(None, ge=0, le=8)
+
+    @field_validator("graduation_year")
+    @classmethod
+    def validate_graduation(cls, v: Optional[int]) -> Optional[int]:
+        """Graduation year must be reasonable."""
+        if v:
+            current_year = datetime.utcnow().year
+            if v < current_year:
+                raise ValueError("Student must not be already graduated")
+            if v > current_year + 5:
+                raise ValueError("Graduation year must be within 5 years")
+        return v
 
 class StudentOut(BaseModel):
 
@@ -204,14 +307,16 @@ class StudentOut(BaseModel):
     phone: Optional[str]
     personal_email: Optional[EmailStr]
     address: Optional[str]
-    resume_url: Optional[HttpUrl]
-    github_url: Optional[HttpUrl]
-    linkedin_url: Optional[HttpUrl]
-    leetcode_url: Optional[HttpUrl]
-    codeforces_url: Optional[HttpUrl]
-    hackerrank_url: Optional[HttpUrl]
-    portfolio_url: Optional[HttpUrl]
-    other_coding_url: Optional[HttpUrl]
+    resume_url: Optional[str]
+    github_url: Optional[str]
+    linkedin_url: Optional[str]
+    leetcode_url: Optional[str]
+    codeforces_url: Optional[str]
+    hackerrank_url: Optional[str]
+    portfolio_url: Optional[str]
+    other_coding_url: Optional[str]
+    
+    is_active: bool = True
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -246,11 +351,11 @@ class JobCreate(BaseModel):
         max_length=3000
     )
 
-    min_cgpa: Optional[float] = Field(None, ge=0, le=10)
+    min_cgpa: Optional[float] = Field(None, ge=0.0, le=10.0)
 
     allowed_branches: Optional[List[Branch]] = None
 
-    max_backlogs: Optional[int] = Field(None, ge=0, le=20)
+    max_backlogs: Optional[int] = Field(None, ge=0, le=8)
 
     role_type: RoleType = RoleType.full_time
 
@@ -260,20 +365,62 @@ class JobCreate(BaseModel):
         max_length=50
     )
 
-    stipend: Optional[float] = Field(None, ge=0)
+    stipend: Optional[float] = Field(None, gt=0, le=200)  # Max ₹200k/month
 
-    ctc: Optional[float] = Field(None, ge=0)
+    ctc: Optional[float] = Field(None)  # Annual amount
 
     ppo_available: Optional[bool] = False
 
     application_deadline: Optional[datetime] = None
 
+    @field_validator("title")
+    @classmethod
+    def validate_title(cls, v: str) -> str:
+        """Reject titles that are too generic."""
+        generic_titles = {"job", "position", "role", "offer"}
+        if v.lower().strip() in generic_titles:
+            raise ValueError("Job title must be specific (e.g., 'Senior Software Engineer')")
+        return v.strip()
+
+    @field_validator("application_deadline")
+    @classmethod
+    def validate_deadline(cls, v: Optional[datetime]) -> Optional[datetime]:
+        """Deadline must be in future."""
+        if v:
+            from .datetime_utils import utc_now
+            if v <= utc_now():
+                raise ValueError("Application deadline must be in the future")
+        return v
+
+    @field_validator("ctc")
+    @classmethod
+    def validate_ctc(cls, v: Optional[float]) -> Optional[float]:
+        """CTC must be a positive annual amount."""
+        if v is not None and v <= 0:
+            raise PydanticCustomError(
+                "ctc_positive",
+                "CTC must be greater than 0",
+            )
+        return v
+
+    @field_validator("stipend")
+    @classmethod
+    def validate_stipend(cls, v: Optional[float]) -> Optional[float]:
+        """Stipend must be reasonable."""
+        if v and (v < 0.5 or v > 200):
+            raise ValueError("Stipend must be between ₹0.5k/month and ₹200k/month")
+        return v
+
+    @field_validator("allowed_branches")
+    @classmethod
+    def validate_branches(cls, v: Optional[List[Branch]]) -> Optional[List[Branch]]:
+        """Validate branch list."""
+        if v is not None and len(v) == 0:
+            raise ValueError("At least one branch must be selected or leave empty for all branches")
+        return v
+
     @model_validator(mode="after")
     def validate_job_fields(self):
-
-        # Validate branches
-        if self.allowed_branches is not None and len(self.allowed_branches) == 0:
-            raise ValueError("At least one branch must be selected or leave empty for all branches")
 
         if self.role_type == RoleType.internship:
 
@@ -289,6 +436,29 @@ class JobCreate(BaseModel):
                 raise ValueError("Full-time role must include CTC")
 
         return self
+
+
+class JobDeadlineUpdate(BaseModel):
+    """Update application deadline for a job."""
+    application_deadline: Optional[datetime] = Field(
+        None,
+        description="New application deadline (or None to remove deadline)"
+    )
+
+    @field_validator("application_deadline")
+    @classmethod
+    def validate_deadline(cls, v: Optional[datetime]) -> Optional[datetime]:
+        """Deadline must be in future if provided.
+        
+        Note: datetime-local input comes as naive datetime in user's local timezone.
+        We assume it's already in UTC (as per backend convention), so direct comparison is valid.
+        """
+        if v:
+            from .datetime_utils import utc_now
+            # Deadline must be strictly in the future
+            if v <= utc_now():
+                raise ValueError("Application deadline must be in the future")
+        return v
 
 
 class JobOut(BaseModel):
@@ -356,8 +526,18 @@ class StudentApplicationItemOut(BaseModel):
     company_active: bool = True
     job_title: str
     job_description: Optional[str]
+    role_type: RoleType
+    ctc: Optional[float] = None
+    stipend: Optional[float] = None
+    internship_duration: Optional[str] = None
+    ppo_available: bool = False
+    application_deadline: Optional[datetime] = None
+    min_cgpa: Optional[float] = None
+    max_backlogs: Optional[int] = None
+    created_at: Optional[datetime] = None
     applied_at: datetime
     status: ApplicationStatus
+    status_reason: Optional[ApplicationStatusReason] = None
 
 
 class StudentApplicationListOut(BaseModel):
@@ -382,6 +562,17 @@ class CompanyApplicantItemOut(BaseModel):
     resume_url: Optional[HttpUrl]
     applied_at: datetime
     status: ApplicationStatus
+    # Personal details for display in modals
+    phone: Optional[str] = None
+    personal_email: Optional[EmailStr] = None
+    address: Optional[str] = None
+    github_url: Optional[str] = None
+    linkedin_url: Optional[str] = None
+    leetcode_url: Optional[str] = None
+    codeforces_url: Optional[str] = None
+    hackerrank_url: Optional[str] = None
+    portfolio_url: Optional[str] = None
+    other_coding_url: Optional[str] = None
 
 
 class CompanyApplicantListOut(BaseModel):
@@ -429,12 +620,15 @@ class StudentOfferItemOut(BaseModel):
     company_name: str
     company_active: bool = True
     job_title: str
-    job_description: Optional[str]
+    job_description: Optional[str] = None
     role_type: RoleType
-    stipend: Optional[float]
-    ctc: Optional[float]
+    stipend: Optional[float] = None
+    ctc: Optional[float] = None
+    ppo_available: bool = False
+    internship_duration: Optional[str] = None
     status: OfferStatus
-    response_deadline: Optional[datetime]
+    status_reason: Optional[OfferStatusReason] = None
+    response_deadline: Optional[datetime] = None
     created_at: datetime
 
 
@@ -451,12 +645,17 @@ class CompanyAcceptedOfferItemOut(BaseModel):
     job_id: int
     student_id: int
     student_name: str
-    reg_no: str
-    roll_no: str
+    student_reg_no: str
+    reg_no: Optional[str] = None
+    roll_no: Optional[str] = None
     job_title: str
+    job_description: Optional[str] = None
     role_type: RoleType
-    stipend: Optional[float]
-    ctc: Optional[float]
+    stipend: Optional[float] = None
+    ctc: Optional[float] = None
+    ppo_available: bool = False
+    internship_duration: Optional[str] = None
+    response_deadline: Optional[datetime] = None
     status: OfferStatus
     created_at: datetime
 
@@ -546,17 +745,55 @@ class AdminVerifyUser(BaseModel):
 
 
 class PaginationParams(BaseModel):
+    """Safe pagination parameters with hard limits."""
     skip: int = Field(
         0,
         ge=0,
+        le=10000,
         description="Number of records to skip before returning items",
     )
     limit: int = Field(
-        10,
+        20,
         ge=1,
         le=100,
         description="Maximum number of records to return",
     )
+
+
+class PaginationMeta(BaseModel):
+    """Consistent pagination metadata for all list endpoints."""
+    skip: int
+    limit: int
+    total: int
+    has_more: bool
+    
+    @computed_field
+    @property
+    def current_page(self) -> int:
+        """Calculated page number (1-indexed)."""
+        return (self.skip // self.limit) + 1 if self.limit > 0 else 1
+    
+    @computed_field
+    @property
+    def total_pages(self) -> int:
+        """Total number of pages."""
+        return (self.total + self.limit - 1) // self.limit if self.limit > 0 else 1
+
+
+class ErrorResponse(BaseModel):
+    """Standard error response for all API endpoints."""
+    success: bool = False
+    error: str
+    error_code: str
+    details: Optional[dict] = None
+    request_id: Optional[str] = None
+
+
+class SuccessResponse(BaseModel):
+    """Standard success response wrapper."""
+    success: bool = True
+    data: Any = None
+    message: Optional[str] = None
 
 
 class AdminDashboardResponse(BaseModel):

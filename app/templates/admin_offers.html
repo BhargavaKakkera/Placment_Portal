@@ -7,26 +7,41 @@
 </div>
 <div class="table-responsive">
     <table class="table table-striped align-middle">
-        <thead><tr><th>ID</th><th>Student</th><th>Company</th><th>Job</th><th>Role</th><th>CTC/Stipend</th><th>Branches</th><th>Status</th><th></th></tr></thead>
+        <thead><tr><th>Student</th><th>Company</th><th>Job</th><th>Type</th><th>CTC/Stipend</th><th>PPO</th><th>Response Deadline</th><th>Status</th></tr></thead>
         <tbody>
             {% for offer in offers %}
             <tr>
-                <td>{{ offer.id }}</td>
-                <td>{{ offer.student_name }}</td>
-                <td>{{ offer.company_name }}</td>
-                <td>{{ offer.job_title }}</td>
-                <td>{{ offer.role_type.value }}</td>
-                <td>{{ offer.ctc or offer.stipend or "-" }}</td>
-                <td>{{ offer.allowed_branches or "All" }}</td>
-                <td>{{ offer.status.value }}</td>
                 <td>
-                    <form method="post" action="/ui/admin/offers/{{ offer.id }}/delete" data-confirm="Delete offer #{{ offer.id }}?">
-                        <button class="btn btn-sm btn-outline-danger" type="submit" data-loading-text="Deleting...">Delete</button>
-                    </form>
+                    <strong>{{ offer.student_name }}</strong>
                 </td>
+                <td>{{ offer.company_name }}</td>
+                <td>
+                    <strong>{{ offer.job_title }}</strong><br>
+                    {% if offer.job_description %}
+                    <small class="text-muted">{{ offer.job_description[:60] }}{% if offer.job_description|length > 60 %}...{% endif %}</small>
+                    {% endif %}
+                </td>
+                <td>{{ offer.role_type.value }}</td>
+                <td>
+                    {% if offer.role_type.value == "internship" %}
+                        {{ offer.stipend or "-" }}
+                        {% if offer.internship_duration %}<br><small class="text-muted">{{ offer.internship_duration }}</small>{% endif %}
+                    {% else %}
+                        {{ offer.ctc or "-" }}
+                    {% endif %}
+                </td>
+                <td>{{ "Yes" if offer.ppo_available else "No" }}</td>
+                <td>
+                    {% if offer.response_deadline %}
+                    <small>{{ offer.response_deadline|fmt_datetime }}</small>
+                    {% else %}
+                    <small class="text-muted">—</small>
+                    {% endif %}
+                </td>
+                <td><span class="badge text-bg-{{ 'success' if offer.status.value == 'accepted' else 'primary' if offer.status.value == 'offered' else 'warning' if offer.status.value == 'declined' else 'danger' }}">{{ offer.status.value|replace('_', ' ')|title }}</span></td>
             </tr>
             {% else %}
-            <tr><td colspan="9" class="text-muted">No offers found.</td></tr>
+            <tr><td colspan="8" class="text-muted">No offers found.</td></tr>
             {% endfor %}
         </tbody>
     </table>

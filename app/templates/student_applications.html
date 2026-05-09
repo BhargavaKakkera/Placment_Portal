@@ -7,18 +7,32 @@
 </div>
 <div class="table-responsive">
     <table class="table table-striped align-middle">
-        <thead><tr><th>ID</th><th>Company</th><th>Job</th><th>Status</th><th>Reason</th><th>Applied at</th></tr></thead>
+        <thead><tr><th>Company</th><th>Job Title</th><th>Type</th><th>CTC/Stipend</th><th>PPO</th><th>Status</th><th>Applied at</th></tr></thead>
         <tbody>
             {% for item in applications %}
             <tr>
-                <td>{{ item.id }}</td>
                 <td>
                     {{ item.company_name }}
                     {% if item.company_active is defined and not item.company_active %}
-                    <span class="badge text-bg-warning ms-2">Company inactive</span>
+                    <span class="badge text-bg-warning ms-2">Inactive</span>
                     {% endif %}
                 </td>
-                <td>{{ item.job_title }}</td>
+                <td>
+                    <strong>{{ item.job_title }}</strong><br>
+                    {% if item.job_description %}
+                    <small class="text-muted">{{ item.job_description[:80] }}{% if item.job_description|length > 80 %}...{% endif %}</small>
+                    {% endif %}
+                </td>
+                <td>{{ item.role_type.value }}</td>
+                <td>
+                    {% if item.role_type.value == "internship" %}
+                        {{ item.stipend or "-" }}
+                        {% if item.internship_duration %}<br><small class="text-muted">{{ item.internship_duration }}</small>{% endif %}
+                    {% else %}
+                        {{ item.ctc or "-" }}
+                    {% endif %}
+                </td>
+                <td>{{ "Yes" if item.ppo_available else "No" }}</td>
                 <td>
                     {% if item.status.value == "applied" %}
                     <span class="badge text-bg-primary">Applied</span>
@@ -30,6 +44,10 @@
                     <span class="badge text-bg-success">Accepted</span>
                     {% elif item.status.value == "rejected" %}
                     <span class="badge text-bg-danger">Rejected</span>
+                    {% elif item.status.value == "declined" %}
+                    <span class="badge text-bg-danger">Declined</span>
+                    {% elif item.status.value == "offer_expired" %}
+                    <span class="badge text-bg-warning">Offer Expired</span>
                     {% elif item.status.value == "closed_by_job" %}
                     <span class="badge text-bg-secondary">Closed (Job ended)</span>
                     {% elif item.status.value == "inactive_student" %}
@@ -38,17 +56,10 @@
                     <span class="badge text-bg-secondary">{{ item.status.value|title }}</span>
                     {% endif %}
                 </td>
-                <td>
-                    {% if item.status_reason is defined %}
-                    <small class="text-muted">{{ item.status_reason.value|replace('_', ' ')|title }}</small>
-                    {% else %}
-                    <small class="text-muted">—</small>
-                    {% endif %}
-                </td>
-                <td>{{ item.applied_at|fmt_datetime }}</td>
+                <td><small class="text-muted">{{ item.applied_at|fmt_datetime }}</small></td>
             </tr>
             {% else %}
-            <tr><td colspan="6" class="text-muted">No applications found.</td></tr>
+            <tr><td colspan="7" class="text-muted">No applications found.</td></tr>
             {% endfor %}
         </tbody>
     </table>

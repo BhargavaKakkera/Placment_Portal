@@ -90,11 +90,8 @@ async def student_profile_submit(request: Request):
                 field_errors=field_errors,
                 error_message=validation_message(exc),
             )
-        updated = crud.update_student(
-            session,
-            student.id,
-            **payload.model_dump(mode="json")
-        )
+        update_data = payload.model_dump(exclude_unset=True, mode="json")
+        updated = crud.update_student(session, student.id, **update_data)
         if not updated:
             return render(
                 request,
@@ -189,24 +186,24 @@ def student_offers_page(request: Request):
         if redirect:
             return redirect
         page, limit, skip = parse_page_limit(request, default_limit=20, max_limit=100)
-        # Use safe query helper that excludes INVALIDATED offers
-        all_valid_offers = get_active_offers(session, student.id)
-        offered = [o for o in all_valid_offers if o.status == OfferStatus.offered]
-        accepted = [o for o in all_valid_offers if o.status == OfferStatus.accepted]
-        combined = offered + accepted
-        total = len(combined)
-        paged = combined[skip: skip + limit]
-        paged_ids = {o.id for o in paged}
-        offered_paged = [o for o in offered if o.id in paged_ids]
-        accepted_paged = [o for o in accepted if o.id in paged_ids]
+        
+        # Get all offers with job/company details
+        offered = crud.list_student_offer_summaries(session, student.id, OfferStatus.offered, skip, limit)
+        accepted = crud.list_student_offer_summaries(session, student.id, OfferStatus.accepted, skip, limit)
+        
+        # Get total count for pagination
+        total_offered = crud.count_student_offers(session, student.id, OfferStatus.offered)
+        total_accepted = crud.count_student_offers(session, student.id, OfferStatus.accepted)
+        total = total_offered + total_accepted
+        
         pager = build_pager(request, total=total, page=page, limit=limit)
         return render(
             request,
             "student_offers.html",
             current_user=user,
             role_home=home_for(user),
-            offered=offered_paged,
-            accepted=accepted_paged,
+            offered=offered,
+            accepted=accepted,
             pager=pager,
         )
 

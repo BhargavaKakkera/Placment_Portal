@@ -7,18 +7,59 @@
 </div>
 <div class="table-responsive">
     <table class="table table-striped align-middle">
-        <thead><tr><th>Student</th><th>Job</th><th>Role</th><th>CTC/Stipend</th><th>Accepted at</th></tr></thead>
+        <thead><tr><th>Student</th><th>Job</th><th>Role</th><th>CTC/Stipend</th>{% if offers and offers[0].role_type.value == "internship" %}<th>PPO</th><th>Duration</th>{% endif %}<th>Deadline</th><th>Details</th><th>Accepted at</th></tr></thead>
         <tbody>
             {% for item in offers %}
             <tr>
-                <td>{{ item.student_name }}</td>
-                <td>{{ item.job_title }}</td>
+                <td>
+                    <strong>{{ item.student_name }}</strong><br>
+                    <small class="text-muted">{{ item.student_reg_no }}</small>
+                </td>
+                <td>
+                    <strong>{{ item.job_title }}</strong><br>
+                    {% if item.job_description %}
+                    <small class="text-muted">{{ item.job_description[:60] }}{% if item.job_description|length > 60 %}...{% endif %}</small>
+                    {% endif %}
+                </td>
                 <td>{{ item.role_type.value }}</td>
-                <td>{{ item.ctc or item.stipend or "-" }}</td>
-                <td>{{ item.created_at|fmt_datetime }}</td>
+                <td>
+                    {% if item.role_type.value == "internship" %}
+                        {{ item.stipend or "-" }}
+                    {% else %}
+                        {{ item.ctc or "-" }}
+                    {% endif %}
+                </td>
+                {% if item.role_type.value == "internship" %}
+                <td>{{ "Yes" if item.ppo_available else "No" }}</td>
+                <td>{{ item.internship_duration or "-" }}</td>
+                {% endif %}
+                <td>
+                    {% if item.response_deadline %}
+                    <small>{{ item.response_deadline|fmt_datetime }}</small>
+                    {% else %}
+                    <small class="text-muted">—</small>
+                    {% endif %}
+                </td>
+                <td>
+                    <div class="d-flex gap-2">
+                        {% if item.resume_url %}
+                        <a class="btn btn-sm btn-outline-info" href="{{ item.resume_url }}" target="_blank" title="View Resume">
+                            <span>📄 Resume</span>
+                        </a>
+                        {% else %}
+                        <button class="btn btn-sm btn-outline-secondary" disabled title="No resume uploaded">
+                            <span>📄 Resume</span>
+                        </button>
+                        {% endif %}
+                        <button class="btn btn-sm btn-outline-primary" data-bs-toggle="modal" data-bs-target="#studentDetailsModal{{ item.student_id }}" title="View Personal Details">
+                            <span>👤 Details</span>
+                        </button>
+                    </div>
+                </td>
+                <td><small class="text-muted">{{ item.created_at|fmt_datetime }}</small></td>
             </tr>
             {% else %}
-            <tr><td colspan="5" class="text-muted">No accepted offers yet.</td></tr>
+            <tr><td colspan="7" class="text-muted">No accepted offers yet.</td></tr>
             {% endfor %}
         </tbody>
     </table>
@@ -40,4 +81,95 @@
     </div>
 </div>
 {% endif %}
+
+<!-- Student Details Modals -->
+{% for item in offers %}
+<div class="modal fade" id="studentDetailsModal{{ item.student_id }}" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Personal Details - {{ item.student_name }}</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="row">
+                    <div class="col-md-6 mb-3">
+                        <label class="form-label text-muted small">Phone</label>
+                        <p>{{ item.phone or "—" }}</p>
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <label class="form-label text-muted small">Personal Email</label>
+                        <p>
+                            {% if item.personal_email %}
+                            <a href="mailto:{{ item.personal_email }}">{{ item.personal_email }}</a>
+                            {% else %}
+                            —
+                            {% endif %}
+                        </p>
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="col-12 mb-3">
+                        <label class="form-label text-muted small">Address</label>
+                        <p>{{ item.address or "—" }}</p>
+                    </div>
+                </div>
+                <hr>
+                <h6 class="mb-3">Coding Profiles</h6>
+                <div class="row">
+                    {% if item.github_url %}
+                    <div class="col-md-6 mb-2">
+                        <a class="btn btn-sm btn-outline-secondary w-100" href="{{ item.github_url }}" target="_blank">
+                            <span>🐙 GitHub</span>
+                        </a>
+                    </div>
+                    {% endif %}
+                    {% if item.linkedin_url %}
+                    <div class="col-md-6 mb-2">
+                        <a class="btn btn-sm btn-outline-secondary w-100" href="{{ item.linkedin_url }}" target="_blank">
+                            <span>💼 LinkedIn</span>
+                        </a>
+                    </div>
+                    {% endif %}
+                    {% if item.leetcode_url %}
+                    <div class="col-md-6 mb-2">
+                        <a class="btn btn-sm btn-outline-secondary w-100" href="{{ item.leetcode_url }}" target="_blank">
+                            <span>💻 LeetCode</span>
+                        </a>
+                    </div>
+                    {% endif %}
+                    {% if item.codeforces_url %}
+                    <div class="col-md-6 mb-2">
+                        <a class="btn btn-sm btn-outline-secondary w-100" href="{{ item.codeforces_url }}" target="_blank">
+                            <span>⚡ CodeForces</span>
+                        </a>
+                    </div>
+                    {% endif %}
+                    {% if item.hackerrank_url %}
+                    <div class="col-md-6 mb-2">
+                        <a class="btn btn-sm btn-outline-secondary w-100" href="{{ item.hackerrank_url }}" target="_blank">
+                            <span>🏆 HackerRank</span>
+                        </a>
+                    </div>
+                    {% endif %}
+                    {% if item.portfolio_url %}
+                    <div class="col-md-6 mb-2">
+                        <a class="btn btn-sm btn-outline-secondary w-100" href="{{ item.portfolio_url }}" target="_blank">
+                            <span>🌐 Portfolio</span>
+                        </a>
+                    </div>
+                    {% endif %}
+                    {% if item.other_coding_url %}
+                    <div class="col-md-6 mb-2">
+                        <a class="btn btn-sm btn-outline-secondary w-100" href="{{ item.other_coding_url }}" target="_blank">
+                            <span>🔗 Other Profile</span>
+                        </a>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endfor %}
 {% endblock %}

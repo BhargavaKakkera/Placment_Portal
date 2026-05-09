@@ -35,6 +35,7 @@ class ApplicationStatus(str, Enum):
     offered = "offered"
     accepted = "accepted"
     declined = "declined"
+    offer_expired = "offer_expired"
     closed_by_job = "closed_by_job"
     inactive_student = "inactive_student"
 
@@ -47,6 +48,7 @@ class ApplicationStatusReason(str, Enum):
     manual_offer = "manual_offer"
     offer_accepted = "offer_accepted"
     offer_declined = "offer_declined"
+    offer_deadline_expired = "offer_deadline_expired"
     job_closed = "job_closed"
     student_deactivated = "student_deactivated"
 

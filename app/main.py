@@ -5,14 +5,18 @@ Initializes the FastAPI app with middleware, security headers, and startup tasks
 """
 
 import logging
+import os
+import secrets
 from pathlib import Path
 from typing import Any, Dict
+from uuid import uuid4
 
 from fastapi import FastAPI, Request, HTTPException
 from fastapi.responses import RedirectResponse
 from fastapi.exceptions import RequestValidationError
 from starlette.middleware.sessions import SessionMiddleware
 from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.middleware.cors import CORSMiddleware
 from starlette.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 from sqlmodel import Session
@@ -69,8 +73,36 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
         return response
 
 
+class RequestIDMiddleware(BaseHTTPMiddleware):
+    """Add unique request ID to all requests for tracking."""
+    
+    async def dispatch(self, request: Request, call_next):
+        request.state.request_id = str(uuid4())[:8]
+        response = await call_next(request)
+        response.headers["X-Request-ID"] = request.state.request_id
+        return response
+
+
 # Add security headers middleware
 app.add_middleware(SecurityHeadersMiddleware)
+
+# Add request ID middleware
+app.add_middleware(RequestIDMiddleware)
+
+# Add CORS middleware for API endpoints
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[
+        "http://localhost:3000",
+        "http://localhost:8000",
+        "http://localhost",
+        os.getenv("FRONTEND_URL", "http://localhost:3000")
+    ],
+    allow_credentials=True,
+    allow_methods=["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
+    allow_headers=["*"],
+    max_age=600,  # Cache preflight requests for 10 minutes
+)
 
 # Add session middleware with secure cookies
 app.add_middleware(
@@ -148,32 +180,57 @@ logger.info("All routers registered")
 
 @app.exception_handler(ApplicationException)
 async def application_exception_handler(request: Request, exc: ApplicationException):
+    """Handle all custom application exceptions with standard format."""
     logger.warning(
         f"Application error at {request.method} {request.url.path}: [{exc.error_code}] {exc.message}"
     )
     return JSONResponse(
         status_code=exc.status_code,
-        content={"detail": exc.message, "error_code": exc.error_code},
+        content={
+            "success": False,
+            "error": exc.message,
+            "error_code": exc.error_code,
+            "request_id": getattr(request.state, "request_id", None)
+        },
     )
 
 
 @app.exception_handler(RequestValidationError)
 async def request_validation_exception_handler(request: Request, exc: RequestValidationError):
-    logger.info(f"Validation error at {request.method} {request.url.path}: {exc.errors()}")
+    """Convert Pydantic validation errors to user-friendly format."""
+    errors = []
+    for error in exc.errors():
+        field = ".".join(str(x) for x in error["loc"][1:])
+        errors.append({
+            "field": field,
+            "message": error["msg"],
+            "type": error["type"]
+        })
+    
+    logger.info(f"Validation error at {request.method} {request.url.path}: {len(errors)} error(s)")
     return JSONResponse(
         status_code=422,
-        content={"detail": "Invalid request payload", "errors": exc.errors()},
+        content={
+            "success": False,
+            "error": "Validation failed",
+            "error_code": "VALIDATION_ERROR",
+            "details": {"errors": errors[:5]},  # Limit to 5 errors
+            "request_id": getattr(request.state, "request_id", None)
+        },
     )
 
 
 @app.exception_handler(HTTPException)
 async def http_exception_handler(request: Request, exc: HTTPException):
+    """Handle FastAPI HTTPException with standard format."""
     detail = exc.detail if isinstance(exc.detail, str) else "Request failed"
     return JSONResponse(
         status_code=exc.status_code,
         content={
-            "detail": detail,
+            "success": False,
+            "error": detail,
             "error_code": f"HTTP_{exc.status_code}",
+            "request_id": getattr(request.state, "request_id", None)
         },
         headers=exc.headers,
     )
@@ -181,14 +238,22 @@ async def http_exception_handler(request: Request, exc: HTTPException):
 
 @app.exception_handler(Exception)
 async def unhandled_exception_handler(request: Request, exc: Exception):
+    """Catch unexpected errors without exposing stack traces."""
+    request_id = getattr(request.state, "request_id", None)
     logger.error(
         f"Unhandled error at {request.method} {request.url.path}: {str(exc)}",
         exc_info=True,
+        extra={"request_id": request_id}
     )
     record_server_error(request.url.path)
     return JSONResponse(
         status_code=500,
-        content={"detail": "Internal server error"},
+        content={
+            "success": False,
+            "error": "Internal server error" if not DEBUG else str(exc),
+            "error_code": "INTERNAL_ERROR",
+            "request_id": request_id
+        },
     )
 
 

@@ -69,8 +69,9 @@ def list_jobs(
     limit: int = 100,
     company_id: Optional[int] = None,
     company_name: Optional[str] = None,
+    job_id: Optional[int] = None,
 ) -> List[Job]:
-    """List jobs with optional company filters and pagination."""
+    """List jobs with optional company and job filters and pagination."""
     statement = select(Job)
     if company_name:
         statement = statement.join(Company, Company.id == Job.company_id).where(
@@ -78,6 +79,8 @@ def list_jobs(
         )
     if company_id is not None:
         statement = statement.where(Job.company_id == company_id)
+    if job_id is not None:
+        statement = statement.where(Job.id == job_id)
     statement = statement.order_by(Job.created_at.desc(), Job.id.desc()).offset(skip).limit(limit)
     return session.exec(statement).all()
 
@@ -127,8 +130,9 @@ def count_jobs(
     session: Session,
     company_id: Optional[int] = None,
     company_name: Optional[str] = None,
+    job_id: Optional[int] = None,
 ) -> int:
-    """Count jobs with optional company filters."""
+    """Count jobs with optional company and job filters."""
     statement = select(func.count()).select_from(Job)
     if company_name:
         statement = statement.join(Company, Company.id == Job.company_id).where(
@@ -136,6 +140,8 @@ def count_jobs(
         )
     if company_id is not None:
         statement = statement.where(Job.company_id == company_id)
+    if job_id is not None:
+        statement = statement.where(Job.id == job_id)
     return session.exec(statement).one()
 
 

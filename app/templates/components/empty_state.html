@@ -1,0 +1,32 @@
+<!-- Empty State Component -->
+<div class="empty-state text-center py-5">
+    <div class="empty-icon mb-3">
+        <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+            <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2z"/>
+            <path d="M12 6v6m0 4v-1"/>
+        </svg>
+    </div>
+    <h5 class="text-muted">{{ title | default('No items found') }}</h5>
+    <p class="text-muted small">{{ message | default('There are no items to display yet.') }}</p>
+    {% if action_url and action_text %}
+    <a href="{{ action_url }}" class="btn btn-primary mt-3">{{ action_text }}</a>
+    {% endif %}
+</div>
+
+<style>
+.empty-state {
+    background: #f8f9fa;
+    padding: 2rem;
+    border-radius: 8px;
+    color: #6c757d;
+    border: 1px dashed #dee2e6;
+}
+
+.empty-icon {
+    color: #dee2e6;
+}
+
+.empty-icon svg {
+    opacity: 0.5;
+}
+</style>

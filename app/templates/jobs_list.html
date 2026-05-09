@@ -7,7 +7,7 @@
 </div>
 <div class="table-responsive">
     <table class="table table-striped align-middle">
-        <thead><tr><th>ID</th><th>Company</th><th>Title</th><th>Role</th><th>CTC/Stipend</th><th>Duration</th><th>PPO</th><th>Eligible branches</th><th>Deadline</th><th></th></tr></thead>
+        <thead><tr><th>ID</th><th>Company</th><th>Title</th><th>Role</th><th>CTC/Stipend</th><th>Duration</th><th>{% if jobs and jobs[0].role_type.value == "internship" %}PPO{% endif %}</th><th>Eligible branches</th><th>Deadline</th><th></th></tr></thead>
         <tbody>
             {% for job in jobs %}
             <tr>
@@ -18,13 +18,13 @@
                 <td>{{ job.role_type.value }}</td>
                 <td>{{ job.ctc or job.stipend or "-" }}</td>
                 <td>{{ job.internship_duration or "-" }}</td>
-                <td>{{ "Yes" if job.ppo_available else "No" }}</td>
+                {% if job.role_type.value == "internship" %}<td>{{ "Yes" if job.ppo_available else "No" }}</td>{% endif %}
                 <td>{{ job.allowed_branches or "All" }}</td>
                 <td>{{ job.application_deadline|fmt_datetime }}</td>
                 <td><a class="btn btn-sm btn-primary" href="/ui/jobs/{{ job.id }}">Details</a></td>
             </tr>
             {% else %}
-            <tr><td colspan="10" class="text-muted">No jobs found.</td></tr>
+            <tr><td colspan="9" class="text-muted">No jobs found.</td></tr>
             {% endfor %}
         </tbody>
     </table>

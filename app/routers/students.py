@@ -14,8 +14,20 @@ from ..schemas import (
 from ..auth import get_current_student
 from ..models import Offer
 from ..enums import OfferStatus
+from ..logger import get_logger
+
+logger = get_logger(__name__)
 
 router = APIRouter(prefix="/students", tags=["students"])
+
+
+def _student_update_data(student_in: StudentUpdate) -> dict:
+    """Build an update dict without nulling non-nullable academic fields."""
+    data = student_in.model_dump(exclude_unset=True, mode="json")
+    for field in ("cgpa", "backlogs"):
+        if data.get(field) is None:
+            data.pop(field, None)
+    return data
 
 
 # ---------------------------
@@ -48,29 +60,47 @@ def update_my_profile(
     current_user=Depends(get_current_student),
     session: Session = Depends(get_session),
 ):
-    student = crud.get_student_by_user_id(session, current_user.id)
+    try:
+        student = crud.get_student_by_user_id(session, current_user.id)
 
-    if not student:
-        raise HTTPException(
-            status_code=404,
-            detail="Student profile not found"
+        if not student:
+            raise HTTPException(
+                status_code=404,
+                detail="Student profile not found"
+            )
+
+        # Convert model to dict, excluding unset fields
+        data = _student_update_data(student_in)
+        
+        logger.debug(f"Update data for student {student.id}: {data}")
+
+        if not data:
+            raise HTTPException(
+                status_code=400,
+                detail="No update fields provided"
+            )
+
+        updated = crud.update_student(
+            session,
+            student.id,
+            **data
         )
+        
+        if not updated:
+            raise HTTPException(
+                status_code=500,
+                detail="Failed to update student profile"
+            )
 
-    data = student_in.model_dump(exclude_unset=True, mode="json")
-
-    if not data:
+        return updated
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error updating student profile: {str(e)}", exc_info=True)
         raise HTTPException(
-            status_code=400,
-            detail="No update fields provided"
+            status_code=500,
+            detail="Internal server error"
         )
-
-    updated = crud.update_student(
-        session,
-        student.id,
-        **data
-    )
-
-    return updated
 
 
 # ---------------------------

@@ -5,9 +5,14 @@
     <h1 class="h3 mb-0">Applicants for {{ job.title }}</h1>
     <a class="btn btn-outline-secondary" href="/ui/company/jobs">Back to jobs</a>
 </div>
+{% if job.closed %}
+<div class="alert alert-warning mb-3" role="alert">
+    <strong>⚠️ This job is closed.</strong> You can view applicants but cannot shortlist, offer, or reject. All applications have been marked as closed.
+</div>
+{% endif %}
 <div class="table-responsive">
     <table class="table table-striped align-middle">
-        <thead><tr><th>Student</th><th>Branch</th><th>Gender</th><th>CGPA</th><th>Status</th><th>Reason</th><th>Action</th></tr></thead>
+        <thead><tr><th>Student</th><th>Branch</th><th>Gender</th><th>CGPA</th><th>Status</th><th>Reason</th><th>Details</th><th>Action</th></tr></thead>
         <tbody>
             {% for item in applicants %}
             <tr>
@@ -26,6 +31,10 @@
                     <span class="badge text-bg-success">Accepted</span>
                     {% elif item.status.value == "rejected" %}
                     <span class="badge text-bg-danger">Rejected</span>
+                    {% elif item.status.value == "declined" %}
+                    <span class="badge text-bg-danger">Declined by Student</span>
+                    {% elif item.status.value == "offer_expired" %}
+                    <span class="badge text-bg-warning">Offer Expired</span>
                     {% elif item.status.value == "closed_by_job" %}
                     <span class="badge text-bg-secondary">Closed</span>
                     {% elif item.status.value == "inactive_student" %}
@@ -42,11 +51,29 @@
                     {% endif %}
                 </td>
                 <td>
-                    {% if item.status.value in ["closed_by_job", "inactive_student", "rejected", "declined"] %}
+                    <div class="d-flex gap-2">
+                        {% if item.resume_url %}
+                        <a class="btn btn-sm btn-outline-info" href="{{ item.resume_url }}" target="_blank" title="View Resume">
+                            <span>📄 Resume</span>
+                        </a>
+                        {% else %}
+                        <button class="btn btn-sm btn-outline-secondary" disabled title="No resume uploaded">
+                            <span>📄 Resume</span>
+                        </button>
+                        {% endif %}
+                        <button class="btn btn-sm btn-outline-primary" data-bs-toggle="modal" data-bs-target="#studentDetailsModal{{ item.id }}" title="View Personal Details">
+                            <span>👤 Details</span>
+                        </button>
+                    </div>
+                </td>
+                <td>
+                    {% if job.closed %}
+                    <span class="text-muted small">Job closed</span>
+                    {% elif item.status.value in ["closed_by_job", "inactive_student"] %}
                     <span class="text-muted small">No actions</span>
                     {% else %}
-                    <form method="post" action="/ui/company/applications/{{ item.id }}" class="row g-2">
-                        <div class="col-12"><select class="form-select form-select-sm" name="status">
+                    <form method="post" action="/ui/company/applications/{{ item.id }}" class="row g-2 application-form">
+                        <div class="col-12"><select class="form-select form-select-sm action-select" name="status" data-item-id="{{ item.id }}">
                             {% if item.status.value == "applied" %}
                             <option value="shortlisted">Shortlist</option>
                             <option value="rejected">Reject</option>
@@ -56,23 +83,229 @@
                             {% elif item.status.value == "offered" %}
                             <option value="shortlisted">Move back to shortlisted</option>
                             <option value="rejected">Reject</option>
+                            {% elif item.status.value == "offer_expired" %}
+                            <option value="shortlisted">⟲ Re-shortlist</option>
+                            <option value="rejected">Reject</option>
+                            {% elif item.status.value == "rejected" %}
+                            <option value="shortlisted">⟲ Re-shortlist</option>
+                            {% elif item.status.value == "declined" %}
+                            <option value="shortlisted">⟲ Re-shortlist</option>
                             {% elif item.status.value == "accepted" %}
                             <option value="rejected">Reject accepted application</option>
                             {% endif %}
                         </select></div>
-                        <div class="col-6"><input class="form-control form-control-sm" name="ctc" placeholder="CTC"></div>
-                        <div class="col-6"><input class="form-control form-control-sm" name="offer_response_deadline" type="datetime-local"></div>
-                        <div class="col-12"><button class="btn btn-sm btn-primary w-100" type="submit" data-loading-text="Updating...">Update</button></div>
+                        <div class="col-6 ctc-field" style="display: none;">
+                            <input class="form-control form-control-sm" name="ctc" placeholder="CTC (Optional)" title="Annual CTC for full-time roles">
+                        </div>
+                        <div class="col-6 deadline-field" style="display: none;">
+                            <input class="form-control form-control-sm deadline-input" name="offer_response_deadline" type="datetime-local" placeholder="Response Deadline" title="Deadline by which student must accept/reject offer">
+                            <small class="text-danger d-none error-message" style="font-size: 0.75rem; display: block; margin-top: 3px;"></small>
+                            <input type="hidden" name="offer_response_deadline_utc" class="deadline-input-utc">
+                        </div>
+                        <div class="col-12"><button class="btn btn-sm btn-primary w-100 submit-btn" type="submit">Update</button></div>
                     </form>
                     {% endif %}
                 </td>
             </tr>
             {% else %}
-            <tr><td colspan="7" class="text-muted">No applicants yet.</td></tr>
+            <tr><td colspan="8" class="text-muted">No applicants yet.</td></tr>
             {% endfor %}
         </tbody>
     </table>
 </div>
+<!-- Student Details Modals -->
+{% for item in applicants %}
+<div class="modal fade" id="studentDetailsModal{{ item.id }}" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Personal Details - {{ item.student_name }}</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="row">
+                    <div class="col-md-6 mb-3">
+                        <label class="form-label text-muted small">Phone</label>
+                        <p>{{ item.phone or "—" }}</p>
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <label class="form-label text-muted small">Personal Email</label>
+                        <p>
+                            {% if item.personal_email %}
+                            <a href="mailto:{{ item.personal_email }}">{{ item.personal_email }}</a>
+                            {% else %}
+                            —
+                            {% endif %}
+                        </p>
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="col-12 mb-3">
+                        <label class="form-label text-muted small">Address</label>
+                        <p>{{ item.address or "—" }}</p>
+                    </div>
+                </div>
+                <hr>
+                <h6 class="mb-3">Coding Profiles</h6>
+                <div class="row">
+                    {% if item.github_url %}
+                    <div class="col-md-6 mb-2">
+                        <a class="btn btn-sm btn-outline-secondary w-100" href="{{ item.github_url }}" target="_blank">
+                            <span>🐙 GitHub</span>
+                        </a>
+                    </div>
+                    {% endif %}
+                    {% if item.linkedin_url %}
+                    <div class="col-md-6 mb-2">
+                        <a class="btn btn-sm btn-outline-secondary w-100" href="{{ item.linkedin_url }}" target="_blank">
+                            <span>💼 LinkedIn</span>
+                        </a>
+                    </div>
+                    {% endif %}
+                    {% if item.leetcode_url %}
+                    <div class="col-md-6 mb-2">
+                        <a class="btn btn-sm btn-outline-secondary w-100" href="{{ item.leetcode_url }}" target="_blank">
+                            <span>💻 LeetCode</span>
+                        </a>
+                    </div>
+                    {% endif %}
+                    {% if item.codeforces_url %}
+                    <div class="col-md-6 mb-2">
+                        <a class="btn btn-sm btn-outline-secondary w-100" href="{{ item.codeforces_url }}" target="_blank">
+                            <span>⚡ CodeForces</span>
+                        </a>
+                    </div>
+                    {% endif %}
+                    {% if item.hackerrank_url %}
+                    <div class="col-md-6 mb-2">
+                        <a class="btn btn-sm btn-outline-secondary w-100" href="{{ item.hackerrank_url }}" target="_blank">
+                            <span>🏆 HackerRank</span>
+                        </a>
+                    </div>
+                    {% endif %}
+                    {% if item.portfolio_url %}
+                    <div class="col-md-6 mb-2">
+                        <a class="btn btn-sm btn-outline-secondary w-100" href="{{ item.portfolio_url }}" target="_blank">
+                            <span>🌐 Portfolio</span>
+                        </a>
+                    </div>
+                    {% endif %}
+                    {% if item.other_coding_url %}
+                    <div class="col-md-6 mb-2">
+                        <a class="btn btn-sm btn-outline-secondary w-100" href="{{ item.other_coding_url }}" target="_blank">
+                            <span>🔗 Other Profile</span>
+                        </a>
+                    </div>
+                    {% endif %}
+                </div>
+                {% if not item.github_url and not item.linkedin_url and not item.leetcode_url and not item.codeforces_url and not item.hackerrank_url and not item.portfolio_url and not item.other_coding_url %}
+                <p class="text-muted small">No coding profiles provided</p>
+                {% endif %}
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endfor %}
+<!-- End Student Details Modals -->
+
+<script>
+    document.addEventListener("DOMContentLoaded", function () {
+        // Show/hide CTC and deadline fields based on selected action
+        const actionSelects = document.querySelectorAll(".action-select");
+        
+        actionSelects.forEach(function (select) {
+            function updateFieldVisibility() {
+                const itemId = select.dataset.itemId;
+                const ctcField = select.closest("form").querySelector(".ctc-field");
+                const deadlineField = select.closest("form").querySelector(".deadline-field");
+                const isOffer = select.value === "offered";
+                
+                if (isOffer) {
+                    ctcField.style.display = "";
+                    deadlineField.style.display = "";
+                } else {
+                    ctcField.style.display = "none";
+                    deadlineField.style.display = "none";
+                }
+            }
+            
+            select.addEventListener("change", updateFieldVisibility);
+            updateFieldVisibility(); // Initial state
+        });
+
+        // Validate offer response deadline inputs - prevent setting past deadlines
+        const applicationForms = document.querySelectorAll(".application-form");
+        applicationForms.forEach(function (form) {
+            const deadlineInput = form.querySelector("input.deadline-input");
+            const actionSelect = form.querySelector(".action-select");
+            const submitBtn = form.querySelector(".submit-btn");
+            
+            if (!deadlineInput || !submitBtn) return;
+            
+            function validateDeadline() {
+                const errorMsg = deadlineInput.parentElement.querySelector(".error-message");
+                const inputValue = deadlineInput.value;
+                const isOfferAction = actionSelect.value === "offered";
+                
+                // Only validate if action is "offered" and value is present
+                if (!isOfferAction || !inputValue) {
+                    if (errorMsg) errorMsg.classList.add("d-none");
+                    submitBtn.disabled = false;
+                    return true;
+                }
+                
+                const inputDateTime = new Date(inputValue);
+                const now = new Date();
+                
+                if (inputDateTime <= now) {
+                    if (errorMsg) {
+                        errorMsg.textContent = "❌ Deadline must be in future";
+                        errorMsg.classList.remove("d-none");
+                    }
+                    submitBtn.disabled = true;
+                    return false;
+                } else {
+                    if (errorMsg) errorMsg.classList.add("d-none");
+                    submitBtn.disabled = false;
+                    return true;
+                }
+            }
+            
+            // Validate on blur, change, and select change
+            deadlineInput.addEventListener("blur", validateDeadline);
+            deadlineInput.addEventListener("change", validateDeadline);
+            deadlineInput.addEventListener("input", validateDeadline);
+            actionSelect.addEventListener("change", function() {
+                validateDeadline();
+                // Reset deadline field when action changes
+                deadlineInput.value = "";
+            });
+            
+            // Prevent form submission if invalid
+            form.addEventListener("submit", function (e) {
+                if (!validateDeadline()) {
+                    e.preventDefault();
+                    return false;
+                }
+                
+                // Convert local datetime to UTC for accurate backend processing
+                const deadlineUtcInput = form.querySelector(".deadline-input-utc");
+                if (deadlineInput.value && deadlineUtcInput) {
+                    const localDate = new Date(deadlineInput.value);
+                    // Convert to ISO string (which is UTC)
+                    deadlineUtcInput.value = localDate.toISOString();
+                }
+                
+                // Show loading state only if valid
+                submitBtn.disabled = true;
+                submitBtn.textContent = "Updating...";
+            });
+        });
+    });
+</script>
 {% if pager %}
 <div class="d-flex justify-content-between align-items-center mt-3">
     <span class="text-muted small">Page {{ pager.page }} | Total {{ pager.total }}</span>

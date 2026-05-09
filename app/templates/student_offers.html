@@ -9,7 +9,7 @@
     <h2 class="h5">Pending offers</h2>
     <div class="table-responsive">
         <table class="table align-middle">
-            <thead><tr><th>Company</th><th>Job</th><th>Deadline</th><th>Status</th><th></th></tr></thead>
+            <thead><tr><th>Company</th><th>Job</th><th>Type</th><th>CTC/Stipend</th><th>PPO</th><th>Response Deadline</th><th></th></tr></thead>
             <tbody>
                 {% for item in offered %}
                 <tr>
@@ -19,11 +19,27 @@
                         <span class="badge text-bg-warning ms-2">Inactive</span>
                         {% endif %}
                     </td>
-                    <td>{{ item.job_title }}</td>
-                    <td>{{ item.response_deadline|fmt_datetime }}</td>
                     <td>
-                        {% if item.status_reason is defined %}
-                        <small class="text-muted">{{ item.status_reason.value|replace('_', ' ')|title }}</small>
+                        <strong>{{ item.job_title }}</strong><br>
+                        {% if item.job_description %}
+                        <small class="text-muted">{{ item.job_description[:80] }}{% if item.job_description|length > 80 %}...{% endif %}</small>
+                        {% endif %}
+                    </td>
+                    <td>{{ item.role_type.value }}</td>
+                    <td>
+                        {% if item.role_type.value == "internship" %}
+                            {{ item.stipend or "-" }}
+                            {% if item.internship_duration %}<br><small class="text-muted">{{ item.internship_duration }}</small>{% endif %}
+                        {% else %}
+                            {{ item.ctc or "-" }}
+                        {% endif %}
+                    </td>
+                    <td>{{ "Yes" if item.ppo_available else "No" }}</td>
+                    <td>
+                        {% if item.response_deadline %}
+                        <small>{{ item.response_deadline|fmt_datetime }}</small>
+                        {% else %}
+                        <small class="text-muted">—</small>
                         {% endif %}
                     </td>
                     <td>
@@ -38,7 +54,7 @@
                     </td>
                 </tr>
                 {% else %}
-                <tr><td colspan="5" class="text-muted">No pending offers.</td></tr>
+                <tr><td colspan="7" class="text-muted">No pending offers.</td></tr>
                 {% endfor %}
             </tbody>
         </table>
@@ -48,21 +64,34 @@
         <h2 class="h5">Accepted offers</h2>
         <div class="table-responsive">
         <table class="table align-middle">
-            <thead><tr><th>Company</th><th>Job</th><th>Status Reason</th><th>Accepted at</th></tr></thead>
+            <thead><tr><th>Company</th><th>Job</th><th>Type</th><th>CTC/Stipend</th><th>PPO</th><th>Accepted at</th></tr></thead>
             <tbody>
         {% for item in accepted %}
         <tr>
-            <td>{{ item.company_name }}{% if item.company_active is defined and not item.company_active %} <span class="badge text-bg-warning">Inactive</span>{% endif %}</td>
-            <td>{{ item.job_title }}</td>
             <td>
-                {% if item.status_reason is defined %}
-                <small class="text-muted">{{ item.status_reason.value|replace('_', ' ')|title }}</small>
+                {{ item.company_name }}
+                {% if item.company_active is defined and not item.company_active %}<span class="badge text-bg-warning ms-2">Inactive</span>{% endif %}
+            </td>
+            <td>
+                <strong>{{ item.job_title }}</strong><br>
+                {% if item.job_description %}
+                <small class="text-muted">{{ item.job_description[:80] }}{% if item.job_description|length > 80 %}...{% endif %}</small>
                 {% endif %}
             </td>
-            <td>{{ item.created_at|fmt_datetime }}</td>
+            <td>{{ item.role_type.value }}</td>
+            <td>
+                {% if item.role_type.value == "internship" %}
+                    {{ item.stipend or "-" }}
+                    {% if item.internship_duration %}<br><small class="text-muted">{{ item.internship_duration }}</small>{% endif %}
+                {% else %}
+                    {{ item.ctc or "-" }}
+                {% endif %}
+            </td>
+            <td>{{ "Yes" if item.ppo_available else "No" }}</td>
+            <td><small class="text-muted">{{ item.created_at|fmt_datetime }}</small></td>
         </tr>
         {% else %}
-        <tr><td colspan="4" class="text-muted">No accepted offers.</td></tr>
+        <tr><td colspan="6" class="text-muted">No accepted offers.</td></tr>
         {% endfor %}
             </tbody>
         </table>

@@ -82,7 +82,12 @@ def int_or_none(value) -> Optional[int]:
 
 def dt(value) -> Optional[datetime]:
     value = txt(value)
-    return to_utc_naive(datetime.fromisoformat(value)) if value else None
+    if not value:
+        return None
+    # Handle ISO 8601 'Z' suffix (convert to +00:00 for fromisoformat)
+    if value.endswith('Z'):
+        value = value[:-1] + '+00:00'
+    return to_utc_naive(datetime.fromisoformat(value))
 
 
 def branches(values: list[str]) -> Optional[list[Branch]]:

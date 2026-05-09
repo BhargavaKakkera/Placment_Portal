@@ -9,6 +9,9 @@ from ..models import Offer, Application, Student, Job, Company
 from ..enums import RoleType, ApplicationStatus, OfferStatus, ApplicationStatusReason, OfferStatusReason
 from ..datetime_utils import utc_now, to_utc_naive
 from ..audit import log_audit
+from ..logger import get_logger
+
+logger = get_logger(__name__)
 
 
 def _normalize_role_type(role_type) -> RoleType:
@@ -72,9 +75,9 @@ def get_application_block_reason(session: Session, student_id: int, role_type) -
 def _expire_overdue_offers(session: Session, student_id: Optional[int] = None) -> int:
     """
     Expire offered records past response deadline.
-    Business rule: once deadline is passed, offer is treated as rejected by setting:
+    Business rule: once deadline is passed, offer is treated as expired by setting:
     - offer.status = declined
-    - application.status = rejected
+    - application.status = offer_expired (revivable by company)
     """
     now = utc_now()
     statement = select(Offer).where(
@@ -104,7 +107,8 @@ def _expire_overdue_offers(session: Session, student_id: Optional[int] = None) -
 
         application = app_map.get((offer.student_id, offer.job_id))
         if application and application.status != ApplicationStatus.accepted:
-            application.status = ApplicationStatus.rejected
+            application.status = ApplicationStatus.offer_expired
+            application.status_reason = ApplicationStatusReason.offer_deadline_expired
             session.add(application)
 
     session.commit()
@@ -202,55 +206,96 @@ def create_offer(
 
 def accept_offer(session: Session, offer_id: int, student_id: int) -> Optional[Offer]:
     """
-    Accept an offer.
-    - Sets this offer to accepted
-    - Marks student locked
-    - Declines other offers for the student
+    Accept an offer with database-level locking to prevent race conditions.
+    
+    Uses row-level locking (FOR UPDATE) to ensure only one process can accept
+    an offer simultaneously, preventing double-acceptance bugs.
     """
     _expire_overdue_offers(session, student_id=student_id)
 
-    # Atomic-ish: check student hasn't locked an offer and offer belongs to student.
-    offer = session.get(Offer, offer_id)
-    if not offer or offer.student_id != student_id:
+    # Lock the offer row to prevent concurrent modifications
+    offer = session.exec(
+        select(Offer)
+        .where(Offer.id == offer_id)
+        .with_for_update()  # Database row-level lock!
+    ).first()
+    
+    if not offer:
+        logger.warning(f"Offer {offer_id} not found")
         return None
+    
+    if offer.student_id != student_id:
+        logger.warning(f"Student {student_id} unauthorized for offer {offer_id}")
+        return None
+    
     if offer.status != OfferStatus.offered:
+        logger.info(f"Offer {offer_id} status is {offer.status}, not offered")
         return None
+    
+    # Verify company is still active
     company = session.get(Company, offer.company_id)
     if not company or not getattr(company, "is_active", True):
+        logger.warning(f"Company {offer.company_id} not active for offer {offer_id}")
         return None
-    if offer.response_deadline and to_utc_naive(offer.response_deadline) < utc_now():
-        offer.status = OfferStatus.declined
-        session.add(offer)
-        app_stmt = select(Application).where(
-            Application.job_id == offer.job_id,
-            Application.student_id == student_id,
-        )
-        application = session.exec(app_stmt).first()
-        if application and application.status != ApplicationStatus.accepted:
-            application.status = ApplicationStatus.rejected
-            session.add(application)
-        session.commit()
-        return None
+    
+    # Check deadline
+    if offer.response_deadline:
+        now = utc_now()
+        deadline = to_utc_naive(offer.response_deadline)
+        if deadline <= now:
+            logger.info(f"Offer {offer_id} deadline passed ({deadline} <= {now}), declining")
+            offer.status = OfferStatus.declined
+            offer.status_reason = OfferStatusReason.deadline_passed
+            session.add(offer)
+            
+            app_stmt = select(Application).where(
+                Application.job_id == offer.job_id,
+                Application.student_id == student_id,
+            )
+            application = session.exec(app_stmt).first()
+            if application and application.status != ApplicationStatus.accepted:
+                application.status = ApplicationStatus.rejected
+                application.status_reason = ApplicationStatusReason.offer_declined
+                session.add(application)
+            
+            session.commit()
+            return None
+    
+    # Verify student is still active
     student = session.get(Student, student_id)
     if not student or not getattr(student, "is_active", True):
+        logger.warning(f"Student {student_id} not active for offer {offer_id}")
         return None
-    role_type = _normalize_role_type(getattr(session.get(Job, offer.job_id), "role_type", RoleType.full_time))
+    
+    # Check business rules: Get job role type
+    job = session.get(Job, offer.job_id)
+    if not job:
+        logger.warning(f"Job {offer.job_id} not found for offer {offer_id}")
+        return None
+    
+    role_type = _normalize_role_type(getattr(job, "role_type", RoleType.full_time))
+    
+    # Lock and check acceptance state to prevent concurrent acceptances
     acceptance_state = get_student_acceptance_state(session, student_id)
+    
     if acceptance_state["has_accepted_full_time"]:
+        logger.info(f"Student {student_id} already has full-time offer")
         return None
-    if (
-        role_type == RoleType.internship
-        and acceptance_state["has_accepted_internship"]
-    ):
+    
+    if role_type == RoleType.internship and acceptance_state["has_accepted_internship"]:
+        logger.info(f"Student {student_id} already has internship offer")
         return None
-    # perform acceptance atomically: set this offer to accepted, mark student locked,
-    # and decline other offers for the student.
+    
+    # ✅ NOW ACCEPT - with all checks passed and offer locked
     try:
         offer.status = OfferStatus.accepted
+        offer.status_reason = OfferStatusReason.offer_accepted
+        offer.updated_at = utc_now()
         student.locked_offer_id = offer.id if role_type == RoleType.full_time else None
         session.add(offer)
         session.add(student)
 
+        # Update related application
         accepted_app_stmt = select(Application).where(
             Application.job_id == offer.job_id,
             Application.student_id == student_id,
@@ -258,10 +303,11 @@ def accept_offer(session: Session, offer_id: int, student_id: int) -> Optional[O
         accepted_app = session.exec(accepted_app_stmt).first()
         if accepted_app:
             accepted_app.status = ApplicationStatus.accepted
+            accepted_app.status_reason = ApplicationStatusReason.offer_accepted
+            accepted_app.updated_at = utc_now()
             session.add(accepted_app)
 
-        # Full-time acceptance is terminal. Internship acceptance only closes
-        # other internship offers, leaving full-time opportunities open.
+        # Decline other offers based on role type rules
         stmt = select(Offer).where(
             Offer.student_id == student_id,
             Offer.id != offer_id,
@@ -269,6 +315,7 @@ def accept_offer(session: Session, offer_id: int, student_id: int) -> Optional[O
         others = session.exec(stmt).all()
         other_job_ids = {o.job_id for o in others}
         other_apps_by_job_id = {}
+        
         if other_job_ids:
             other_apps_stmt = select(Application).where(
                 Application.student_id == student_id,
@@ -281,6 +328,7 @@ def accept_offer(session: Session, offer_id: int, student_id: int) -> Optional[O
             other_job = session.get(Job, o.job_id)
             other_role_type = _normalize_role_type(getattr(other_job, "role_type", RoleType.full_time))
             should_decline = False
+            
             if o.status == OfferStatus.offered:
                 should_decline = (
                     role_type == RoleType.full_time
@@ -296,7 +344,10 @@ def accept_offer(session: Session, offer_id: int, student_id: int) -> Optional[O
                 continue
 
             o.status = OfferStatus.declined
+            o.status_reason = OfferStatusReason.competing_offer_accepted
+            o.updated_at = utc_now()
             session.add(o)
+            
             other_app = other_apps_by_job_id.get(o.job_id)
             if other_app and other_app.status in {
                 ApplicationStatus.offered,
@@ -304,9 +355,14 @@ def accept_offer(session: Session, offer_id: int, student_id: int) -> Optional[O
                 ApplicationStatus.accepted,
             }:
                 other_app.status = ApplicationStatus.declined
+                other_app.status_reason = ApplicationStatusReason.offer_declined
+                other_app.updated_at = utc_now()
                 session.add(other_app)
+        
         session.commit()
         session.refresh(offer)
+        
+        logger.info(f"Offer {offer_id} accepted by student {student_id}")
         log_audit(
             "offer.accepted",
             offer_id=offer.id,
@@ -315,8 +371,10 @@ def accept_offer(session: Session, offer_id: int, student_id: int) -> Optional[O
             company_id=offer.company_id,
         )
         return offer
-    except Exception:
+        
+    except Exception as e:
         session.rollback()
+        logger.error(f"Failed to accept offer {offer_id}: {str(e)}", exc_info=True)
         return None
 
 
@@ -390,7 +448,10 @@ def list_student_offer_summaries(
             "role_type": job.role_type,
             "stipend": job.stipend,
             "ctc": offer.ctc if offer.ctc is not None else job.ctc,
+            "ppo_available": job.ppo_available,
+            "internship_duration": job.internship_duration,
             "status": offer.status,
+            "status_reason": offer.status_reason,
             "response_deadline": offer.response_deadline,
             "created_at": offer.created_at,
         }
@@ -437,12 +498,28 @@ def list_company_accepted_offer_summaries(
             "job_id": job.id,
             "student_id": student.id,
             "student_name": student.name,
+            "student_reg_no": student.reg_no,
             "reg_no": student.reg_no,
             "roll_no": student.roll_no,
+            "phone": student.phone,
+            "personal_email": student.personal_email,
+            "address": student.address,
+            "resume_url": student.resume_url,
+            "github_url": student.github_url,
+            "linkedin_url": student.linkedin_url,
+            "leetcode_url": student.leetcode_url,
+            "codeforces_url": student.codeforces_url,
+            "hackerrank_url": student.hackerrank_url,
+            "portfolio_url": student.portfolio_url,
+            "other_coding_url": student.other_coding_url,
             "job_title": job.title,
+            "job_description": job.description,
             "role_type": job.role_type,
             "stipend": job.stipend,
             "ctc": offer.ctc if offer.ctc is not None else job.ctc,
+            "ppo_available": job.ppo_available,
+            "internship_duration": job.internship_duration,
+            "response_deadline": offer.response_deadline,
             "status": offer.status,
             "created_at": offer.created_at,
         }
@@ -503,10 +580,14 @@ def list_offers_admin_summaries(session: Session, skip: int = 0, limit: int = 10
             "company_name": company.name,
             "job_id": job.id,
             "job_title": job.title,
+            "job_description": job.description,
             "role_type": job.role_type,
             "ctc": offer.ctc if offer.ctc is not None else job.ctc,
             "stipend": job.stipend,
+            "ppo_available": job.ppo_available,
+            "internship_duration": job.internship_duration,
             "allowed_branches": job.allowed_branches,
+            "response_deadline": offer.response_deadline,
             "status": offer.status,
             "created_at": offer.created_at,
         }
