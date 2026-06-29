@@ -18,55 +18,55 @@
             <form method="post" action="/ui/company/jobs">
                 <fieldset {% if not company.verified %}disabled{% endif %}>
                 <div class="mb-3">
-                    <label class="form-label">Title</label>
-                    <input class="form-control {% if field_errors.get('title') %}is-invalid{% endif %}" name="title" value="{{ form_data.get('title', '') }}" required>
+                    <label class="form-label" for="job_title">Title <span class="required-mark">*</span></label>
+                    <input id="job_title" class="form-control {% if field_errors.get('title') %}is-invalid{% endif %}" name="title" value="{{ form_data.get('title', '') }}" autocomplete="off" required>
                     {% if field_errors.get('title') %}<div class="invalid-feedback d-block">{{ field_errors['title'] }}</div>{% endif %}
                 </div>
                 <div class="mb-3">
-                    <label class="form-label">Description</label>
-                    <textarea class="form-control {% if field_errors.get('description') %}is-invalid{% endif %}" name="description">{{ form_data.get('description', '') }}</textarea>
+                    <label class="form-label" for="job_description">Description</label>
+                    <textarea id="job_description" class="form-control {% if field_errors.get('description') %}is-invalid{% endif %}" name="description">{{ form_data.get('description', '') }}</textarea>
                     {% if field_errors.get('description') %}<div class="invalid-feedback d-block">{{ field_errors['description'] }}</div>{% endif %}
                 </div>
                 <div class="row g-3">
                     <div class="col-md-6">
-                        <label class="form-label">Role type</label>
-                        <select class="form-select {% if field_errors.get('role_type') %}is-invalid{% endif %}" name="role_type">
+                        <label class="form-label" for="job_role_type">Role type <span class="required-mark">*</span></label>
+                        <select id="job_role_type" class="form-select {% if field_errors.get('role_type') %}is-invalid{% endif %}" name="role_type" required>
                             <option value="full_time" {% if form_data.get('role_type') == 'full_time' %}selected{% endif %}>Full-time</option>
                             <option value="internship" {% if form_data.get('role_type') == 'internship' %}selected{% endif %}>Internship</option>
                         </select>
                         {% if field_errors.get('role_type') %}<div class="invalid-feedback d-block">{{ field_errors['role_type'] }}</div>{% endif %}
                     </div>
                     <div class="col-md-6">
-                        <label class="form-label">Deadline</label>
-                        <input class="form-control deadline-input {% if field_errors.get('application_deadline') %}is-invalid{% endif %}" name="application_deadline" type="datetime-local" value="{{ form_data.get('application_deadline', '') }}">
+                        <label class="form-label" for="job_deadline">Deadline</label>
+                        <input id="job_deadline" class="form-control deadline-input {% if field_errors.get('application_deadline') %}is-invalid{% endif %}" name="application_deadline" type="datetime-local" value="{{ form_data.get('application_deadline', '') }}">
                         {% if field_errors.get('application_deadline') %}<div class="invalid-feedback d-block">{{ field_errors['application_deadline'] }}</div>{% else %}<small class="text-danger d-none error-message" role="alert" style="display: block; margin-top: 5px;"></small>{% endif %}
                     </div>
                     <div class="col-md-6">
-                        <label class="form-label">Min CGPA</label>
-                        <input class="form-control {% if field_errors.get('min_cgpa') %}is-invalid{% endif %}" name="min_cgpa" type="number" min="0" max="10" step="0.1" value="{{ form_data.get('min_cgpa', '') }}">
+                        <label class="form-label" for="job_min_cgpa">Min CGPA</label>
+                        <input id="job_min_cgpa" class="form-control {% if field_errors.get('min_cgpa') %}is-invalid{% endif %}" name="min_cgpa" type="number" min="0" max="10" step="0.01" value="{{ form_data.get('min_cgpa', '') }}">
                         {% if field_errors.get('min_cgpa') %}<div class="invalid-feedback d-block">{{ field_errors['min_cgpa'] }}</div>{% endif %}
                     </div>
                     <div class="col-md-6">
-                        <label class="form-label">Max backlogs</label>
-                        <input class="form-control {% if field_errors.get('max_backlogs') %}is-invalid{% endif %}" name="max_backlogs" type="number" min="0" value="{{ form_data.get('max_backlogs', '') }}">
+                        <label class="form-label" for="job_max_backlogs">Max backlogs</label>
+                        <input id="job_max_backlogs" class="form-control {% if field_errors.get('max_backlogs') %}is-invalid{% endif %}" name="max_backlogs" type="number" min="0" value="{{ form_data.get('max_backlogs', '') }}">
                         {% if field_errors.get('max_backlogs') %}<div class="invalid-feedback d-block">{{ field_errors['max_backlogs'] }}</div>{% endif %}
                     </div>
-                    <div class="col-md-6">
-                        <label class="form-label">CTC</label>
-                        <input class="form-control {% if field_errors.get('ctc') %}is-invalid{% elif '__root__' in field_errors and 'CTC' in field_errors['__root__'] %}is-invalid{% endif %}" name="ctc" type="number" min="0" step="0.1" value="{{ form_data.get('ctc', '') }}">
+                    <div class="col-md-6 role-field" data-role-field="full_time">
+                        <label class="form-label" for="job_ctc">CTC <span class="required-mark">*</span></label>
+                        <input id="job_ctc" class="form-control {% if field_errors.get('ctc') %}is-invalid{% elif '__root__' in field_errors and 'CTC' in field_errors['__root__'] %}is-invalid{% endif %}" name="ctc" type="number" min="0" step="0.1" value="{{ form_data.get('ctc', '') }}">
                         {% if field_errors.get('ctc') %}<div class="invalid-feedback d-block">{{ field_errors['ctc'] }}</div>{% elif '__root__' in field_errors and 'CTC' in field_errors['__root__'] %}<div class="invalid-feedback d-block">{{ field_errors['__root__'] }}</div>{% endif %}
                     </div>
-                    <div class="col-md-6">
-                        <label class="form-label">Stipend</label>
-                        <input class="form-control {% if field_errors.get('stipend') %}is-invalid{% elif '__root__' in field_errors and 'stipend' in field_errors['__root__'] %}is-invalid{% endif %}" name="stipend" type="number" min="0" step="0.1" value="{{ form_data.get('stipend', '') }}">
+                    <div class="col-md-6 role-field" data-role-field="internship">
+                        <label class="form-label" for="job_stipend">Stipend <span class="required-mark">*</span></label>
+                        <input id="job_stipend" class="form-control {% if field_errors.get('stipend') %}is-invalid{% elif '__root__' in field_errors and 'stipend' in field_errors['__root__'] %}is-invalid{% endif %}" name="stipend" type="number" min="0" step="0.1" value="{{ form_data.get('stipend', '') }}">
                         {% if field_errors.get('stipend') %}<div class="invalid-feedback d-block">{{ field_errors['stipend'] }}</div>{% elif '__root__' in field_errors and 'stipend' in field_errors['__root__'] %}<div class="invalid-feedback d-block">{{ field_errors['__root__'] }}</div>{% endif %}
                     </div>
-                    <div class="col-md-6">
-                        <label class="form-label">Internship duration</label>
-                        <input class="form-control {% if field_errors.get('internship_duration') %}is-invalid{% elif '__root__' in field_errors and 'duration' in field_errors['__root__'] %}is-invalid{% endif %}" name="internship_duration" value="{{ form_data.get('internship_duration', '') }}">
+                    <div class="col-md-6 role-field" data-role-field="internship">
+                        <label class="form-label" for="job_duration">Internship duration <span class="required-mark">*</span></label>
+                        <input id="job_duration" class="form-control {% if field_errors.get('internship_duration') %}is-invalid{% elif '__root__' in field_errors and 'duration' in field_errors['__root__'] %}is-invalid{% endif %}" name="internship_duration" value="{{ form_data.get('internship_duration', '') }}">
                         {% if field_errors.get('internship_duration') %}<div class="invalid-feedback d-block">{{ field_errors['internship_duration'] }}</div>{% elif '__root__' in field_errors and 'duration' in field_errors['__root__'] %}<div class="invalid-feedback d-block">{{ field_errors['__root__'] }}</div>{% endif %}
                     </div>
-                    <div class="col-md-6">
+                    <div class="col-md-6 role-field" data-role-field="internship">
                         <label class="form-label">PPO available</label>
                         <div class="form-check mt-2">
                             <input class="form-check-input" name="ppo_available" type="checkbox" {% if form_data.get('ppo_available') %}checked{% endif %}>
@@ -134,18 +134,24 @@
                                     <a class="btn btn-sm btn-outline-secondary" href="/ui/company/jobs/{{ job.id }}/applicants">Applicants</a>
                                     {% if not job.closed %}
                                     <button class="btn btn-sm btn-outline-info" data-bs-toggle="modal" data-bs-target="#editDeadlineModal{{ job.id }}" title="Edit Application Deadline">📅 Deadline</button>
-                                    <form method="post" action="/ui/company/jobs/{{ job.id }}/close" data-confirm="Close '{{ job.title }}'? You CANNOT offer students after closing. Make sure all offers are made first!">
+                                    <form method="post" action="/ui/company/jobs/{{ job.id }}/close" data-confirm-title="Close job" data-confirm="Close '{{ job.title }}'? Students can no longer apply and all existing applications will be marked closed. Make sure all offers are made first." data-confirm-button="Close job" data-confirm-variant="btn-warning">
                                         <button class="btn btn-sm btn-outline-warning" type="submit" data-loading-text="Closing...">Close</button>
                                     </form>
                                     {% endif %}
-                                    <form method="post" action="/ui/company/jobs/{{ job.id }}/delete" data-confirm="Delete {{ job.title }}?">
+                                    <form method="post" action="/ui/company/jobs/{{ job.id }}/delete" data-confirm-title="Delete job" data-confirm="Delete '{{ job.title }}'? This is only allowed when there are no applications or offers. This action cannot be undone." data-confirm-button="Delete job" data-confirm-variant="btn-danger">
                                         <button class="btn btn-sm btn-outline-danger" type="submit" data-loading-text="Deleting...">Delete</button>
                                     </form>
                                 </div>
                             </td>
                         </tr>
                         {% else %}
-                        <tr><td colspan="10" class="text-muted">No jobs created yet.</td></tr>
+                        <tr>
+                            <td colspan="10">
+                                {% set title = "No jobs created yet" %}
+                                {% set message = "Create your first job once your company profile is verified." %}
+                                {% include "components/empty_state.html" %}
+                            </td>
+                        </tr>
                         {% endfor %}
                     </tbody>
                 </table>
@@ -161,7 +167,7 @@
         <div class="modal-content">
             <div class="modal-header">
                 <h5 class="modal-title">Update Application Deadline</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close deadline dialog"></button>
             </div>
             <form method="post" action="/ui/company/jobs/{{ job.id }}/deadline">
                 <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
@@ -181,7 +187,7 @@
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                    <button type="submit" class="btn btn-primary">Update Deadline</button>
+                    <button type="submit" class="btn btn-primary" data-loading-text="Updating...">Update Deadline</button>
                 </div>
             </form>
         </div>
@@ -208,6 +214,20 @@
         if (allToggle) {
             allToggle.addEventListener("change", refreshBranchState);
             refreshBranchState();
+        }
+
+        const roleSelect = document.getElementById("job_role_type");
+        const roleFields = Array.from(document.querySelectorAll(".role-field"));
+        function refreshRoleFields() {
+            if (!roleSelect) return;
+            roleFields.forEach(function (field) {
+                const shouldShow = field.dataset.roleField === roleSelect.value;
+                field.classList.toggle("d-none", !shouldShow);
+            });
+        }
+        if (roleSelect) {
+            roleSelect.addEventListener("change", refreshRoleFields);
+            refreshRoleFields();
         }
 
         // Validate deadline inputs - prevent setting past deadlines

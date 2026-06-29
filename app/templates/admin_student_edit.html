@@ -13,35 +13,35 @@
         <form method="post" action="/ui/admin/students/{{ student.id }}">
             <div class="row g-3">
                 <div class="col-md-6">
-                    <label class="form-label">Reg No</label>
-                    <input class="form-control {% if field_errors.get('reg_no') %}is-invalid{% endif %}" name="reg_no" value="{{ form_data.get('reg_no', student.reg_no) }}">
+                    <label class="form-label" for="student_reg_no">Reg No <span class="required-mark">*</span></label>
+                    <input id="student_reg_no" class="form-control {% if field_errors.get('reg_no') %}is-invalid{% endif %}" name="reg_no" value="{{ form_data.get('reg_no', student.reg_no) }}" autocomplete="off" required>
                     {% if field_errors.get('reg_no') %}<div class="invalid-feedback d-block">{{ field_errors['reg_no'] }}</div>{% endif %}
                 </div>
                 <div class="col-md-6">
-                    <label class="form-label">Roll No</label>
-                    <input class="form-control {% if field_errors.get('roll_no') %}is-invalid{% endif %}" name="roll_no" value="{{ form_data.get('roll_no', student.roll_no) }}">
+                    <label class="form-label" for="student_roll_no">Roll No <span class="required-mark">*</span></label>
+                    <input id="student_roll_no" class="form-control {% if field_errors.get('roll_no') %}is-invalid{% endif %}" name="roll_no" value="{{ form_data.get('roll_no', student.roll_no) }}" autocomplete="off" required>
                     {% if field_errors.get('roll_no') %}<div class="invalid-feedback d-block">{{ field_errors['roll_no'] }}</div>{% endif %}
                 </div>
                 <div class="col-md-4">
-                    <label class="form-label">CGPA</label>
-                    <input class="form-control {% if field_errors.get('cgpa') %}is-invalid{% endif %}" name="cgpa" value="{{ form_data.get('cgpa', student.cgpa) }}" type="number" min="0" max="10" step="0.1">
+                    <label class="form-label" for="student_cgpa">CGPA <span class="required-mark">*</span></label>
+                    <input id="student_cgpa" class="form-control {% if field_errors.get('cgpa') %}is-invalid{% endif %}" name="cgpa" value="{{ form_data.get('cgpa', student.cgpa) }}" type="number" min="0" max="10" step="0.01" required>
                     {% if field_errors.get('cgpa') %}<div class="invalid-feedback d-block">{{ field_errors['cgpa'] }}</div>{% endif %}
                 </div>
                 <div class="col-md-4">
-                    <label class="form-label">Branch</label>
-                    <select class="form-select {% if field_errors.get('branch') %}is-invalid{% endif %}" name="branch">
+                    <label class="form-label" for="student_branch">Branch <span class="required-mark">*</span></label>
+                    <select id="student_branch" class="form-select {% if field_errors.get('branch') %}is-invalid{% endif %}" name="branch" required>
                         {% for branch in Branch %}<option value="{{ branch.value }}" {% if form_data.get('branch', student.branch.value if student.branch.value else '') == branch.value %}selected{% endif %}>{{ branch.value }}</option>{% endfor %}
                     </select>
                     {% if field_errors.get('branch') %}<div class="invalid-feedback d-block">{{ field_errors['branch'] }}</div>{% endif %}
                 </div>
                 <div class="col-md-4">
-                    <label class="form-label">Backlogs</label>
-                    <input class="form-control {% if field_errors.get('backlogs') %}is-invalid{% endif %}" name="backlogs" value="{{ form_data.get('backlogs', student.backlogs) }}" type="number" min="0">
+                    <label class="form-label" for="student_backlogs">Backlogs <span class="required-mark">*</span></label>
+                    <input id="student_backlogs" class="form-control {% if field_errors.get('backlogs') %}is-invalid{% endif %}" name="backlogs" value="{{ form_data.get('backlogs', student.backlogs) }}" type="number" min="0" required>
                     {% if field_errors.get('backlogs') %}<div class="invalid-feedback d-block">{{ field_errors['backlogs'] }}</div>{% endif %}
                 </div>
                 <div class="col-md-4">
-                    <label class="form-label">Gender</label>
-                    <select class="form-select {% if field_errors.get('gender') %}is-invalid{% endif %}" name="gender" required>
+                    <label class="form-label" for="student_gender">Gender <span class="required-mark">*</span></label>
+                    <select id="student_gender" class="form-select {% if field_errors.get('gender') %}is-invalid{% endif %}" name="gender" required>
                         {% for gender in Gender %}
                         <option value="{{ gender.value }}" {% if form_data.get('gender', student.gender.value if student.gender else '') == gender.value %}selected{% endif %}>{{ gender.value|title }}</option>
                         {% endfor %}
@@ -49,12 +49,12 @@
                     {% if field_errors.get('gender') %}<div class="invalid-feedback d-block">{{ field_errors['gender'] }}</div>{% endif %}
                 </div>
                 <div class="col-md-6">
-                    <label class="form-label">Graduation year</label>
-                    <input class="form-control {% if field_errors.get('graduation_year') %}is-invalid{% endif %}" name="graduation_year" value="{{ form_data.get('graduation_year', student.graduation_year) }}" type="number">
+                    <label class="form-label" for="student_graduation_year">Graduation year <span class="required-mark">*</span></label>
+                    <input id="student_graduation_year" class="form-control {% if field_errors.get('graduation_year') %}is-invalid{% endif %}" name="graduation_year" value="{{ form_data.get('graduation_year', student.graduation_year) }}" type="number" min="2000" max="2100" required>
                     {% if field_errors.get('graduation_year') %}<div class="invalid-feedback d-block">{{ field_errors['graduation_year'] }}</div>{% endif %}
                 </div>
             </div>
-            <button class="btn btn-primary mt-3" type="submit">Save changes</button>
+            <button class="btn btn-primary mt-3" type="submit" data-loading-text="Saving...">Save changes</button>
         </form>
     </div>
 </div>

@@ -28,6 +28,14 @@ def _fmt_dt(value: Optional[datetime]) -> str:
 templates.env.filters["fmt_datetime"] = _fmt_dt
 
 
+def _clean_validation_message(message: object) -> str:
+    text = str(message or "Invalid input")
+    for prefix in ("Value error, ", "Input should be "):
+        if text.startswith(prefix):
+            return text[len(prefix):]
+    return text
+
+
 def set_flash(request: Request, message: str, category: str = "info") -> None:
     request.session["_flash"] = {"message": message, "category": category}
 
@@ -98,7 +106,7 @@ def validation_message(exc: ValidationError | ValueError) -> str:
     if isinstance(exc, ValidationError):
         errors = exc.errors()
         if errors:
-            return "; ".join(str(item.get("msg", "Invalid input")) for item in errors)
+            return "; ".join(_clean_validation_message(item.get("msg", "Invalid input")) for item in errors)
         return "Invalid input"
     return str(exc) or "Invalid input"
 
@@ -112,9 +120,9 @@ def extract_field_errors(exc: ValidationError | ValueError) -> dict[str, str]:
     if isinstance(exc, ValidationError):
         for error in exc.errors():
             field = error.get("loc", (None,))[0]
-            msg = error.get("msg", "Invalid input")
+            msg = _clean_validation_message(error.get("msg", "Invalid input"))
             if field:
-                errors_dict[str(field)] = str(msg)
+                errors_dict[str(field)] = msg
     elif isinstance(exc, ValueError):
         # For custom errors, map them to a generic field or extract field name if present
         msg = str(exc)

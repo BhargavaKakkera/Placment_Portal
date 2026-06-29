@@ -53,15 +53,15 @@
                 <td>
                     <div class="d-flex gap-2">
                         {% if item.resume_url %}
-                        <a class="btn btn-sm btn-outline-info" href="{{ item.resume_url }}" target="_blank" title="View Resume">
+                        <a class="btn btn-sm btn-outline-info" href="{{ item.resume_url }}" target="_blank" rel="noopener noreferrer" title="View Resume" aria-label="View resume for {{ item.student_name }}">
                             <span>📄 Resume</span>
                         </a>
                         {% else %}
-                        <button class="btn btn-sm btn-outline-secondary" disabled title="No resume uploaded">
+                        <button class="btn btn-sm btn-outline-secondary" disabled title="No resume uploaded" aria-label="No resume uploaded for {{ item.student_name }}">
                             <span>📄 Resume</span>
                         </button>
                         {% endif %}
-                        <button class="btn btn-sm btn-outline-primary" data-bs-toggle="modal" data-bs-target="#studentDetailsModal{{ item.id }}" title="View Personal Details">
+                        <button class="btn btn-sm btn-outline-primary" data-bs-toggle="modal" data-bs-target="#studentDetailsModal{{ item.id }}" title="View Personal Details" aria-label="View personal details for {{ item.student_name }}">
                             <span>👤 Details</span>
                         </button>
                     </div>
@@ -72,7 +72,13 @@
                     {% elif item.status.value in ["closed_by_job", "inactive_student"] %}
                     <span class="text-muted small">No actions</span>
                     {% else %}
-                    <form method="post" action="/ui/company/applications/{{ item.id }}" class="row g-2 application-form">
+                    <form method="post" action="/ui/company/applications/{{ item.id }}" class="row g-2 application-form"
+                        {% if item.status.value == "accepted" %}
+                        data-confirm-title="Reject accepted application"
+                        data-confirm-message="This will revoke the accepted application for {{ item.student_name }}. The student will no longer appear as accepted for this job."
+                        data-confirm-button="Reject application"
+                        data-confirm-variant="danger"
+                        {% endif %}>
                         <div class="col-12"><select class="form-select form-select-sm action-select" name="status" data-item-id="{{ item.id }}">
                             {% if item.status.value == "applied" %}
                             <option value="shortlisted">Shortlist</option>
@@ -102,13 +108,21 @@
                             <small class="text-danger d-none error-message" style="font-size: 0.75rem; display: block; margin-top: 3px;"></small>
                             <input type="hidden" name="offer_response_deadline_utc" class="deadline-input-utc">
                         </div>
-                        <div class="col-12"><button class="btn btn-sm btn-primary w-100 submit-btn" type="submit">Update</button></div>
+                        <div class="col-12"><button class="btn btn-sm btn-primary w-100 submit-btn" type="submit" data-loading-text="Updating...">Update</button></div>
                     </form>
                     {% endif %}
                 </td>
             </tr>
             {% else %}
-            <tr><td colspan="8" class="text-muted">No applicants yet.</td></tr>
+            <tr>
+                <td colspan="8">
+                    {% set title = "No applicants yet" %}
+                    {% set message = "Applications for this job will appear here after students apply." %}
+                    {% set action_url = "/ui/company/jobs" %}
+                    {% set action_text = "Back to jobs" %}
+                    {% include "components/empty_state.html" %}
+                </td>
+            </tr>
             {% endfor %}
         </tbody>
     </table>
@@ -120,7 +134,7 @@
         <div class="modal-content">
             <div class="modal-header">
                 <h5 class="modal-title">Personal Details - {{ item.student_name }}</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <div class="modal-body">
                 <div class="row">
@@ -150,49 +164,49 @@
                 <div class="row">
                     {% if item.github_url %}
                     <div class="col-md-6 mb-2">
-                        <a class="btn btn-sm btn-outline-secondary w-100" href="{{ item.github_url }}" target="_blank">
+                        <a class="btn btn-sm btn-outline-secondary w-100" href="{{ item.github_url }}" target="_blank" rel="noopener noreferrer">
                             <span>🐙 GitHub</span>
                         </a>
                     </div>
                     {% endif %}
                     {% if item.linkedin_url %}
                     <div class="col-md-6 mb-2">
-                        <a class="btn btn-sm btn-outline-secondary w-100" href="{{ item.linkedin_url }}" target="_blank">
+                        <a class="btn btn-sm btn-outline-secondary w-100" href="{{ item.linkedin_url }}" target="_blank" rel="noopener noreferrer">
                             <span>💼 LinkedIn</span>
                         </a>
                     </div>
                     {% endif %}
                     {% if item.leetcode_url %}
                     <div class="col-md-6 mb-2">
-                        <a class="btn btn-sm btn-outline-secondary w-100" href="{{ item.leetcode_url }}" target="_blank">
+                        <a class="btn btn-sm btn-outline-secondary w-100" href="{{ item.leetcode_url }}" target="_blank" rel="noopener noreferrer">
                             <span>💻 LeetCode</span>
                         </a>
                     </div>
                     {% endif %}
                     {% if item.codeforces_url %}
                     <div class="col-md-6 mb-2">
-                        <a class="btn btn-sm btn-outline-secondary w-100" href="{{ item.codeforces_url }}" target="_blank">
+                        <a class="btn btn-sm btn-outline-secondary w-100" href="{{ item.codeforces_url }}" target="_blank" rel="noopener noreferrer">
                             <span>⚡ CodeForces</span>
                         </a>
                     </div>
                     {% endif %}
                     {% if item.hackerrank_url %}
                     <div class="col-md-6 mb-2">
-                        <a class="btn btn-sm btn-outline-secondary w-100" href="{{ item.hackerrank_url }}" target="_blank">
+                        <a class="btn btn-sm btn-outline-secondary w-100" href="{{ item.hackerrank_url }}" target="_blank" rel="noopener noreferrer">
                             <span>🏆 HackerRank</span>
                         </a>
                     </div>
                     {% endif %}
                     {% if item.portfolio_url %}
                     <div class="col-md-6 mb-2">
-                        <a class="btn btn-sm btn-outline-secondary w-100" href="{{ item.portfolio_url }}" target="_blank">
+                        <a class="btn btn-sm btn-outline-secondary w-100" href="{{ item.portfolio_url }}" target="_blank" rel="noopener noreferrer">
                             <span>🌐 Portfolio</span>
                         </a>
                     </div>
                     {% endif %}
                     {% if item.other_coding_url %}
                     <div class="col-md-6 mb-2">
-                        <a class="btn btn-sm btn-outline-secondary w-100" href="{{ item.other_coding_url }}" target="_blank">
+                        <a class="btn btn-sm btn-outline-secondary w-100" href="{{ item.other_coding_url }}" target="_blank" rel="noopener noreferrer">
                             <span>🔗 Other Profile</span>
                         </a>
                     </div>
@@ -262,7 +276,7 @@
                 
                 if (inputDateTime <= now) {
                     if (errorMsg) {
-                        errorMsg.textContent = "❌ Deadline must be in future";
+                        errorMsg.textContent = "Deadline must be in the future.";
                         errorMsg.classList.remove("d-none");
                     }
                     submitBtn.disabled = true;

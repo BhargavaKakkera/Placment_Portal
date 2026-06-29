@@ -28,7 +28,10 @@
 <div class="card shadow-sm">
     <div class="card-body">
         <form method="post" action="/ui/company/profile">
-            <div class="mb-3"><label class="form-label">Company name</label><input class="form-control" name="name" required></div>
+            <div class="mb-3">
+                <label class="form-label" for="company_name">Company name <span class="required-mark">*</span></label>
+                <input id="company_name" class="form-control" name="name" autocomplete="organization" required>
+            </div>
             <button class="btn btn-primary" type="submit" data-loading-text="Creating...">Create company profile</button>
         </form>
     </div>

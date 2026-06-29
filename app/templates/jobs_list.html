@@ -5,9 +5,31 @@
     <h1 class="h3 mb-0">Verified jobs</h1>
     <a class="btn btn-outline-secondary" href="/ui/">Back home</a>
 </div>
+<div class="card shadow-sm mb-3">
+    <div class="card-body">
+        <form method="get" action="/ui/jobs" class="row g-2 align-items-end">
+            <div class="col-md-6">
+                <label class="form-label" for="job_search">Search jobs</label>
+                <input id="job_search" class="form-control" name="q" value="{{ job_search or '' }}" placeholder="Search by title or company" autocomplete="off">
+            </div>
+            <div class="col-md-3">
+                <label class="form-label" for="role_type_filter">Role</label>
+                <select id="role_type_filter" class="form-select" name="role_type">
+                    <option value="">All roles</option>
+                    <option value="full_time" {% if role_filter == 'full_time' %}selected{% endif %}>Full-time</option>
+                    <option value="internship" {% if role_filter == 'internship' %}selected{% endif %}>Internship</option>
+                </select>
+            </div>
+            <div class="col-md-3 d-flex gap-2">
+                <button class="btn btn-primary" type="submit">Apply filters</button>
+                <a class="btn btn-outline-secondary" href="/ui/jobs">Clear</a>
+            </div>
+        </form>
+    </div>
+</div>
 <div class="table-responsive">
     <table class="table table-striped align-middle">
-        <thead><tr><th>ID</th><th>Company</th><th>Title</th><th>Role</th><th>CTC/Stipend</th><th>Duration</th><th>{% if jobs and jobs[0].role_type.value == "internship" %}PPO{% endif %}</th><th>Eligible branches</th><th>Deadline</th><th></th></tr></thead>
+        <thead><tr><th>ID</th><th>Company</th><th>Title</th><th>Role</th><th>CTC/Stipend</th><th>Duration</th><th>PPO</th><th>Eligible branches</th><th>Deadline</th><th></th></tr></thead>
         <tbody>
             {% for job in jobs %}
             <tr>
@@ -17,14 +39,22 @@
                 <td>{{ job.title }}</td>
                 <td>{{ job.role_type.value }}</td>
                 <td>{{ job.ctc or job.stipend or "-" }}</td>
-                <td>{{ job.internship_duration or "-" }}</td>
-                {% if job.role_type.value == "internship" %}<td>{{ "Yes" if job.ppo_available else "No" }}</td>{% endif %}
+                <td>{{ job.internship_duration if job.role_type.value == "internship" else "N/A" }}</td>
+                <td>{{ "Yes" if job.role_type.value == "internship" and job.ppo_available else "No" if job.role_type.value == "internship" else "N/A" }}</td>
                 <td>{{ job.allowed_branches or "All" }}</td>
                 <td>{{ job.application_deadline|fmt_datetime }}</td>
                 <td><a class="btn btn-sm btn-primary" href="/ui/jobs/{{ job.id }}">Details</a></td>
             </tr>
             {% else %}
-            <tr><td colspan="9" class="text-muted">No jobs found.</td></tr>
+            <tr>
+                <td colspan="10">
+                    {% set title = "No jobs found" %}
+                    {% set message = "Try clearing filters or searching for a different company or role." %}
+                    {% set action_url = "/ui/jobs" %}
+                    {% set action_text = "Clear filters" %}
+                    {% include "components/empty_state.html" %}
+                </td>
+            </tr>
             {% endfor %}
         </tbody>
     </table>

@@ -59,7 +59,15 @@
                 <td><small class="text-muted">{{ item.applied_at|fmt_datetime }}</small></td>
             </tr>
             {% else %}
-            <tr><td colspan="7" class="text-muted">No applications found.</td></tr>
+            <tr>
+                <td colspan="7">
+                    {% set title = "No applications yet" %}
+                    {% set message = "Jobs you apply to will show up here with their latest status." %}
+                    {% set action_url = "/ui/student/jobs" %}
+                    {% set action_text = "Browse eligible jobs" %}
+                    {% include "components/empty_state.html" %}
+                </td>
+            </tr>
             {% endfor %}
         </tbody>
     </table>

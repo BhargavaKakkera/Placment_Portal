@@ -6,10 +6,24 @@
         <div class="card shadow-sm">
             <div class="card-body">
                 <h1 class="h4 mb-3">Login</h1>
+                {% if error_message %}
+                <div class="alert alert-danger" role="alert">{{ error_message }}</div>
+                {% endif %}
                 <form method="post" action="/ui/login">
-                    <div class="mb-3"><label class="form-label">Email</label><input class="form-control" name="email" type="email" required></div>
-                    <div class="mb-3"><label class="form-label">Password</label><input class="form-control" name="password" type="password" required></div>
-                    <button class="btn btn-primary w-100" type="submit">Login</button>
+                    <div class="mb-3">
+                        <label class="form-label" for="login_email">Email <span class="required-mark">*</span></label>
+                        <input id="login_email" class="form-control {% if field_errors.get('email') %}is-invalid{% endif %}" name="email" type="email" value="{{ form_data.get('email', '') }}" autocomplete="email" required>
+                        {% if field_errors.get('email') %}<div class="invalid-feedback d-block">{{ field_errors['email'] }}</div>{% endif %}
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label" for="login_password">Password <span class="required-mark">*</span></label>
+                        <div class="input-group">
+                            <input id="login_password" class="form-control {% if field_errors.get('password') %}is-invalid{% endif %}" name="password" type="password" autocomplete="current-password" required>
+                            <button class="btn btn-outline-secondary" type="button" data-password-toggle="login_password" aria-label="Show password">Show</button>
+                        </div>
+                        {% if field_errors.get('password') %}<div class="invalid-feedback d-block">{{ field_errors['password'] }}</div>{% endif %}
+                    </div>
+                    <button class="btn btn-primary w-100" type="submit" data-loading-text="Signing in...">Login</button>
                 </form>
                 <div class="d-flex justify-content-between mt-3 small">
                     <a href="/ui/forgot-password">Forgot password?</a>

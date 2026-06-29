@@ -138,7 +138,9 @@ def reject_applicant(
 def list_applications(
     session: Session, 
     skip: int = 0, 
-    limit: int = 100
+    limit: int = 100,
+    search: Optional[str] = None,
+    status: Optional[ApplicationStatus] = None,
 ) -> List[dict]:
     """List all applications with student/job/company context."""
     statement = (
@@ -146,10 +148,18 @@ def list_applications(
         .join(Student, Application.student_id == Student.id)
         .join(Job, Application.job_id == Job.id)
         .join(Company, Job.company_id == Company.id)
-        .order_by(Application.applied_at.desc())
-        .offset(skip)
-        .limit(limit)
     )
+    if search:
+        term = search.strip()
+        statement = statement.where(
+            (Student.name.ilike(f"%{term}%"))
+            | (Student.reg_no.ilike(f"%{term}%"))
+            | (Job.title.ilike(f"%{term}%"))
+            | (Company.name.ilike(f"%{term}%"))
+        )
+    if status is not None:
+        statement = statement.where(Application.status == status)
+    statement = statement.order_by(Application.applied_at.desc()).offset(skip).limit(limit)
     rows = session.exec(statement).all()
     return [
         {
@@ -235,9 +245,29 @@ def list_student_application_summaries(
     ]
 
 
-def count_applications(session: Session) -> int:
+def count_applications(
+    session: Session,
+    search: Optional[str] = None,
+    status: Optional[ApplicationStatus] = None,
+) -> int:
     """Count all applications."""
-    statement = select(func.count()).select_from(Application)
+    statement = (
+        select(func.count())
+        .select_from(Application)
+        .join(Student, Application.student_id == Student.id)
+        .join(Job, Application.job_id == Job.id)
+        .join(Company, Job.company_id == Company.id)
+    )
+    if search:
+        term = search.strip()
+        statement = statement.where(
+            (Student.name.ilike(f"%{term}%"))
+            | (Student.reg_no.ilike(f"%{term}%"))
+            | (Job.title.ilike(f"%{term}%"))
+            | (Company.name.ilike(f"%{term}%"))
+        )
+    if status is not None:
+        statement = statement.where(Application.status == status)
     return session.exec(statement).one()
 
 

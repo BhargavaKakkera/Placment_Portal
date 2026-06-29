@@ -9,7 +9,7 @@ from ..auth import create_access_token, create_email_verification_token, create_
 from ..config import DEBUG, ENABLE_RATE_LIMITING, MAX_PASSWORD_RESET_ATTEMPTS, PASSWORD_RESET_ATTEMPT_WINDOW_SECONDS
 from ..database import engine
 from ..email_service import send_email_verification_email, send_password_reset_email
-from ..enums import Role
+from ..enums import Role, RoleType
 from ..models import Company, User
 from ..schemas import EmailVerificationConfirmIn, PasswordResetConfirmIn, PasswordResetRequestIn, RegisterIn
 from ..rate_limiter import check_rate_limit, record_attempt, reset_limit
@@ -25,8 +25,9 @@ def home(request: Request):
     with Session(engine) as session:
         user = current_user(request, session)
         page, limit, skip = parse_page_limit(request, default_limit=12, max_limit=50)
-        jobs = crud.list_verified_jobs(session, skip, limit)
-        total = crud.count_verified_jobs(session)
+        job_search = str(request.query_params.get("q", "")).strip()
+        jobs = crud.list_verified_jobs(session, skip, limit, search=job_search or None)
+        total = crud.count_verified_jobs(session, search=job_search or None)
         companies_by_id = {company.id: company for company in crud.list_companies(session, 0, 1000, include_inactive=True)}
         pager = build_pager(request, total=total, page=page, limit=limit)
         return render(
@@ -37,6 +38,7 @@ def home(request: Request):
             jobs=jobs,
             companies_by_id=companies_by_id,
             pager=pager,
+            job_search=job_search,
         )
 
 
@@ -45,8 +47,16 @@ def jobs_page(request: Request):
     with Session(engine) as session:
         user = current_user(request, session)
         page, limit, skip = parse_page_limit(request, default_limit=20, max_limit=100)
-        jobs = crud.list_verified_jobs(session, skip, limit)
-        total = crud.count_verified_jobs(session)
+        job_search = str(request.query_params.get("q", "")).strip()
+        role_raw = str(request.query_params.get("role_type", "")).strip()
+        role_filter = None
+        if role_raw:
+            try:
+                role_filter = RoleType(role_raw)
+            except ValueError:
+                role_filter = None
+        jobs = crud.list_verified_jobs(session, skip, limit, search=job_search or None, role_type=role_filter)
+        total = crud.count_verified_jobs(session, search=job_search or None, role_type=role_filter)
         companies_by_id = {company.id: company for company in crud.list_companies(session, 0, 1000, include_inactive=True)}
         pager = build_pager(request, total=total, page=page, limit=limit)
         return render(
@@ -57,6 +67,8 @@ def jobs_page(request: Request):
             jobs=jobs,
             companies_by_id=companies_by_id,
             pager=pager,
+            job_search=job_search,
+            role_filter=role_raw,
         )
 
 
@@ -76,7 +88,15 @@ def login_page(request: Request):
         user = current_user(request, session)
         if user:
             return RedirectResponse(home_for(user), status_code=303)
-        return render(request, "auth_login.html", current_user=None, role_home="/ui/")
+        return render(
+            request,
+            "auth_login.html",
+            current_user=None,
+            role_home="/ui/",
+            form_data={},
+            field_errors={},
+            error_message=None,
+        )
 
 
 @router.post("/login", name="ui_login_post")
@@ -85,10 +105,21 @@ async def login_submit(request: Request):
         form = await read_form_with_csrf(request)
     except ValueError as exc:
         return redirect_to(request, "ui_login", str(exc), "warning")
+    form_data = {
+        "email": str(form.get("email", "")).strip(),
+    }
     with Session(engine) as session:
-        user = crud.authenticate_user(session, str(form.get("email", "")).strip(), str(form.get("password", "")))
+        user = crud.authenticate_user(session, form_data["email"], str(form.get("password", "")))
         if not user:
-            return redirect_to(request, "ui_login", "Incorrect credentials.", "danger")
+            return render(
+                request,
+                "auth_login.html",
+                current_user=None,
+                role_home="/ui/",
+                form_data=form_data,
+                field_errors={"email": "Invalid email or password.", "password": "Invalid email or password."},
+                error_message="Invalid email or password.",
+            )
         if user.role in {Role.company, Role.admin} and not getattr(user, "email_verified", False):
             return redirect_to(request, "ui_verify_email", "Please verify email first.", "warning")
         if user.role == Role.admin and not user.is_first_admin and not user.verified:

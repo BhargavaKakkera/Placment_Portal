@@ -123,10 +123,13 @@ def list_students(
     branch: Optional[Branch] = None,
     reg_no: Optional[str] = None,
     include_inactive: bool = False,
+    active: Optional[bool] = None,
 ) -> List[Student]:
     """List students with optional branch filtering."""
     statement = select(Student)
-    if not include_inactive:
+    if active is not None:
+        statement = statement.where(Student.is_active == active)
+    elif not include_inactive:
         statement = statement.where(Student.is_active == True)
     if branch is not None:
         statement = statement.where(Student.branch == branch)
@@ -141,10 +144,13 @@ def count_students(
     branch: Optional[Branch] = None,
     reg_no: Optional[str] = None,
     include_inactive: bool = False,
+    active: Optional[bool] = None,
 ) -> int:
     """Count students with optional branch filtering."""
     statement = select(func.count()).select_from(Student)
-    if not include_inactive:
+    if active is not None:
+        statement = statement.where(Student.is_active == active)
+    elif not include_inactive:
         statement = statement.where(Student.is_active == True)
     if branch is not None:
         statement = statement.where(Student.branch == branch)

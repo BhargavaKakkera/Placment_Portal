@@ -44,17 +44,23 @@
                     </td>
                     <td>
                         <div class="d-flex gap-2">
-                            <form method="post" action="/ui/student/offers/{{ item.id }}/accept">
+                            <form method="post" action="/ui/student/offers/{{ item.id }}/accept" data-confirm-title="Accept offer" data-confirm="Accept this offer from {{ item.company_name }}? This can affect which other offers and applications remain available to you." data-confirm-button="Accept offer" data-confirm-variant="btn-success">
                                 <button class="btn btn-sm btn-success" type="submit" data-loading-text="Accepting...">Accept</button>
                             </form>
-                            <form method="post" action="/ui/student/offers/{{ item.id }}/decline" data-confirm="Decline this offer?">
+                            <form method="post" action="/ui/student/offers/{{ item.id }}/decline" data-confirm-title="Decline offer" data-confirm="Decline this offer? You may not be able to accept it later unless the company sends another offer." data-confirm-button="Decline offer" data-confirm-variant="btn-danger">
                                 <button class="btn btn-sm btn-outline-danger" type="submit" data-loading-text="Declining...">Decline</button>
                             </form>
                         </div>
                     </td>
                 </tr>
                 {% else %}
-                <tr><td colspan="7" class="text-muted">No pending offers.</td></tr>
+                <tr>
+                    <td colspan="7">
+                        {% set title = "No pending offers" %}
+                        {% set message = "Offers that need your response will appear here." %}
+                        {% include "components/empty_state.html" %}
+                    </td>
+                </tr>
                 {% endfor %}
             </tbody>
         </table>
@@ -91,7 +97,13 @@
             <td><small class="text-muted">{{ item.created_at|fmt_datetime }}</small></td>
         </tr>
         {% else %}
-        <tr><td colspan="6" class="text-muted">No accepted offers.</td></tr>
+        <tr>
+            <td colspan="6">
+                {% set title = "No accepted offers" %}
+                {% set message = "Accepted offers will appear here for your records." %}
+                {% include "components/empty_state.html" %}
+            </td>
+        </tr>
         {% endfor %}
             </tbody>
         </table>

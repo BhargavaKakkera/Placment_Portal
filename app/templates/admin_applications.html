@@ -5,6 +5,29 @@
     <h1 class="h3 mb-0">Applications</h1>
     <a class="btn btn-outline-secondary" href="/ui/admin">Back to dashboard</a>
 </div>
+<div class="card shadow-sm mb-3">
+    <div class="card-body">
+        <form method="get" action="/ui/admin/applications" class="row g-2 align-items-end">
+            <div class="col-md-6">
+                <label class="form-label" for="application_search">Search applications</label>
+                <input id="application_search" class="form-control" name="q" value="{{ application_search or '' }}" placeholder="Student, reg no, company, or job" autocomplete="off">
+            </div>
+            <div class="col-md-3">
+                <label class="form-label" for="application_status">Status</label>
+                <select id="application_status" class="form-select" name="status">
+                    <option value="">All statuses</option>
+                    {% for status in ApplicationStatus %}
+                    <option value="{{ status.value }}" {% if status_filter == status.value %}selected{% endif %}>{{ status.value|replace('_', ' ')|title }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-3 d-flex gap-2">
+                <button class="btn btn-primary" type="submit">Apply filters</button>
+                <a class="btn btn-outline-secondary" href="/ui/admin/applications">Clear</a>
+            </div>
+        </form>
+    </div>
+</div>
 <div class="table-responsive">
     <table class="table table-striped align-middle">
         <thead><tr><th>Student</th><th>Company</th><th>Job</th><th>Type</th><th>CTC/Stipend</th><th>PPO</th><th>Status</th><th>Applied at</th></tr></thead>
@@ -58,7 +81,15 @@
                 <td><small class="text-muted">{{ item.applied_at|fmt_datetime }}</small></td>
             </tr>
             {% else %}
-            <tr><td colspan="8" class="text-muted">No applications found.</td></tr>
+            <tr>
+                <td colspan="8">
+                    {% set title = "No applications found" %}
+                    {% set message = "Try clearing filters or searching for another student, company, or job." %}
+                    {% set action_url = "/ui/admin/applications" %}
+                    {% set action_text = "Clear filters" %}
+                    {% include "components/empty_state.html" %}
+                </td>
+            </tr>
             {% endfor %}
         </tbody>
     </table>

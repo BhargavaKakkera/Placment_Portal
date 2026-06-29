@@ -90,24 +90,40 @@ def list_companies(
     limit: int = 100,
     verified: bool = None,
     include_inactive: bool = False,
+    search: Optional[str] = None,
+    active: Optional[bool] = None,
 ) -> List[Company]:
     """List companies with optional filtering."""
     statement = select(Company)
-    if not include_inactive:
+    if active is not None:
+        statement = statement.where(Company.is_active == active)
+    elif not include_inactive:
         statement = statement.where(Company.is_active == True)
     if verified is not None:
         statement = statement.where(Company.verified == verified)
+    if search:
+        statement = statement.where(Company.name.ilike(f"%{search.strip()}%"))
     statement = statement.order_by(Company.name.asc(), Company.id.asc()).offset(skip).limit(limit)
     return session.exec(statement).all()
 
 
-def count_companies(session: Session, verified: bool = None, include_inactive: bool = False) -> int:
+def count_companies(
+    session: Session,
+    verified: bool = None,
+    include_inactive: bool = False,
+    search: Optional[str] = None,
+    active: Optional[bool] = None,
+) -> int:
     """Count companies with optional filtering."""
     statement = select(func.count()).select_from(Company)
-    if not include_inactive:
+    if active is not None:
+        statement = statement.where(Company.is_active == active)
+    elif not include_inactive:
         statement = statement.where(Company.is_active == True)
     if verified is not None:
         statement = statement.where(Company.verified == verified)
+    if search:
+        statement = statement.where(Company.name.ilike(f"%{search.strip()}%"))
     return session.exec(statement).one()
 
 

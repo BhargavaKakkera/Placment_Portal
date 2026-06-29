@@ -139,6 +139,8 @@ async def admin_verify_admin_submit(user_id: int, request: Request):
 def admin_students_page(request: Request):
     branch_raw = txt(request.query_params.get("branch"))
     reg_no_filter = txt(request.query_params.get("reg_no"))
+    active_raw = txt(request.query_params.get("active")) or ""
+    active_filter = {"yes": True, "no": False}.get(active_raw)
     branch_filter = None
     if branch_raw:
         try:
@@ -158,12 +160,14 @@ def admin_students_page(request: Request):
             branch=branch_filter,
             reg_no=reg_no_filter,
             include_inactive=True,
+            active=active_filter,
         )
         total = crud.count_students(
             session,
             branch=branch_filter,
             reg_no=reg_no_filter,
             include_inactive=True,
+            active=active_filter,
         )
         pager = build_pager(request, total=total, page=page, limit=limit)
         return render(
@@ -178,6 +182,7 @@ def admin_students_page(request: Request):
             error_message=None,
             branch_filter=branch_raw or "",
             reg_no_filter=reg_no_filter or "",
+            active_filter=active_raw,
             pager=pager,
         )
 
@@ -306,23 +311,23 @@ async def admin_students_provision_submit(request: Request, background_tasks: Ba
                 Gender=Gender,
                 form_data=form_data,
                 field_errors={},
-                error_message="Could not provision student.",
+                error_message="Could not create student.",
             )
     if not new_user_id:
-        return redirect_to(request, "ui_admin_students", "Could not provision student.", "danger")
+        return redirect_to(request, "ui_admin_students", "Could not create student.", "danger")
     invite_token = create_password_reset_token(new_user_id)
     background_tasks.add_task(send_student_invite_email, str(email), invite_token)
     if DEBUG_MODE:
         return redirect_to(
             request,
             "ui_admin_students",
-            f"Student provisioned. Demo invite token: {invite_token}",
+            f"Student created. Demo invite token: {invite_token}",
             "success",
         )
     return redirect_to(
         request,
         "ui_admin_students",
-        "Student provisioned and invite instructions generated.",
+        "Student created and invite instructions generated.",
         "success",
     )
 
@@ -471,13 +476,33 @@ async def admin_student_reactivate_submit(student_id: int, request: Request):
 
 @router.get("/companies", name="ui_admin_companies")
 def admin_companies_page(request: Request):
+    company_search = txt(request.query_params.get("q")) or ""
+    verified_raw = txt(request.query_params.get("verified")) or ""
+    active_raw = txt(request.query_params.get("active")) or ""
+    verified_filter = {"yes": True, "no": False}.get(verified_raw)
+    active_filter = {"yes": True, "no": False}.get(active_raw)
+
     with Session(engine) as session:
         user, redirect = require_user(request, session, Role.admin, verified_admin=True)
         if redirect:
             return redirect
         page, limit, skip = parse_page_limit(request, default_limit=20, max_limit=100)
-        companies = crud.list_companies(session, skip, limit, include_inactive=True)
-        total = crud.count_companies(session, include_inactive=True)
+        companies = crud.list_companies(
+            session,
+            skip,
+            limit,
+            verified=verified_filter,
+            include_inactive=True,
+            search=company_search or None,
+            active=active_filter,
+        )
+        total = crud.count_companies(
+            session,
+            verified=verified_filter,
+            include_inactive=True,
+            search=company_search or None,
+            active=active_filter,
+        )
         pager = build_pager(request, total=total, page=page, limit=limit)
         return render(
             request,
@@ -486,6 +511,9 @@ def admin_companies_page(request: Request):
             role_home=home_for(user),
             companies=companies,
             pager=pager,
+            company_search=company_search,
+            verified_filter=verified_raw,
+            active_filter=active_raw,
         )
 
 
@@ -627,13 +655,32 @@ async def admin_job_delete_submit(job_id: int, request: Request):
 
 @router.get("/applications", name="ui_admin_applications")
 def admin_applications_page(request: Request):
+    application_search = txt(request.query_params.get("q")) or ""
+    status_raw = txt(request.query_params.get("status")) or ""
+    status_filter = None
+    if status_raw:
+        try:
+            status_filter = ApplicationStatus(status_raw)
+        except ValueError:
+            status_filter = None
+
     with Session(engine) as session:
         user, redirect = require_user(request, session, Role.admin, verified_admin=True)
         if redirect:
             return redirect
         page, limit, skip = parse_page_limit(request, default_limit=20, max_limit=100)
-        applications = crud.list_applications(session, skip, limit)
-        total = crud.count_applications(session)
+        applications = crud.list_applications(
+            session,
+            skip,
+            limit,
+            search=application_search or None,
+            status=status_filter,
+        )
+        total = crud.count_applications(
+            session,
+            search=application_search or None,
+            status=status_filter,
+        )
         pager = build_pager(request, total=total, page=page, limit=limit)
         return render(
             request,
@@ -642,18 +689,40 @@ def admin_applications_page(request: Request):
             role_home=home_for(user),
             applications=applications,
             pager=pager,
+            application_search=application_search,
+            status_filter=status_raw,
+            ApplicationStatus=ApplicationStatus,
         )
 
 
 @router.get("/offers", name="ui_admin_offers")
 def admin_offers_page(request: Request):
+    offer_search = txt(request.query_params.get("q")) or ""
+    status_raw = txt(request.query_params.get("status")) or ""
+    status_filter = None
+    if status_raw:
+        try:
+            status_filter = OfferStatus(status_raw)
+        except ValueError:
+            status_filter = None
+
     with Session(engine) as session:
         user, redirect = require_user(request, session, Role.admin, verified_admin=True)
         if redirect:
             return redirect
         page, limit, skip = parse_page_limit(request, default_limit=20, max_limit=100)
-        offers = crud.list_offers_admin_summaries(session, skip, limit)
-        total = crud.count_offers_all(session)
+        offers = crud.list_offers_admin_summaries(
+            session,
+            skip,
+            limit,
+            search=offer_search or None,
+            status=status_filter,
+        )
+        total = crud.count_offers_all(
+            session,
+            search=offer_search or None,
+            status=status_filter,
+        )
         pager = build_pager(request, total=total, page=page, limit=limit)
         return render(
             request,
@@ -662,6 +731,9 @@ def admin_offers_page(request: Request):
             role_home=home_for(user),
             offers=offers,
             pager=pager,
+            offer_search=offer_search,
+            status_filter=status_raw,
+            OfferStatus=OfferStatus,
         )
 
 

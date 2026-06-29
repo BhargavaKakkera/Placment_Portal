@@ -13,11 +13,11 @@
                 {% endif %}
                 <form method="post" action="/ui/verify-email">
                     <div class="mb-3">
-                        <label class="form-label">Verification token</label>
-                        <textarea class="form-control {% if field_errors.get('token') %}is-invalid{% endif %}" name="token" rows="4" required>{{ form_data.get('token', token or '') }}</textarea>
+                        <label class="form-label" for="verify_token">Verification token <span class="required-mark">*</span></label>
+                        <textarea id="verify_token" class="form-control {% if field_errors.get('token') %}is-invalid{% endif %}" name="token" rows="4" autocomplete="one-time-code" required>{{ form_data.get('token', token or '') }}</textarea>
                         {% if field_errors.get('token') %}<div class="invalid-feedback d-block">{{ field_errors['token'] }}</div>{% endif %}
                     </div>
-                    <button class="btn btn-primary w-100" type="submit">Verify</button>
+                    <button class="btn btn-primary w-100" type="submit" data-loading-text="Verifying...">Verify email</button>
                 </form>
             </div>
         </div>

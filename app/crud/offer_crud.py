@@ -559,17 +559,30 @@ def count_offers_pending_response(session: Session) -> int:
     return session.exec(statement).one()
 
 
-def list_offers_admin_summaries(session: Session, skip: int = 0, limit: int = 100):
+def list_offers_admin_summaries(
+    session: Session,
+    skip: int = 0,
+    limit: int = 100,
+    search: Optional[str] = None,
+    status: Optional[OfferStatus] = None,
+):
     """List offers for admin management with student/job/company context."""
     statement = (
         select(Offer, Student, Job, Company)
         .join(Student, Offer.student_id == Student.id)
         .join(Job, Offer.job_id == Job.id)
         .join(Company, Offer.company_id == Company.id)
-        .order_by(Offer.created_at.desc(), Offer.id.desc())
-        .offset(skip)
-        .limit(limit)
     )
+    if search:
+        term = search.strip()
+        statement = statement.where(
+            (Student.name.ilike(f"%{term}%"))
+            | (Job.title.ilike(f"%{term}%"))
+            | (Company.name.ilike(f"%{term}%"))
+        )
+    if status is not None:
+        statement = statement.where(Offer.status == status)
+    statement = statement.order_by(Offer.created_at.desc(), Offer.id.desc()).offset(skip).limit(limit)
     rows = session.exec(statement).all()
     return [
         {
@@ -595,9 +608,28 @@ def list_offers_admin_summaries(session: Session, skip: int = 0, limit: int = 10
     ]
 
 
-def count_offers_all(session: Session) -> int:
+def count_offers_all(
+    session: Session,
+    search: Optional[str] = None,
+    status: Optional[OfferStatus] = None,
+) -> int:
     """Count all offers across statuses."""
-    statement = select(func.count()).select_from(Offer)
+    statement = (
+        select(func.count())
+        .select_from(Offer)
+        .join(Student, Offer.student_id == Student.id)
+        .join(Job, Offer.job_id == Job.id)
+        .join(Company, Offer.company_id == Company.id)
+    )
+    if search:
+        term = search.strip()
+        statement = statement.where(
+            (Student.name.ilike(f"%{term}%"))
+            | (Job.title.ilike(f"%{term}%"))
+            | (Company.name.ilike(f"%{term}%"))
+        )
+    if status is not None:
+        statement = statement.where(Offer.status == status)
     return session.exec(statement).one()
 
 

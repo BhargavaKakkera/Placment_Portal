@@ -116,7 +116,19 @@ def student_jobs_page(request: Request):
         if redirect:
             return redirect
         page, limit, skip = parse_page_limit(request, default_limit=20, max_limit=100)
+        job_search = txt(request.query_params.get("q")) or ""
+        role_raw = txt(request.query_params.get("role_type")) or ""
         all_jobs = eligible_jobs(session, student)
+        if job_search:
+            term = job_search.lower()
+            companies_lookup = {company.id: company for company in crud.list_companies(session, 0, 1000, include_inactive=True)}
+            all_jobs = [
+                job for job in all_jobs
+                if term in job.title.lower()
+                or term in (companies_lookup.get(job.company_id).name.lower() if companies_lookup.get(job.company_id) else "")
+            ]
+        if role_raw:
+            all_jobs = [job for job in all_jobs if job.role_type.value == role_raw]
         total = len(all_jobs)
         jobs = all_jobs[skip: skip + limit]
         companies_by_id = {company.id: company for company in crud.list_companies(session, 0, 1000, include_inactive=True)}
@@ -130,6 +142,8 @@ def student_jobs_page(request: Request):
             jobs=jobs,
             companies_by_id=companies_by_id,
             pager=pager,
+            job_search=job_search,
+            role_filter=role_raw,
         )
 
 

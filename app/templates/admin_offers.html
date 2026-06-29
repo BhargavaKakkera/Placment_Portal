@@ -5,6 +5,29 @@
     <h1 class="h3 mb-0">Offers</h1>
     <a class="btn btn-outline-secondary" href="/ui/admin">Back to dashboard</a>
 </div>
+<div class="card shadow-sm mb-3">
+    <div class="card-body">
+        <form method="get" action="/ui/admin/offers" class="row g-2 align-items-end">
+            <div class="col-md-6">
+                <label class="form-label" for="offer_search">Search offers</label>
+                <input id="offer_search" class="form-control" name="q" value="{{ offer_search or '' }}" placeholder="Student, company, or job" autocomplete="off">
+            </div>
+            <div class="col-md-3">
+                <label class="form-label" for="offer_status">Status</label>
+                <select id="offer_status" class="form-select" name="status">
+                    <option value="">All statuses</option>
+                    {% for status in OfferStatus %}
+                    <option value="{{ status.value }}" {% if status_filter == status.value %}selected{% endif %}>{{ status.value|replace('_', ' ')|title }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-3 d-flex gap-2">
+                <button class="btn btn-primary" type="submit">Apply filters</button>
+                <a class="btn btn-outline-secondary" href="/ui/admin/offers">Clear</a>
+            </div>
+        </form>
+    </div>
+</div>
 <div class="table-responsive">
     <table class="table table-striped align-middle">
         <thead><tr><th>Student</th><th>Company</th><th>Job</th><th>Type</th><th>CTC/Stipend</th><th>PPO</th><th>Response Deadline</th><th>Status</th></tr></thead>
@@ -41,7 +64,15 @@
                 <td><span class="badge text-bg-{{ 'success' if offer.status.value == 'accepted' else 'primary' if offer.status.value == 'offered' else 'warning' if offer.status.value == 'declined' else 'danger' }}">{{ offer.status.value|replace('_', ' ')|title }}</span></td>
             </tr>
             {% else %}
-            <tr><td colspan="8" class="text-muted">No offers found.</td></tr>
+            <tr>
+                <td colspan="8">
+                    {% set title = "No offers found" %}
+                    {% set message = "Try clearing filters or searching for another student, company, or job." %}
+                    {% set action_url = "/ui/admin/offers" %}
+                    {% set action_text = "Clear filters" %}
+                    {% include "components/empty_state.html" %}
+                </td>
+            </tr>
             {% endfor %}
         </tbody>
     </table>

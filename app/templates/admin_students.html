@@ -21,7 +21,15 @@
                 <label class="form-label">Reg No</label>
                 <input class="form-control" name="reg_no" value="{{ reg_no_filter }}" placeholder="e.g. REG001">
             </div>
-            <div class="col-md-5 d-flex gap-2">
+            <div class="col-md-2">
+                <label class="form-label">State</label>
+                <select class="form-select" name="active">
+                    <option value="">All</option>
+                    <option value="yes" {% if active_filter == 'yes' %}selected{% endif %}>Active</option>
+                    <option value="no" {% if active_filter == 'no' %}selected{% endif %}>Inactive</option>
+                </select>
+            </div>
+            <div class="col-md-3 d-flex gap-2">
                 <button class="btn btn-primary" type="submit">Apply filters</button>
                 <a class="btn btn-outline-secondary" href="/ui/admin/students">Reset</a>
             </div>
@@ -31,7 +39,7 @@
 <div class="row g-4">
     <div class="col-lg-4">
         <div class="card shadow-sm"><div class="card-body">
-            <h2 class="h5">Provision student</h2>
+            <h2 class="h5">Create student</h2>
             {% if error_message %}
             <div class="alert alert-danger" role="alert">
                 {{ error_message }}
@@ -39,47 +47,56 @@
             {% endif %}
             <form method="post" action="/ui/admin/students/provision">
                 <div class="mb-2">
-                    <input class="form-control {% if field_errors.get('email') %}is-invalid{% endif %}" name="email" placeholder="Email" type="email" value="{{ form_data.get('email', '') }}" required>
+                    <label class="form-label" for="student_email">Email <span class="required-mark">*</span></label>
+                    <input id="student_email" class="form-control {% if field_errors.get('email') %}is-invalid{% endif %}" name="email" placeholder="student@example.com" type="email" autocomplete="email" value="{{ form_data.get('email', '') }}" required>
                     {% if field_errors.get('email') %}<div class="invalid-feedback d-block">{{ field_errors['email'] }}</div>{% endif %}
                 </div>
                 <div class="mb-2">
-                    <input class="form-control {% if field_errors.get('name') %}is-invalid{% endif %}" name="name" placeholder="Name" value="{{ form_data.get('name', '') }}" required>
+                    <label class="form-label" for="student_name">Name <span class="required-mark">*</span></label>
+                    <input id="student_name" class="form-control {% if field_errors.get('name') %}is-invalid{% endif %}" name="name" placeholder="Full name" autocomplete="name" value="{{ form_data.get('name', '') }}" required>
                     {% if field_errors.get('name') %}<div class="invalid-feedback d-block">{{ field_errors['name'] }}</div>{% endif %}
                 </div>
                 <div class="mb-2">
-                    <input class="form-control {% if field_errors.get('reg_no') %}is-invalid{% endif %}" name="reg_no" placeholder="Reg No" value="{{ form_data.get('reg_no', '') }}" required>
+                    <label class="form-label" for="student_reg_no">Reg No <span class="required-mark">*</span></label>
+                    <input id="student_reg_no" class="form-control {% if field_errors.get('reg_no') %}is-invalid{% endif %}" name="reg_no" placeholder="REG001" value="{{ form_data.get('reg_no', '') }}" required>
                     {% if field_errors.get('reg_no') %}<div class="invalid-feedback d-block">{{ field_errors['reg_no'] }}</div>{% endif %}
                 </div>
                 <div class="mb-2">
-                    <input class="form-control {% if field_errors.get('roll_no') %}is-invalid{% endif %}" name="roll_no" placeholder="Roll No" value="{{ form_data.get('roll_no', '') }}" required>
+                    <label class="form-label" for="student_roll_no">Roll No <span class="required-mark">*</span></label>
+                    <input id="student_roll_no" class="form-control {% if field_errors.get('roll_no') %}is-invalid{% endif %}" name="roll_no" placeholder="Roll number" value="{{ form_data.get('roll_no', '') }}" required>
                     {% if field_errors.get('roll_no') %}<div class="invalid-feedback d-block">{{ field_errors['roll_no'] }}</div>{% endif %}
                 </div>
                 <div class="mb-2">
-                    <input class="form-control {% if field_errors.get('cgpa') %}is-invalid{% endif %}" name="cgpa" placeholder="CGPA" type="number" min="0" max="10" step="0.1" value="{{ form_data.get('cgpa', '') }}" required>
+                    <label class="form-label" for="student_cgpa">CGPA <span class="required-mark">*</span></label>
+                    <input id="student_cgpa" class="form-control {% if field_errors.get('cgpa') %}is-invalid{% endif %}" name="cgpa" placeholder="0.00 - 10.00" type="number" min="0" max="10" step="0.01" value="{{ form_data.get('cgpa', '') }}" required>
                     {% if field_errors.get('cgpa') %}<div class="invalid-feedback d-block">{{ field_errors['cgpa'] }}</div>{% endif %}
                 </div>
                 <div class="mb-2">
-                    <select class="form-select {% if field_errors.get('branch') %}is-invalid{% endif %}" name="branch">
+                    <label class="form-label" for="student_branch">Branch <span class="required-mark">*</span></label>
+                    <select id="student_branch" class="form-select {% if field_errors.get('branch') %}is-invalid{% endif %}" name="branch" required>
                         {% for branch in Branch %}<option value="{{ branch.value }}" {% if form_data.get('branch') == branch.value %}selected{% endif %}>{{ branch.value }}</option>{% endfor %}
                     </select>
                     {% if field_errors.get('branch') %}<div class="invalid-feedback d-block">{{ field_errors['branch'] }}</div>{% endif %}
                 </div>
                 <div class="mb-2">
-                    <select class="form-select {% if field_errors.get('gender') %}is-invalid{% endif %}" name="gender" required>
+                    <label class="form-label" for="student_gender">Gender <span class="required-mark">*</span></label>
+                    <select id="student_gender" class="form-select {% if field_errors.get('gender') %}is-invalid{% endif %}" name="gender" required>
                         <option value="" disabled {% if not form_data.get('gender') %}selected{% endif %}>Select gender</option>
                         {% for gender in Gender %}<option value="{{ gender.value }}" {% if form_data.get('gender') == gender.value %}selected{% endif %}>{{ gender.value|title }}</option>{% endfor %}
                     </select>
                     {% if field_errors.get('gender') %}<div class="invalid-feedback d-block">{{ field_errors['gender'] }}</div>{% endif %}
                 </div>
                 <div class="mb-2">
-                    <input class="form-control {% if field_errors.get('graduation_year') %}is-invalid{% endif %}" name="graduation_year" placeholder="Graduation Year" type="number" value="{{ form_data.get('graduation_year', '') }}" required>
+                    <label class="form-label" for="student_grad_year">Graduation Year <span class="required-mark">*</span></label>
+                    <input id="student_grad_year" class="form-control {% if field_errors.get('graduation_year') %}is-invalid{% endif %}" name="graduation_year" placeholder="2026" type="number" min="2026" max="2030" value="{{ form_data.get('graduation_year', '') }}" required>
                     {% if field_errors.get('graduation_year') %}<div class="invalid-feedback d-block">{{ field_errors['graduation_year'] }}</div>{% endif %}
                 </div>
                 <div class="mb-2">
-                    <input class="form-control {% if field_errors.get('backlogs') %}is-invalid{% endif %}" name="backlogs" placeholder="Backlogs" type="number" min="0" value="{{ form_data.get('backlogs', '0') }}">
+                    <label class="form-label" for="student_backlogs">Backlogs</label>
+                    <input id="student_backlogs" class="form-control {% if field_errors.get('backlogs') %}is-invalid{% endif %}" name="backlogs" placeholder="0" type="number" min="0" value="{{ form_data.get('backlogs', '0') }}">
                     {% if field_errors.get('backlogs') %}<div class="invalid-feedback d-block">{{ field_errors['backlogs'] }}</div>{% endif %}
                 </div>
-                <button class="btn btn-primary w-100" type="submit">Provision</button>
+                <button class="btn btn-primary w-100" type="submit" data-loading-text="Creating...">Create student</button>
             </form>
         </div></div>
     </div>
@@ -106,15 +123,15 @@
                             <td>
                                 <div class="d-flex gap-2">
                                     {% if student.resume_url %}
-                                    <a class="btn btn-sm btn-outline-info" href="{{ student.resume_url }}" target="_blank" title="View Resume">
+                                    <a class="btn btn-sm btn-outline-info" href="{{ student.resume_url }}" target="_blank" rel="noopener noreferrer" title="View Resume" aria-label="View resume for {{ student.name }}">
                                         <span>📄</span>
                                     </a>
                                     {% else %}
-                                    <button class="btn btn-sm btn-outline-secondary" disabled title="No resume">
+                                    <button class="btn btn-sm btn-outline-secondary" disabled title="No resume" aria-label="No resume uploaded for {{ student.name }}">
                                         <span>📄</span>
                                     </button>
                                     {% endif %}
-                                    <button class="btn btn-sm btn-outline-primary" data-bs-toggle="modal" data-bs-target="#studentDetailsModal{{ student.id }}" title="View Personal Details">
+                                    <button class="btn btn-sm btn-outline-primary" data-bs-toggle="modal" data-bs-target="#studentDetailsModal{{ student.id }}" title="View Personal Details" aria-label="View personal details for {{ student.name }}">
                                         <span>👤</span>
                                     </button>
                                 </div>
@@ -123,7 +140,7 @@
                                 <div class="d-flex gap-2">
                                     <a class="btn btn-sm btn-outline-primary" href="/ui/admin/students/{{ student.id }}">Edit</a>
                                     {% if student.is_active %}
-                                    <form method="post" action="/ui/admin/students/{{ student.id }}/delete" data-confirm="Deactivate {{ student.name }}?">
+                                    <form method="post" action="/ui/admin/students/{{ student.id }}/delete" data-confirm-title="Deactivate student" data-confirm="Deactivate {{ student.name }}? This disables the student account and closes active placement activity until reactivated." data-confirm-button="Deactivate" data-confirm-variant="btn-danger">
                                         <button class="btn btn-sm btn-outline-danger" type="submit" data-loading-text="Deactivating...">Deactivate</button>
                                     </form>
                                     {% else %}
@@ -135,7 +152,15 @@
                             </td>
                         </tr>
                         {% else %}
-                        <tr><td colspan="7" class="text-muted">No students found.</td></tr>
+                        <tr>
+                            <td colspan="7">
+                                {% set title = "No students found" %}
+                                {% set message = "Try clearing filters or searching for a different registration number." %}
+                                {% set action_url = "/ui/admin/students" %}
+                                {% set action_text = "Clear filters" %}
+                                {% include "components/empty_state.html" %}
+                            </td>
+                        </tr>
                         {% endfor %}
                     </tbody>
                 </table>

@@ -5,6 +5,36 @@
     <h1 class="h3 mb-0">Companies</h1>
     <a class="btn btn-outline-secondary" href="/ui/admin">Back to dashboard</a>
 </div>
+<div class="card shadow-sm mb-3">
+    <div class="card-body">
+        <form method="get" action="/ui/admin/companies" class="row g-2 align-items-end">
+            <div class="col-md-4">
+                <label class="form-label" for="company_search">Search companies</label>
+                <input id="company_search" class="form-control" name="q" value="{{ company_search or '' }}" placeholder="Search by company name" autocomplete="off">
+            </div>
+            <div class="col-md-3">
+                <label class="form-label" for="verified_filter">Verification</label>
+                <select id="verified_filter" class="form-select" name="verified">
+                    <option value="">All</option>
+                    <option value="yes" {% if verified_filter == 'yes' %}selected{% endif %}>Verified</option>
+                    <option value="no" {% if verified_filter == 'no' %}selected{% endif %}>Pending</option>
+                </select>
+            </div>
+            <div class="col-md-2">
+                <label class="form-label" for="active_filter">State</label>
+                <select id="active_filter" class="form-select" name="active">
+                    <option value="">All</option>
+                    <option value="yes" {% if active_filter == 'yes' %}selected{% endif %}>Active</option>
+                    <option value="no" {% if active_filter == 'no' %}selected{% endif %}>Inactive</option>
+                </select>
+            </div>
+            <div class="col-md-3 d-flex gap-2">
+                <button class="btn btn-primary" type="submit">Apply filters</button>
+                <a class="btn btn-outline-secondary" href="/ui/admin/companies">Clear</a>
+            </div>
+        </form>
+    </div>
+</div>
 <div class="table-responsive">
     <table class="table table-striped align-middle">
         <thead><tr><th>ID</th><th>Name</th><th>Verified</th><th>Active</th><th></th></tr></thead>
@@ -37,7 +67,7 @@
                         <span class="btn btn-sm btn-light disabled">Verify</span>
                         {% endif %}
                         {% if company.is_active %}
-                        <form method="post" action="/ui/admin/companies/{{ company.id }}/delete" data-confirm="Deactivate {{ company.name }}?">
+                        <form method="post" action="/ui/admin/companies/{{ company.id }}/delete" data-confirm-title="Deactivate company" data-confirm="Deactivate {{ company.name }}? This will mark the company inactive, close its jobs, and block new company actions until reactivated." data-confirm-button="Deactivate" data-confirm-variant="btn-danger">
                             <button class="btn btn-sm btn-outline-danger" type="submit" data-loading-text="Deactivating...">Deactivate</button>
                         </form>
                         {% else %}
@@ -49,7 +79,15 @@
                 </td>
             </tr>
             {% else %}
-            <tr><td colspan="5" class="text-muted">No companies found.</td></tr>
+            <tr>
+                <td colspan="5">
+                    {% set title = "No companies found" %}
+                    {% set message = "Try clearing filters or searching for another company." %}
+                    {% set action_url = "/ui/admin/companies" %}
+                    {% set action_text = "Clear filters" %}
+                    {% include "components/empty_state.html" %}
+                </td>
+            </tr>
             {% endfor %}
         </tbody>
     </table>

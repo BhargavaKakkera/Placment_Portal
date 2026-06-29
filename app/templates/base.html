@@ -78,6 +78,49 @@
                 transform: translateY(0);
             }
         }
+
+        .required-mark {
+            color: #dc3545;
+            font-weight: 600;
+        }
+
+        .navbar .nav-link.active {
+            color: #fff;
+            font-weight: 600;
+        }
+
+        .empty-state {
+            border: 1px dashed #ced4da;
+            border-radius: 0.75rem;
+            background: #fff;
+            padding: 2rem 1rem;
+            text-align: center;
+        }
+
+        .empty-state-icon {
+            width: 2.5rem;
+            height: 2.5rem;
+            border-radius: 999px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            background: #eef2ff;
+            color: #0d6efd;
+            font-size: 1.25rem;
+            margin-bottom: 0.75rem;
+        }
+
+        .password-requirements li {
+            color: #6c757d;
+        }
+
+        .password-requirements li.valid {
+            color: #198754;
+        }
+
+        .password-requirements li.invalid {
+            color: #dc3545;
+        }
     </style>
 </head>
 <body>
@@ -104,21 +147,21 @@
             </button>
             <div class="collapse navbar-collapse" id="appNav">
                 <div class="navbar-nav me-auto">
-                    <a class="nav-link" href="/ui/jobs">Jobs</a>
-                    <a class="nav-link" href="/policy/lifecycle">Policy</a>
+                    <a class="nav-link {% if request.url.path == '/ui/jobs' or request.url.path.startswith('/ui/jobs/') %}active{% endif %}" href="/ui/jobs">Jobs</a>
+                    <a class="nav-link {% if request.url.path == '/policy/lifecycle' %}active{% endif %}" href="/policy/lifecycle">Policy</a>
                     {% if current_user and current_user.role == Role.student %}
-                    <a class="nav-link" href="/ui/student">Student</a>
+                    <a class="nav-link {% if request.url.path.startswith('/ui/student') %}active{% endif %}" href="/ui/student">Student</a>
                     {% elif current_user and current_user.role == Role.company %}
-                    <a class="nav-link" href="/ui/company">Company</a>
+                    <a class="nav-link {% if request.url.path.startswith('/ui/company') %}active{% endif %}" href="/ui/company">Company</a>
                     {% elif current_user and current_user.role == Role.admin %}
-                    <a class="nav-link" href="/ui/admin">Admin</a>
+                    <a class="nav-link {% if request.url.path.startswith('/ui/admin') %}active{% endif %}" href="/ui/admin">Admin</a>
                     {% endif %}
                 </div>
                 <div class="navbar-nav">
                     {% if current_user %}
                     <span class="navbar-text me-3">{{ current_user.email }} ({{ current_user.role.value if current_user.role.value else current_user.role }})</span>
                     <form method="post" action="/ui/logout" style="display: inline;">
-                        <button class="btn btn-sm btn-outline-light" type="submit">Logout</button>
+                        <button class="btn btn-sm btn-outline-light" type="submit" data-loading-text="Logging out...">Logout</button>
                     </form>
                     {% else %}
                     <a class="nav-link" href="/ui/login">Login</a>
@@ -131,13 +174,40 @@
 
     <main class="container py-4">
         {% if flash %}
-        <div class="alert alert-{{ flash.category }} alert-dismissible fade show" role="alert">
+        <div class="alert alert-{{ flash.category }} alert-dismissible fade show" role="alert" data-flash-message="{{ flash.message }}" data-flash-category="{{ flash.category }}">
             {{ flash.message }}
-            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Dismiss notification"></button>
         </div>
         {% endif %}
         {% block content %}{% endblock %}
     </main>
+
+    <div class="toast-container position-fixed top-0 end-0 p-3" aria-live="polite" aria-atomic="true">
+        <div id="app-toast" class="toast text-bg-primary border-0" role="status">
+            <div class="d-flex">
+                <div class="toast-body"></div>
+                <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Dismiss notification"></button>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal fade" id="confirmModal" tabindex="-1" aria-labelledby="confirmModalTitle" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="confirmModalTitle">Confirm action</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cancel"></button>
+                </div>
+                <div class="modal-body" id="confirmModalMessage">
+                    Are you sure you want to continue?
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-danger" id="confirmModalSubmit">Confirm</button>
+                </div>
+            </div>
+        </div>
+    </div>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
     <script>
@@ -167,6 +237,86 @@
             });
         });
 
+        // ===== TOAST FEEDBACK =====
+        function showAppToast(message, category) {
+            const toastEl = document.getElementById("app-toast");
+            if (!toastEl || !message) return;
+            const body = toastEl.querySelector(".toast-body");
+            body.textContent = message;
+            const tone = category === "danger" ? "danger" : category === "warning" ? "warning" : category === "success" ? "success" : "primary";
+            toastEl.className = `toast text-bg-${tone} border-0`;
+            bootstrap.Toast.getOrCreateInstance(toastEl, { delay: 4500 }).show();
+        }
+
+        document.addEventListener("DOMContentLoaded", function () {
+            const flashAlert = document.querySelector("[data-flash-message]");
+            if (flashAlert) {
+                showAppToast(flashAlert.dataset.flashMessage, flashAlert.dataset.flashCategory || "info");
+            }
+        });
+
+        // ===== PASSWORD HELPERS =====
+        document.addEventListener("DOMContentLoaded", function () {
+            document.querySelectorAll("[data-password-toggle]").forEach(function (button) {
+                button.addEventListener("click", function () {
+                    const input = document.getElementById(button.getAttribute("data-password-toggle"));
+                    if (!input) return;
+                    const showing = input.type === "text";
+                    input.type = showing ? "password" : "text";
+                    button.textContent = showing ? "Show" : "Hide";
+                    button.setAttribute("aria-label", showing ? "Show password" : "Hide password");
+                });
+            });
+
+            document.querySelectorAll("input[data-password-rules]").forEach(function (input) {
+                const list = document.getElementById(input.getAttribute("aria-describedby"));
+                if (!list) return;
+                const rules = {
+                    length: value => value.length >= 8,
+                    upper: value => /[A-Z]/.test(value),
+                    lower: value => /[a-z]/.test(value),
+                    digit: value => /\d/.test(value)
+                };
+                function refreshRules() {
+                    const value = input.value || "";
+                    list.querySelectorAll("[data-rule]").forEach(function (item) {
+                        const valid = rules[item.dataset.rule](value);
+                        item.classList.toggle("valid", valid);
+                        item.classList.toggle("invalid", value.length > 0 && !valid);
+                    });
+                }
+                input.addEventListener("input", refreshRules);
+                refreshRules();
+            });
+        });
+
+        function setFormLoading(form, submitter) {
+            if (!(submitter instanceof HTMLButtonElement)) return;
+            submitter.disabled = true;
+            const originalText = submitter.dataset.originalText || submitter.innerHTML;
+            submitter.dataset.originalText = originalText;
+            const loadingText = submitter.dataset.loadingText || "Processing...";
+            submitter.innerHTML = `<span class="spinner-border spinner-border-sm me-2" aria-hidden="true"></span>${loadingText}`;
+            form.querySelectorAll("button[type='submit']").forEach(function (button) {
+                if (button !== submitter) button.disabled = true;
+            });
+
+            const overlayTimeout = setTimeout(() => {
+                document.getElementById('loading-overlay').classList.remove('hidden');
+            }, 700);
+            form.dataset.overlayTimeout = String(overlayTimeout);
+        }
+
+        function restoreFormButtons() {
+            document.querySelectorAll("form button[type='submit']").forEach(function (button) {
+                if (button.dataset.originalText) {
+                    button.innerHTML = button.dataset.originalText;
+                }
+                button.disabled = false;
+            });
+            document.getElementById('loading-overlay').classList.add('hidden');
+        }
+
         // ===== FORM SUBMISSION HANDLING =====
         document.addEventListener("submit", function (event) {
             const form = event.target;
@@ -174,44 +324,54 @@
                 return;
             }
 
-            // Confirmation dialog
-            if (form.dataset.confirm && !window.confirm(form.dataset.confirm)) {
-                event.preventDefault();
+            if (form.dataset.confirmed === "true") {
+                setFormLoading(form, event.submitter);
                 return;
             }
 
-            // Show loading state
-            const submitter = event.submitter;
-            if (submitter instanceof HTMLButtonElement) {
-                submitter.disabled = true;
-                const originalText = submitter.dataset.originalText || submitter.textContent;
-                submitter.dataset.originalText = originalText;
-                submitter.textContent = submitter.dataset.loadingText || "Processing...";
-                
-                // Show loading overlay after 500ms if still loading
-                const overlayTimeout = setTimeout(() => {
-                    document.getElementById('loading-overlay').classList.remove('hidden');
-                }, 500);
-                
-                // Store timeout for cleanup
-                form.dataset.overlayTimeout = overlayTimeout;
+            if (form.dataset.confirm) {
+                event.preventDefault();
+                const modalEl = document.getElementById("confirmModal");
+                const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
+                document.getElementById("confirmModalTitle").textContent = form.dataset.confirmTitle || "Confirm action";
+                document.getElementById("confirmModalMessage").textContent = form.dataset.confirm;
+                const confirmButton = document.getElementById("confirmModalSubmit");
+                confirmButton.textContent = form.dataset.confirmButton || "Confirm";
+                confirmButton.className = `btn ${form.dataset.confirmVariant || "btn-danger"}`;
+                confirmButton.onclick = function () {
+                    form.dataset.confirmed = "true";
+                    modal.hide();
+                    if (form.requestSubmit && event.submitter instanceof HTMLElement) {
+                        form.requestSubmit(event.submitter);
+                    } else {
+                        form.submit();
+                    }
+                };
+                modal.show();
+                return;
             }
+
+            setFormLoading(form, event.submitter);
         });
 
         // Hide loading overlay after page loads
         window.addEventListener('load', () => {
             document.getElementById('loading-overlay').classList.add('hidden');
         });
+        window.addEventListener('pageshow', restoreFormButtons);
 
         // ===== SESSION TIMEOUT WARNING =====
+        {% if current_user %}
         const SESSION_TIMEOUT = 30 * 60 * 1000; // 30 minutes
         const WARNING_TIME = 5 * 60 * 1000; // Show warning 5 minutes before
         let logoutTimer;
         let warningTimer;
+        let countdownInterval;
 
         function resetSessionTimer() {
             clearTimeout(logoutTimer);
             clearTimeout(warningTimer);
+            clearInterval(countdownInterval);
             document.getElementById('session-warning').classList.remove('show');
             setSessionTimers();
         }
@@ -223,17 +383,14 @@
             }, SESSION_TIMEOUT - WARNING_TIME);
 
             logoutTimer = setTimeout(() => {
-                fetch('/auth/logout', { method: 'POST' })
-                    .then(() => {
-                        alert('Session expired. Please login again.');
-                        window.location.href = '/ui/login';
-                    });
+                showAppToast('Session expired. Please log in again.', 'warning');
+                window.location.href = '/ui/login';
             }, SESSION_TIMEOUT);
         }
 
         function startWarningCountdown() {
-            let secondsLeft = Math.floor((SESSION_TIMEOUT - WARNING_TIME) / 1000);
-            const countdownInterval = setInterval(() => {
+            let secondsLeft = Math.floor(WARNING_TIME / 1000);
+            countdownInterval = setInterval(() => {
                 secondsLeft--;
                 const minutesLeft = Math.floor(secondsLeft / 60);
                 document.getElementById('timeout-seconds').textContent = minutesLeft;
@@ -251,6 +408,7 @@
 
         // Initial timer
         setSessionTimers();
+        {% endif %}
     </script>
 </body>
 </html>

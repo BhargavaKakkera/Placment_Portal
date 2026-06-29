@@ -15,13 +15,23 @@
                 <td>{{ user.email }}</td>
                 <td>{{ user.created_at|fmt_datetime }}</td>
                 <td>
-                    <form method="post" action="/ui/admin/users/{{ user.id }}/verify-admin">
+                    <form method="post" action="/ui/admin/users/{{ user.id }}/verify-admin"
+                        data-confirm-title="Verify admin"
+                        data-confirm-message="This will grant admin access to {{ user.email }}."
+                        data-confirm-button="Verify admin"
+                        data-confirm-variant="primary">
                         <button class="btn btn-sm btn-primary" type="submit" data-loading-text="Verifying...">Verify admin</button>
                     </form>
                 </td>
             </tr>
             {% else %}
-            <tr><td colspan="4" class="text-muted">No pending admins.</td></tr>
+            <tr>
+                <td colspan="4">
+                    {% set title = "No pending admins" %}
+                    {% set message = "New admin registration requests will appear here for approval." %}
+                    {% include "components/empty_state.html" %}
+                </td>
+            </tr>
             {% endfor %}
         </tbody>
     </table>

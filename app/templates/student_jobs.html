@@ -8,9 +8,31 @@
 <div class="alert alert-light border">
     This list already hides jobs you are not eligible for and jobs you have already applied to.
 </div>
+<div class="card shadow-sm mb-3">
+    <div class="card-body">
+        <form method="get" action="/ui/student/jobs" class="row g-2 align-items-end">
+            <div class="col-md-6">
+                <label class="form-label" for="eligible_job_search">Search eligible jobs</label>
+                <input id="eligible_job_search" class="form-control" name="q" value="{{ job_search or '' }}" placeholder="Search by title or company" autocomplete="off">
+            </div>
+            <div class="col-md-3">
+                <label class="form-label" for="eligible_role_type">Role</label>
+                <select id="eligible_role_type" class="form-select" name="role_type">
+                    <option value="">All roles</option>
+                    <option value="full_time" {% if role_filter == 'full_time' %}selected{% endif %}>Full-time</option>
+                    <option value="internship" {% if role_filter == 'internship' %}selected{% endif %}>Internship</option>
+                </select>
+            </div>
+            <div class="col-md-3 d-flex gap-2">
+                <button class="btn btn-primary" type="submit">Apply filters</button>
+                <a class="btn btn-outline-secondary" href="/ui/student/jobs">Clear</a>
+            </div>
+        </form>
+    </div>
+</div>
 <div class="table-responsive">
     <table class="table table-striped align-middle">
-        <thead><tr><th>Company</th><th>Title</th><th>Role</th><th>CTC/Stipend</th><th>Duration</th><th>{% if jobs and jobs[0].role_type.value == "internship" %}PPO{% endif %}</th><th>Eligible branches</th><th>Deadline</th><th></th></tr></thead>
+        <thead><tr><th>Company</th><th>Title</th><th>Role</th><th>CTC/Stipend</th><th>Duration</th><th>PPO</th><th>Eligible branches</th><th>Deadline</th><th></th></tr></thead>
         <tbody>
             {% for job in jobs %}
             <tr>
@@ -19,8 +41,8 @@
                 <td>{{ job.title }}</td>
                 <td>{{ job.role_type.value }}</td>
                 <td>{{ job.ctc or job.stipend or "-" }}</td>
-                <td>{{ job.internship_duration or "-" }}</td>
-                {% if job.role_type.value == "internship" %}<td>{{ "Yes" if job.ppo_available else "No" }}</td>{% endif %}
+                <td>{{ job.internship_duration if job.role_type.value == "internship" else "N/A" }}</td>
+                <td>{{ "Yes" if job.role_type.value == "internship" and job.ppo_available else "No" if job.role_type.value == "internship" else "N/A" }}</td>
                 <td>{{ job.allowed_branches or "All" }}</td>
                 <td>{{ job.application_deadline|fmt_datetime }}</td>
                 <td>
@@ -33,7 +55,15 @@
                 </td>
             </tr>
             {% else %}
-            <tr><td colspan="8" class="text-muted">No eligible jobs right now.</td></tr>
+            <tr>
+                <td colspan="9">
+                    {% set title = "No eligible jobs right now" %}
+                    {% set message = "Try clearing filters, or check back when companies post roles that match your profile." %}
+                    {% set action_url = "/ui/student/jobs" %}
+                    {% set action_text = "Clear filters" %}
+                    {% include "components/empty_state.html" %}
+                </td>
+            </tr>
             {% endfor %}
         </tbody>
     </table>

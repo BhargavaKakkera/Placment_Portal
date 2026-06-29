@@ -105,7 +105,9 @@ def list_company_jobs(
 def list_verified_jobs(
     session: Session,
     skip: int = 0,
-    limit: Optional[int] = 10
+    limit: Optional[int] = 10,
+    search: Optional[str] = None,
+    role_type: Optional[RoleType] = None,
 ) -> List[Job]:
     """
     List verified, open jobs that haven't passed the deadline.
@@ -121,6 +123,13 @@ def list_verified_jobs(
         .order_by(Job.created_at.desc(), Job.id.desc())
         .offset(skip)
     )
+    if search:
+        term = search.strip()
+        statement = statement.where(
+            (Job.title.ilike(f"%{term}%")) | (Company.name.ilike(f"%{term}%"))
+        )
+    if role_type is not None:
+        statement = statement.where(Job.role_type == role_type)
     if limit is not None:
         statement = statement.limit(limit)
     return session.exec(statement).all()
@@ -164,7 +173,11 @@ def count_active_jobs(session: Session) -> int:
     return session.exec(statement).one()
 
 
-def count_verified_jobs(session: Session) -> int:
+def count_verified_jobs(
+    session: Session,
+    search: Optional[str] = None,
+    role_type: Optional[RoleType] = None,
+) -> int:
     """Count verified, open jobs that haven't passed the deadline."""
     now = utc_now()
     statement = (
@@ -176,6 +189,13 @@ def count_verified_jobs(session: Session) -> int:
         .where(Job.closed == False)
         .where((Job.application_deadline == None) | (Job.application_deadline >= now))
     )
+    if search:
+        term = search.strip()
+        statement = statement.where(
+            (Job.title.ilike(f"%{term}%")) | (Company.name.ilike(f"%{term}%"))
+        )
+    if role_type is not None:
+        statement = statement.where(Job.role_type == role_type)
     return session.exec(statement).one()
 
 

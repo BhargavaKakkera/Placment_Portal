@@ -13,24 +13,33 @@
                 {% endif %}
                 <form method="post" action="/ui/register">
                     <div class="mb-3">
-                        <label class="form-label">Email</label>
-                        <input class="form-control {% if field_errors.get('email') %}is-invalid{% endif %}" name="email" type="email" value="{{ form_data.get('email', '') }}" required>
+                        <label class="form-label" for="register_email">Email <span class="required-mark">*</span></label>
+                        <input id="register_email" class="form-control {% if field_errors.get('email') %}is-invalid{% endif %}" name="email" type="email" value="{{ form_data.get('email', '') }}" autocomplete="email" required>
                         {% if field_errors.get('email') %}<div class="invalid-feedback d-block">{{ field_errors['email'] }}</div>{% endif %}
                     </div>
                     <div class="mb-3">
-                        <label class="form-label">Password</label>
-                        <input class="form-control {% if field_errors.get('password') %}is-invalid{% endif %}" name="password" type="password" minlength="8" required>
+                        <label class="form-label" for="register_password">Password <span class="required-mark">*</span></label>
+                        <div class="input-group">
+                            <input id="register_password" class="form-control {% if field_errors.get('password') %}is-invalid{% endif %}" name="password" type="password" value="{{ form_data.get('password', '') }}" minlength="8" autocomplete="new-password" aria-describedby="register_password_rules" data-password-rules required>
+                            <button class="btn btn-outline-secondary" type="button" data-password-toggle="register_password" aria-label="Show password">Show</button>
+                        </div>
+                        <ul id="register_password_rules" class="password-requirements small mt-2 mb-0 ps-3">
+                            <li data-rule="length">At least 8 characters</li>
+                            <li data-rule="upper">One uppercase letter</li>
+                            <li data-rule="lower">One lowercase letter</li>
+                            <li data-rule="digit">One number</li>
+                        </ul>
                         {% if field_errors.get('password') %}<div class="invalid-feedback d-block">{{ field_errors['password'] }}</div>{% endif %}
                     </div>
                     <div class="mb-3">
-                        <label class="form-label">Role</label>
-                        <select class="form-select {% if field_errors.get('role') %}is-invalid{% endif %}" name="role">
+                        <label class="form-label" for="register_role">Role <span class="required-mark">*</span></label>
+                        <select id="register_role" class="form-select {% if field_errors.get('role') %}is-invalid{% endif %}" name="role" required>
                             <option value="company" {% if form_data.get('role') == 'company' %}selected{% endif %}>Company</option>
                             <option value="admin" {% if form_data.get('role') == 'admin' %}selected{% endif %}>Admin</option>
                         </select>
                         {% if field_errors.get('role') %}<div class="invalid-feedback d-block">{{ field_errors['role'] }}</div>{% endif %}
                     </div>
-                    <button class="btn btn-primary w-100" type="submit">Register</button>
+                    <button class="btn btn-primary w-100" type="submit" data-loading-text="Creating account...">Register</button>
                 </form>
             </div>
         </div>

@@ -7,7 +7,7 @@
 </div>
 <div class="table-responsive">
     <table class="table table-striped align-middle">
-        <thead><tr><th>Student</th><th>Job</th><th>Role</th><th>CTC/Stipend</th>{% if offers and offers[0].role_type.value == "internship" %}<th>PPO</th><th>Duration</th>{% endif %}<th>Deadline</th><th>Details</th><th>Accepted at</th></tr></thead>
+        <thead><tr><th>Student</th><th>Job</th><th>Role</th><th>CTC/Stipend</th><th>PPO</th><th>Duration</th><th>Deadline</th><th>Details</th><th>Accepted at</th></tr></thead>
         <tbody>
             {% for item in offers %}
             <tr>
@@ -29,10 +29,8 @@
                         {{ item.ctc or "-" }}
                     {% endif %}
                 </td>
-                {% if item.role_type.value == "internship" %}
-                <td>{{ "Yes" if item.ppo_available else "No" }}</td>
-                <td>{{ item.internship_duration or "-" }}</td>
-                {% endif %}
+                <td>{% if item.role_type.value == "internship" %}{{ "Yes" if item.ppo_available else "No" }}{% else %}N/A{% endif %}</td>
+                <td>{% if item.role_type.value == "internship" %}{{ item.internship_duration or "N/A" }}{% else %}N/A{% endif %}</td>
                 <td>
                     {% if item.response_deadline %}
                     <small>{{ item.response_deadline|fmt_datetime }}</small>
@@ -43,15 +41,15 @@
                 <td>
                     <div class="d-flex gap-2">
                         {% if item.resume_url %}
-                        <a class="btn btn-sm btn-outline-info" href="{{ item.resume_url }}" target="_blank" title="View Resume">
+                        <a class="btn btn-sm btn-outline-info" href="{{ item.resume_url }}" target="_blank" rel="noopener noreferrer" title="View Resume" aria-label="View resume for {{ item.student_name }}">
                             <span>📄 Resume</span>
                         </a>
                         {% else %}
-                        <button class="btn btn-sm btn-outline-secondary" disabled title="No resume uploaded">
+                        <button class="btn btn-sm btn-outline-secondary" disabled title="No resume uploaded" aria-label="No resume uploaded for {{ item.student_name }}">
                             <span>📄 Resume</span>
                         </button>
                         {% endif %}
-                        <button class="btn btn-sm btn-outline-primary" data-bs-toggle="modal" data-bs-target="#studentDetailsModal{{ item.student_id }}" title="View Personal Details">
+                        <button class="btn btn-sm btn-outline-primary" data-bs-toggle="modal" data-bs-target="#studentDetailsModal{{ item.student_id }}" title="View Personal Details" aria-label="View personal details for {{ item.student_name }}">
                             <span>👤 Details</span>
                         </button>
                     </div>
@@ -59,7 +57,15 @@
                 <td><small class="text-muted">{{ item.created_at|fmt_datetime }}</small></td>
             </tr>
             {% else %}
-            <tr><td colspan="7" class="text-muted">No accepted offers yet.</td></tr>
+            <tr>
+                <td colspan="9">
+                    {% set title = "No accepted offers yet" %}
+                    {% set message = "Accepted student offers will appear here after students accept company offers." %}
+                    {% set action_url = "/ui/company/jobs" %}
+                    {% set action_text = "View jobs" %}
+                    {% include "components/empty_state.html" %}
+                </td>
+            </tr>
             {% endfor %}
         </tbody>
     </table>
@@ -89,7 +95,7 @@
         <div class="modal-content">
             <div class="modal-header">
                 <h5 class="modal-title">Personal Details - {{ item.student_name }}</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <div class="modal-body">
                 <div class="row">
@@ -119,49 +125,49 @@
                 <div class="row">
                     {% if item.github_url %}
                     <div class="col-md-6 mb-2">
-                        <a class="btn btn-sm btn-outline-secondary w-100" href="{{ item.github_url }}" target="_blank">
+                        <a class="btn btn-sm btn-outline-secondary w-100" href="{{ item.github_url }}" target="_blank" rel="noopener noreferrer">
                             <span>🐙 GitHub</span>
                         </a>
                     </div>
                     {% endif %}
                     {% if item.linkedin_url %}
                     <div class="col-md-6 mb-2">
-                        <a class="btn btn-sm btn-outline-secondary w-100" href="{{ item.linkedin_url }}" target="_blank">
+                        <a class="btn btn-sm btn-outline-secondary w-100" href="{{ item.linkedin_url }}" target="_blank" rel="noopener noreferrer">
                             <span>💼 LinkedIn</span>
                         </a>
                     </div>
                     {% endif %}
                     {% if item.leetcode_url %}
                     <div class="col-md-6 mb-2">
-                        <a class="btn btn-sm btn-outline-secondary w-100" href="{{ item.leetcode_url }}" target="_blank">
+                        <a class="btn btn-sm btn-outline-secondary w-100" href="{{ item.leetcode_url }}" target="_blank" rel="noopener noreferrer">
                             <span>💻 LeetCode</span>
                         </a>
                     </div>
                     {% endif %}
                     {% if item.codeforces_url %}
                     <div class="col-md-6 mb-2">
-                        <a class="btn btn-sm btn-outline-secondary w-100" href="{{ item.codeforces_url }}" target="_blank">
+                        <a class="btn btn-sm btn-outline-secondary w-100" href="{{ item.codeforces_url }}" target="_blank" rel="noopener noreferrer">
                             <span>⚡ CodeForces</span>
                         </a>
                     </div>
                     {% endif %}
                     {% if item.hackerrank_url %}
                     <div class="col-md-6 mb-2">
-                        <a class="btn btn-sm btn-outline-secondary w-100" href="{{ item.hackerrank_url }}" target="_blank">
+                        <a class="btn btn-sm btn-outline-secondary w-100" href="{{ item.hackerrank_url }}" target="_blank" rel="noopener noreferrer">
                             <span>🏆 HackerRank</span>
                         </a>
                     </div>
                     {% endif %}
                     {% if item.portfolio_url %}
                     <div class="col-md-6 mb-2">
-                        <a class="btn btn-sm btn-outline-secondary w-100" href="{{ item.portfolio_url }}" target="_blank">
+                        <a class="btn btn-sm btn-outline-secondary w-100" href="{{ item.portfolio_url }}" target="_blank" rel="noopener noreferrer">
                             <span>🌐 Portfolio</span>
                         </a>
                     </div>
                     {% endif %}
                     {% if item.other_coding_url %}
                     <div class="col-md-6 mb-2">
-                        <a class="btn btn-sm btn-outline-secondary w-100" href="{{ item.other_coding_url }}" target="_blank">
+                        <a class="btn btn-sm btn-outline-secondary w-100" href="{{ item.other_coding_url }}" target="_blank" rel="noopener noreferrer">
                             <span>🔗 Other Profile</span>
                         </a>
                     </div>
