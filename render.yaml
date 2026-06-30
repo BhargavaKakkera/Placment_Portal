@@ -15,6 +15,30 @@ services:
         value: "false"
 
       - key: ENABLE_EMAIL_DELIVERY
+        value: "true"
+
+      - key: APP_BASE_URL
+        sync: false
+
+      - key: SMTP_HOST
+        sync: false
+
+      - key: SMTP_PORT
+        sync: false
+
+      - key: SMTP_USERNAME
+        sync: false
+
+      - key: SMTP_PASSWORD
+        sync: false
+
+      - key: SMTP_FROM_EMAIL
+        sync: false
+
+      - key: SMTP_USE_TLS
+        value: "true"
+
+      - key: SMTP_USE_SSL
         value: "false"
 
       - key: DATABASE_URL

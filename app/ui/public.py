@@ -6,7 +6,7 @@ from sqlmodel import Session, select
 
 from .. import crud
 from ..auth import create_access_token, create_email_verification_token, create_password_reset_token
-from ..config import DEBUG, ENABLE_RATE_LIMITING, MAX_PASSWORD_RESET_ATTEMPTS, PASSWORD_RESET_ATTEMPT_WINDOW_SECONDS
+from ..config import DEBUG, ENABLE_RATE_LIMITING, MAX_PASSWORD_RESET_ATTEMPTS, PASSWORD_RESET_ATTEMPT_WINDOW_SECONDS, email_runtime_config_summary
 from ..database import engine
 from ..email_service import send_email_verification_email, send_password_reset_email
 from ..enums import Role, RoleType
@@ -14,10 +14,32 @@ from ..models import Company, User
 from ..schemas import EmailVerificationConfirmIn, PasswordResetConfirmIn, PasswordResetRequestIn, RegisterIn
 from ..rate_limiter import check_rate_limit, record_attempt, reset_limit
 from ..crud.token_crud import mark_token_as_used
+from ..logger import get_logger
 from .helpers import build_pager, current_user, extract_field_errors, home_for, is_public_job_visible, parse_page_limit, read_form_with_csrf, redirect_to, render, validation_message
 
 router = APIRouter()
 DEBUG_MODE = DEBUG
+logger = get_logger(__name__)
+
+
+def _send_ui_email_verification_email(email: str, token: str) -> None:
+    logger.info("UI background task begins execution: email verification for %s", email)
+    try:
+        send_email_verification_email(email, token)
+    except Exception:
+        logger.exception("UI verification email background task failed for %s", email)
+        raise
+    logger.info("UI background task completed: email verification for %s", email)
+
+
+def _send_ui_password_reset_email(email: str, token: str) -> None:
+    logger.info("UI background task begins execution: password reset for %s", email)
+    try:
+        send_password_reset_email(email, token)
+    except Exception:
+        logger.exception("UI password reset background task failed for %s", email)
+        raise
+    logger.info("UI background task completed: password reset for %s", email)
 
 
 @router.get("/", name="ui_home")
@@ -159,6 +181,7 @@ async def register_submit(request: Request, background_tasks: BackgroundTasks):
     try:
         form = await read_form_with_csrf(request)
     except ValueError as exc:
+        logger.warning("UI registration blocked by CSRF/form error: %s", exc)
         return redirect_to(request, "ui_register", str(exc), "warning")
     
     # Prepare form data
@@ -171,6 +194,7 @@ async def register_submit(request: Request, background_tasks: BackgroundTasks):
     try:
         payload = RegisterIn.model_validate(form_data)
     except ValidationError as exc:
+        logger.info("UI registration validation failed for email=%s", form_data["email"])
         with Session(engine) as session:
             user = current_user(request, session)
         field_errors = extract_field_errors(exc)
@@ -186,7 +210,14 @@ async def register_submit(request: Request, background_tasks: BackgroundTasks):
     email = payload.email
     password = payload.password
     role = payload.role
+    logger.info(
+        "UI registration starts for role=%s email=%s email_config=%s",
+        role,
+        email,
+        email_runtime_config_summary(),
+    )
     if role == Role.student:
+        logger.warning("UI student self-registration blocked for email=%s", email)
         with Session(engine) as session:
             user = current_user(request, session)
         return render(
@@ -203,8 +234,10 @@ async def register_submit(request: Request, background_tasks: BackgroundTasks):
         is_first_admin = role == Role.admin and session.exec(select(User).where(User.role == Role.admin)).first() is None
         try:
             user = crud.create_user(session, email, password, role, is_first_admin=is_first_admin)
+            logger.info("UI user created successfully: user_id=%s role=%s email=%s", user.id, role, email)
         except IntegrityError:
             session.rollback()
+            logger.exception("UI registration integrity error for email=%s", email)
             user = current_user(request, session)
             return render(
                 request,
@@ -215,9 +248,16 @@ async def register_submit(request: Request, background_tasks: BackgroundTasks):
                 field_errors={},
                 error_message="Email already registered.",
             )
-        token = create_email_verification_token(user.id) if role in {Role.admin, Role.company} else None
+        token = None
+        if role in {Role.admin, Role.company}:
+            logger.info("UI creating verification token for user_id=%s email=%s", user.id, email)
+            token = create_email_verification_token(user.id)
+            logger.info("UI verification token created for user_id=%s email=%s", user.id, email)
     if token:
-        background_tasks.add_task(send_email_verification_email, str(email), token)
+        background_tasks.add_task(_send_ui_email_verification_email, str(email), token)
+        logger.info("UI background task added: email verification for email=%s", email)
+    else:
+        logger.info("UI verification email not required for role=%s email=%s", role, email)
     if token and DEBUG_MODE:
         return redirect_to(
             request,
@@ -329,6 +369,7 @@ async def forgot_password_submit(request: Request, background_tasks: BackgroundT
     try:
         form = await read_form_with_csrf(request)
     except ValueError as exc:
+        logger.warning("UI forgot-password blocked by CSRF/form error: %s", exc)
         return redirect_to(request, "ui_forgot_password", str(exc), "warning")
     
     # Prepare form data
@@ -339,6 +380,7 @@ async def forgot_password_submit(request: Request, background_tasks: BackgroundT
     try:
         payload = PasswordResetRequestIn.model_validate(form_data)
     except ValidationError as exc:
+        logger.info("UI forgot-password validation failed for email=%s", form_data["email"])
         with Session(engine) as session:
             user = current_user(request, session)
         field_errors = extract_field_errors(exc)
@@ -353,6 +395,11 @@ async def forgot_password_submit(request: Request, background_tasks: BackgroundT
         )
     
     # Rate limiting per email
+    logger.info(
+        "UI password reset request starts for email=%s email_config=%s",
+        payload.email,
+        email_runtime_config_summary(),
+    )
     if ENABLE_RATE_LIMITING:
         allowed, remaining = check_rate_limit(
             f"password_reset:{payload.email}",
@@ -360,6 +407,7 @@ async def forgot_password_submit(request: Request, background_tasks: BackgroundT
             window_seconds=PASSWORD_RESET_ATTEMPT_WINDOW_SECONDS
         )
         if not allowed:
+            logger.warning("UI password reset rate limited for email=%s", payload.email)
             with Session(engine) as session:
                 user = current_user(request, session)
             return render(
@@ -375,9 +423,16 @@ async def forgot_password_submit(request: Request, background_tasks: BackgroundT
     
     with Session(engine) as session:
         user = crud.get_user_by_email(session, payload.email)
-        token = create_password_reset_token(user.id) if user else None
+        token = None
+        if user:
+            logger.info("UI creating password reset token for user_id=%s email=%s", user.id, payload.email)
+            token = create_password_reset_token(user.id)
+            logger.info("UI password reset token created for user_id=%s email=%s", user.id, payload.email)
+        else:
+            logger.info("UI password reset requested for non-existing email=%s", payload.email)
     if token:
-        background_tasks.add_task(send_password_reset_email, payload.email, token)
+        background_tasks.add_task(_send_ui_password_reset_email, payload.email, token)
+        logger.info("UI background task added: password reset for email=%s", payload.email)
         if ENABLE_RATE_LIMITING:
             reset_limit(f"password_reset:{payload.email}")
     if token and DEBUG_MODE:
