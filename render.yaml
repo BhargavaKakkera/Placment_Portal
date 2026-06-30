@@ -42,9 +42,7 @@ services:
         value: "false"
 
       - key: DATABASE_URL
-        fromDatabase:
-          name: placement-db
-          property: connectionString
+        sync: false
 
       - key: SECRET_KEY
         sync: false
@@ -54,8 +52,3 @@ services:
 
       - key: SESSION_SECRET_KEY
         sync: false
-
-databases:
-  - name: placement-db
-    databaseName: placement_portal
-    plan: free
