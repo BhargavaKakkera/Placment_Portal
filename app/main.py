@@ -7,6 +7,7 @@ Initializes the FastAPI app with middleware, security headers, and startup tasks
 import logging
 import os
 import secrets
+import time
 from pathlib import Path
 from typing import Any, Dict
 from uuid import uuid4
@@ -78,8 +79,36 @@ class RequestIDMiddleware(BaseHTTPMiddleware):
     
     async def dispatch(self, request: Request, call_next):
         request.state.request_id = str(uuid4())[:8]
-        response = await call_next(request)
+        start_time = time.perf_counter()
+        logger.info(
+            "Request started request_id=%s method=%s path=%s client=%s",
+            request.state.request_id,
+            request.method,
+            request.url.path,
+            request.client.host if request.client else None,
+        )
+        try:
+            response = await call_next(request)
+        except Exception:
+            duration_ms = (time.perf_counter() - start_time) * 1000
+            logger.exception(
+                "Request failed request_id=%s method=%s path=%s duration_ms=%.2f",
+                request.state.request_id,
+                request.method,
+                request.url.path,
+                duration_ms,
+            )
+            raise
+        duration_ms = (time.perf_counter() - start_time) * 1000
         response.headers["X-Request-ID"] = request.state.request_id
+        logger.info(
+            "Request completed request_id=%s method=%s path=%s status=%s duration_ms=%.2f",
+            request.state.request_id,
+            request.method,
+            request.url.path,
+            response.status_code,
+            duration_ms,
+        )
         return response
 
 
@@ -270,6 +299,27 @@ def health_check():
     """Health check endpoint."""
     logger.debug("Health check called")
     return {"status": "healthy"}
+
+
+@app.get("/health/email-config")
+def email_config_health_check():
+    """
+    Report non-secret email runtime config so deployment env can be verified.
+    """
+    summary = email_runtime_config_summary()
+    raw_env_present = summary["raw_env_present"]
+    return {
+        "email_delivery_enabled": summary["ENABLE_EMAIL_DELIVERY"],
+        "smtp_host_present": bool(summary["SMTP_HOST"]),
+        "smtp_port": summary["SMTP_PORT"],
+        "smtp_username_present": summary["SMTP_USERNAME_present"],
+        "smtp_password_present": summary["SMTP_PASSWORD_present"],
+        "smtp_from_email_present": bool(summary["SMTP_FROM_EMAIL"]),
+        "smtp_use_tls": summary["SMTP_USE_TLS"],
+        "smtp_use_ssl": summary["SMTP_USE_SSL"],
+        "app_base_url": summary["APP_BASE_URL"],
+        "raw_env_present": raw_env_present,
+    }
 
 
 @app.get(
