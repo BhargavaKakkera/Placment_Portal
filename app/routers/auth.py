@@ -18,7 +18,8 @@ from ..config import (
     MAX_LOGIN_ATTEMPTS, LOGIN_ATTEMPT_WINDOW_SECONDS,
     MAX_PASSWORD_RESET_ATTEMPTS, PASSWORD_RESET_ATTEMPT_WINDOW_SECONDS,
     MAX_EMAIL_VERIFICATION_RESEND, EMAIL_VERIFICATION_RESEND_WINDOW_SECONDS,
-    EXPOSE_TOKENS_IN_RESPONSES
+    EXPOSE_TOKENS_IN_RESPONSES,
+    email_runtime_config_summary,
 )
 from ..schemas import (
     RegisterIn,
@@ -61,11 +62,16 @@ def _send_password_reset_email(email: str, token: str) -> None:
         email: User email address
         token: Password reset token (logged without exposing token value)
     """
+    logger.info("Password reset background task begins execution for %s", email)
     try:
         send_password_reset_email(email, token)
     except EmailSendError as exc:
-        logger.error("Password reset email failed for %s: %s", email, exc.message)
+        logger.exception("Password reset email failed for %s: %s", email, exc.message)
         raise
+    except Exception:
+        logger.exception("Unexpected password reset background task failure for %s", email)
+        raise
+    logger.info("Password reset background task completed for %s", email)
 
 
 def _send_email_verification_email(email: str, token: str) -> None:
@@ -77,11 +83,16 @@ def _send_email_verification_email(email: str, token: str) -> None:
         email: User email address
         token: Email verification token (logged without exposing token value)
     """
+    logger.info("Background task begins execution: email verification for %s", email)
     try:
         send_email_verification_email(email, token)
     except EmailSendError as exc:
-        logger.error("Verification email failed for %s: %s", email, exc.message)
+        logger.exception("Verification email failed for %s: %s", email, exc.message)
         raise
+    except Exception:
+        logger.exception("Unexpected verification email background task failure for %s", email)
+        raise
+    logger.info("Background task completed: email verification for %s", email)
 
 
 @router.post("/register", response_model=RegisterOut)
@@ -105,7 +116,12 @@ def register(
         HTTPException: On validation or conflict errors
     """
     try:
-        logger.info(f"Registration attempt for role: {payload.role}, email: {payload.email}")
+        logger.info(
+            "Registration starts for role=%s email=%s email_config=%s",
+            payload.role,
+            payload.email,
+            email_runtime_config_summary(),
+        )
 
         if payload.role == Role.student:
             logger.warning(f"Student self-registration blocked for: {payload.email}")
@@ -141,7 +157,12 @@ def register(
                 payload.role,
                 is_first_admin=is_first_admin
             )
-            logger.info(f"User created successfully: {user.id}, role: {payload.role}")
+            logger.info(
+                "User created successfully: user_id=%s role=%s email=%s",
+                user.id,
+                payload.role,
+                user.email,
+            )
 
         except ConflictError:
             raise
@@ -157,16 +178,43 @@ def register(
         verification_token = None
         if payload.role in (Role.admin, Role.company):
             try:
+                logger.info(
+                    "Creating verification token for user_id=%s email=%s",
+                    user.id,
+                    user.email,
+                )
                 verification_token = create_email_verification_token(user.id)
+                logger.info(
+                    "Verification token created for user_id=%s email=%s",
+                    user.id,
+                    user.email,
+                )
                 background_tasks.add_task(
                     _send_email_verification_email,
                     user.email,
                     verification_token,
                 )
-                logger.info(f"Email verification task queued for: {user.email}")
+                logger.info(
+                    "Background task added: email verification for user_id=%s email=%s",
+                    user.id,
+                    user.email,
+                )
             except TokenError as e:
                 logger.error(f"Failed to create verification token: {str(e)}", exc_info=True)
                 raise HTTPException(status_code=500, detail="Failed to send verification email")
+            except Exception:
+                logger.exception(
+                    "Failed before queuing verification background task for user_id=%s email=%s",
+                    user.id,
+                    user.email,
+                )
+                raise HTTPException(status_code=500, detail="Failed to send verification email")
+        else:
+            logger.info(
+                "Verification email not required for role=%s email=%s",
+                payload.role,
+                payload.email,
+            )
 
         response = {
             "message": "Registration successful. Verify your email before logging in.",
@@ -176,6 +224,11 @@ def register(
             response["verification_token"] = verification_token
             logger.debug(f"Verification token exposed in DEBUG mode")
 
+        logger.info(
+            "Registration response returning for email=%s email_verification_sent=%s",
+            payload.email,
+            verification_token is not None,
+        )
         return response
 
     except (ConflictError, TokenError, DatabaseError) as e:

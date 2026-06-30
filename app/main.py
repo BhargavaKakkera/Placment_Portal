@@ -23,7 +23,7 @@ from sqlmodel import Session
 
 from .database import run_migrations, engine
 from . import crud
-from .config import SESSION_SECRET_KEY, DEBUG, LOG_LEVEL
+from .config import SESSION_SECRET_KEY, DEBUG, LOG_LEVEL, email_runtime_config_summary
 from .exceptions import ApplicationException
 from .logger import configure_logging, get_logger, configure_uvicorn_logging
 from .security_alerts import record_server_error
@@ -129,6 +129,7 @@ def on_startup() -> None:
     """
     try:
         logger.info("Application startup beginning...")
+        logger.info("Email runtime configuration at startup: %s", email_runtime_config_summary())
         
         # Run database migrations
         run_migrations()

@@ -115,6 +115,34 @@ if ENABLE_EMAIL_DELIVERY:
         raise RuntimeError("SMTP_HOST and SMTP_FROM_EMAIL must be set when ENABLE_EMAIL_DELIVERY=true")
     _validate_positive_int(SMTP_PORT, "SMTP_PORT")
 
+
+def email_runtime_config_summary() -> dict:
+    """
+    Return non-secret email configuration values as loaded by this process.
+    """
+    return {
+        "ENABLE_EMAIL_DELIVERY": ENABLE_EMAIL_DELIVERY,
+        "SMTP_HOST": SMTP_HOST,
+        "SMTP_PORT": SMTP_PORT,
+        "SMTP_USERNAME_present": bool(SMTP_USERNAME),
+        "SMTP_PASSWORD_present": bool(SMTP_PASSWORD),
+        "SMTP_FROM_EMAIL": SMTP_FROM_EMAIL,
+        "SMTP_USE_TLS": SMTP_USE_TLS,
+        "SMTP_USE_SSL": SMTP_USE_SSL,
+        "APP_BASE_URL": APP_BASE_URL,
+        "raw_env_present": {
+            "ENABLE_EMAIL_DELIVERY": "ENABLE_EMAIL_DELIVERY" in os.environ,
+            "SMTP_HOST": "SMTP_HOST" in os.environ,
+            "SMTP_PORT": "SMTP_PORT" in os.environ,
+            "SMTP_USERNAME": "SMTP_USERNAME" in os.environ,
+            "SMTP_PASSWORD": "SMTP_PASSWORD" in os.environ,
+            "SMTP_FROM_EMAIL": "SMTP_FROM_EMAIL" in os.environ,
+            "SMTP_USE_TLS": "SMTP_USE_TLS" in os.environ,
+            "SMTP_USE_SSL": "SMTP_USE_SSL" in os.environ,
+            "APP_BASE_URL": "APP_BASE_URL" in os.environ,
+        },
+    }
+
 # ===== RATE LIMITING CONFIGURATION =====
 MAX_LOGIN_ATTEMPTS = int(os.getenv("MAX_LOGIN_ATTEMPTS", "5"))
 LOGIN_ATTEMPT_WINDOW_SECONDS = int(os.getenv("LOGIN_ATTEMPT_WINDOW_SECONDS", "900"))
