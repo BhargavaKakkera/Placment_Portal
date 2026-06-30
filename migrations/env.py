@@ -1,3 +1,4 @@
+import logging
 from logging.config import fileConfig
 
 from alembic import context
@@ -10,7 +11,7 @@ import app.models  # Load SQLModel metadata for Alembic autogenerate.
 
 
 config = context.config
-if config.config_file_name is not None:
+if config.config_file_name is not None and not logging.getLogger().handlers:
     fileConfig(config.config_file_name)
 
 # Use app database URL, including test override via env var.
