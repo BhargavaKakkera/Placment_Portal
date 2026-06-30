@@ -47,6 +47,13 @@ def _validate_positive_int(value: int, name: str) -> None:
     logger.debug(f"{name} validation passed")
 
 
+def _getenv_stripped(name: str, default: str | None = None) -> str | None:
+    value = os.getenv(name, default)
+    if value is None:
+        return None
+    return value.strip()
+
+
 # ===== SECRET KEY CONFIGURATION =====
 # Backward compatibility:
 # - SECRET_KEY can act as a single base key
@@ -99,16 +106,17 @@ ENABLE_EMAIL_DELIVERY = os.getenv("ENABLE_EMAIL_DELIVERY", "false").lower() == "
 # Only expose tokens in DEBUG mode for development convenience
 # In production, tokens are never exposed in responses
 EXPOSE_TOKENS_IN_RESPONSES = DEBUG and os.getenv("EXPOSE_TOKENS_IN_RESPONSES", "false").lower() == "true"
-APP_BASE_URL = os.getenv("APP_BASE_URL", "http://localhost:8000").rstrip("/")
+APP_BASE_URL = _getenv_stripped("APP_BASE_URL", "http://localhost:8000").rstrip("/")
 
 # ===== EMAIL DELIVERY CONFIGURATION =====
-SMTP_HOST = os.getenv("SMTP_HOST")
+SMTP_HOST = _getenv_stripped("SMTP_HOST")
 SMTP_PORT = int(os.getenv("SMTP_PORT", "587"))
-SMTP_USERNAME = os.getenv("SMTP_USERNAME")
-SMTP_PASSWORD = os.getenv("SMTP_PASSWORD")
-SMTP_FROM_EMAIL = os.getenv("SMTP_FROM_EMAIL")
+SMTP_USERNAME = _getenv_stripped("SMTP_USERNAME")
+SMTP_PASSWORD = _getenv_stripped("SMTP_PASSWORD")
+SMTP_FROM_EMAIL = _getenv_stripped("SMTP_FROM_EMAIL")
 SMTP_USE_TLS = os.getenv("SMTP_USE_TLS", "true").lower() == "true"
 SMTP_USE_SSL = os.getenv("SMTP_USE_SSL", "false").lower() == "true"
+EMAIL_TEST_TOKEN = _getenv_stripped("EMAIL_TEST_TOKEN")
 
 if ENABLE_EMAIL_DELIVERY:
     if not SMTP_HOST or not SMTP_FROM_EMAIL:
@@ -130,6 +138,7 @@ def email_runtime_config_summary() -> dict:
         "SMTP_USE_TLS": SMTP_USE_TLS,
         "SMTP_USE_SSL": SMTP_USE_SSL,
         "APP_BASE_URL": APP_BASE_URL,
+        "EMAIL_TEST_TOKEN_present": bool(EMAIL_TEST_TOKEN),
         "raw_env_present": {
             "ENABLE_EMAIL_DELIVERY": "ENABLE_EMAIL_DELIVERY" in os.environ,
             "SMTP_HOST": "SMTP_HOST" in os.environ,
@@ -140,6 +149,7 @@ def email_runtime_config_summary() -> dict:
             "SMTP_USE_TLS": "SMTP_USE_TLS" in os.environ,
             "SMTP_USE_SSL": "SMTP_USE_SSL" in os.environ,
             "APP_BASE_URL": "APP_BASE_URL" in os.environ,
+            "EMAIL_TEST_TOKEN": "EMAIL_TEST_TOKEN" in os.environ,
         },
     }
 

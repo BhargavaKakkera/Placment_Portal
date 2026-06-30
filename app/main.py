@@ -24,7 +24,8 @@ from sqlmodel import Session
 
 from .database import run_migrations, engine
 from . import crud
-from .config import SESSION_SECRET_KEY, DEBUG, LOG_LEVEL, email_runtime_config_summary
+from .config import SESSION_SECRET_KEY, DEBUG, LOG_LEVEL, EMAIL_TEST_TOKEN, email_runtime_config_summary
+from .email_service import _send_email
 from .exceptions import ApplicationException
 from .logger import configure_logging, get_logger, configure_uvicorn_logging
 from .security_alerts import record_server_error
@@ -318,8 +319,28 @@ def email_config_health_check():
         "smtp_use_tls": summary["SMTP_USE_TLS"],
         "smtp_use_ssl": summary["SMTP_USE_SSL"],
         "app_base_url": summary["APP_BASE_URL"],
+        "email_test_token_present": summary["EMAIL_TEST_TOKEN_present"],
         "raw_env_present": raw_env_present,
     }
+
+
+@app.post("/health/email-send-test")
+def email_send_test(request: Request, to: str):
+    """
+    Send a diagnostic email. Requires EMAIL_TEST_TOKEN and X-Email-Test-Token.
+    """
+    supplied_token = request.headers.get("X-Email-Test-Token")
+    if not EMAIL_TEST_TOKEN or supplied_token != EMAIL_TEST_TOKEN:
+        raise HTTPException(status_code=404, detail="Not found")
+
+    logger.info("Diagnostic email send requested for %s", to)
+    _send_email(
+        to,
+        "Placement Portal SMTP diagnostic",
+        "This is a diagnostic email from the Placement Portal Render deployment.",
+    )
+    logger.info("Diagnostic email send completed for %s", to)
+    return {"sent": True}
 
 
 @app.get(
