@@ -109,6 +109,9 @@ EXPOSE_TOKENS_IN_RESPONSES = DEBUG and os.getenv("EXPOSE_TOKENS_IN_RESPONSES", "
 APP_BASE_URL = _getenv_stripped("APP_BASE_URL", "http://localhost:8000").rstrip("/")
 
 # ===== EMAIL DELIVERY CONFIGURATION =====
+EMAIL_PROVIDER = _getenv_stripped("EMAIL_PROVIDER", "smtp").lower()
+EMAIL_FROM = _getenv_stripped("EMAIL_FROM")
+RESEND_API_KEY = _getenv_stripped("RESEND_API_KEY")
 SMTP_HOST = _getenv_stripped("SMTP_HOST")
 SMTP_PORT = int(os.getenv("SMTP_PORT", "587"))
 SMTP_USERNAME = _getenv_stripped("SMTP_USERNAME")
@@ -119,9 +122,13 @@ SMTP_USE_SSL = os.getenv("SMTP_USE_SSL", "false").lower() == "true"
 EMAIL_TEST_TOKEN = _getenv_stripped("EMAIL_TEST_TOKEN")
 
 if ENABLE_EMAIL_DELIVERY:
-    if not SMTP_HOST or not SMTP_FROM_EMAIL:
-        raise RuntimeError("SMTP_HOST and SMTP_FROM_EMAIL must be set when ENABLE_EMAIL_DELIVERY=true")
-    _validate_positive_int(SMTP_PORT, "SMTP_PORT")
+    if EMAIL_PROVIDER == "resend":
+        if not RESEND_API_KEY or not EMAIL_FROM:
+            raise RuntimeError("RESEND_API_KEY and EMAIL_FROM must be set when EMAIL_PROVIDER=resend")
+    else:
+        if not SMTP_HOST or not SMTP_FROM_EMAIL:
+            raise RuntimeError("SMTP_HOST and SMTP_FROM_EMAIL must be set when ENABLE_EMAIL_DELIVERY=true")
+        _validate_positive_int(SMTP_PORT, "SMTP_PORT")
 
 
 def email_runtime_config_summary() -> dict:
@@ -130,6 +137,9 @@ def email_runtime_config_summary() -> dict:
     """
     return {
         "ENABLE_EMAIL_DELIVERY": ENABLE_EMAIL_DELIVERY,
+        "EMAIL_PROVIDER": EMAIL_PROVIDER,
+        "EMAIL_FROM": EMAIL_FROM,
+        "RESEND_API_KEY_present": bool(RESEND_API_KEY),
         "SMTP_HOST": SMTP_HOST,
         "SMTP_PORT": SMTP_PORT,
         "SMTP_USERNAME_present": bool(SMTP_USERNAME),
@@ -141,6 +151,9 @@ def email_runtime_config_summary() -> dict:
         "EMAIL_TEST_TOKEN_present": bool(EMAIL_TEST_TOKEN),
         "raw_env_present": {
             "ENABLE_EMAIL_DELIVERY": "ENABLE_EMAIL_DELIVERY" in os.environ,
+            "EMAIL_PROVIDER": "EMAIL_PROVIDER" in os.environ,
+            "EMAIL_FROM": "EMAIL_FROM" in os.environ,
+            "RESEND_API_KEY": "RESEND_API_KEY" in os.environ,
             "SMTP_HOST": "SMTP_HOST" in os.environ,
             "SMTP_PORT": "SMTP_PORT" in os.environ,
             "SMTP_USERNAME": "SMTP_USERNAME" in os.environ,

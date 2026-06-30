@@ -311,6 +311,9 @@ def email_config_health_check():
     raw_env_present = summary["raw_env_present"]
     return {
         "email_delivery_enabled": summary["ENABLE_EMAIL_DELIVERY"],
+        "email_provider": summary["EMAIL_PROVIDER"],
+        "email_from_present": bool(summary["EMAIL_FROM"]),
+        "resend_api_key_present": summary["RESEND_API_KEY_present"],
         "smtp_host_present": bool(summary["SMTP_HOST"]),
         "smtp_port": summary["SMTP_PORT"],
         "smtp_username_present": summary["SMTP_USERNAME_present"],

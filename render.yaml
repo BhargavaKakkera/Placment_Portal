@@ -17,31 +17,16 @@ services:
       - key: ENABLE_EMAIL_DELIVERY
         value: "true"
 
+      - key: EMAIL_PROVIDER
+        value: resend
+
+      - key: EMAIL_FROM
+        sync: false
+
+      - key: RESEND_API_KEY
+        sync: false
+
       - key: APP_BASE_URL
-        sync: false
-
-      - key: SMTP_HOST
-        sync: false
-
-      - key: SMTP_PORT
-        sync: false
-
-      - key: SMTP_USERNAME
-        sync: false
-
-      - key: SMTP_PASSWORD
-        sync: false
-
-      - key: SMTP_FROM_EMAIL
-        sync: false
-
-      - key: SMTP_USE_TLS
-        value: "true"
-
-      - key: SMTP_USE_SSL
-        value: "false"
-
-      - key: EMAIL_TEST_TOKEN
         sync: false
 
       - key: DATABASE_URL
