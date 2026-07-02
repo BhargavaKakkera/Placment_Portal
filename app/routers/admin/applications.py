@@ -1,7 +1,3 @@
-"""
-Admin router for application management.
-"""
-
 from fastapi import APIRouter, Depends, HTTPException
 from sqlmodel import Session
 
@@ -25,7 +21,6 @@ def admin_list_applications(
     admin_user: User = Depends(get_verified_admin),
     session: Session = Depends(get_session),
 ):
-    """List all applications with pagination (requires verified admin)."""
     items = crud.list_applications(
         session,
         skip=pagination.skip,
@@ -33,7 +28,6 @@ def admin_list_applications(
     )
     total = crud.count_applications(session)
     
-    # Log sensitive read
     log_audit("admin.applications.listed", admin_id=admin_user.id, skip=pagination.skip, limit=pagination.limit, total=total)
 
     return {
@@ -50,7 +44,6 @@ def admin_delete_application(
     application_id: int,
     session: Session = Depends(get_session),
 ):
-    """Delete an application (requires verified admin)."""
     res = crud.delete_application(session, application_id)
 
     if not res:

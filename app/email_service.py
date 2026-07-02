@@ -1,12 +1,3 @@
-"""
-Email delivery service for verification, password reset, and invite flows.
-
-NOTE: Email delivery logic (provider selection, transport, and sending flow)
-remains unchanged. This file only updates copy/subject lines to be more
-professional and less spammy.
-"""
-
-
 from __future__ import annotations
 
 import smtplib
@@ -148,7 +139,6 @@ def _send_smtp_email(to_email: str, subject: str, body_text: str, body_html: str
 
 
 def _send_email(to_email: str, subject: str, body_text: str, body_html: str) -> None:
-    """Send a plain-text email using configured SMTP settings."""
     logger.info(
         "_send_email() entered for recipient=%s subject=%s config=%s",
         to_email,

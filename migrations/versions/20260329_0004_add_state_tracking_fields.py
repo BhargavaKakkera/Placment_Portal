@@ -11,7 +11,6 @@ from alembic import op
 import sqlalchemy as sa
 
 
-# revision identifiers, used by Alembic.
 revision: str = "20260329_0004"
 down_revision: Union[str, None] = "20260329_0003"
 branch_labels: Union[str, Sequence[str], None] = None
@@ -19,34 +18,27 @@ depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
-    # Add fields to job table
     op.add_column("job", sa.Column("closed_at", sa.DateTime(), nullable=True))
     op.add_column("job", sa.Column("updated_at", sa.DateTime(), nullable=False, server_default=sa.func.now()))
     
-    # Add fields to application table
     op.add_column("application", sa.Column("status_reason", sa.String(), nullable=False, server_default="initial"))
     op.add_column("application", sa.Column("updated_at", sa.DateTime(), nullable=False, server_default=sa.func.now()))
     op.create_index("ix_application_status_reason", "application", ["status_reason"], unique=False)
     
-    # Add fields to offer table
     op.add_column("offer", sa.Column("status_reason", sa.String(), nullable=False, server_default="initial"))
     op.add_column("offer", sa.Column("updated_at", sa.DateTime(), nullable=False, server_default=sa.func.now()))
     op.create_index("ix_offer_status_reason", "offer", ["status_reason"], unique=False)
 
 
 def downgrade() -> None:
-    # Remove indexes
     op.drop_index("ix_offer_status_reason", table_name="offer")
     op.drop_index("ix_application_status_reason", table_name="application")
     
-    # Remove columns from offer
     op.drop_column("offer", "updated_at")
     op.drop_column("offer", "status_reason")
     
-    # Remove columns from application
     op.drop_column("application", "updated_at")
     op.drop_column("application", "status_reason")
     
-    # Remove columns from job
     op.drop_column("job", "updated_at")
     op.drop_column("job", "closed_at")

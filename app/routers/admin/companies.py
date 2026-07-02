@@ -1,7 +1,3 @@
-"""
-Admin router for company management.
-"""
-
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlmodel import Session
 
@@ -24,7 +20,6 @@ def verify_company(
     company_id: int,
     session: Session = Depends(get_session),
 ):
-    """Verify a company (requires verified admin)."""
     verified = crud.verify_company(session, company_id)
     if not verified:
         raise HTTPException(status_code=404, detail="Company not found")
@@ -40,7 +35,6 @@ def admin_list_companies(
     admin_user: User = Depends(get_verified_admin),
     session: Session = Depends(get_session),
 ):
-    """List all companies with pagination (requires verified admin)."""
     items = crud.list_companies(
         session,
         skip=pagination.skip,
@@ -50,7 +44,6 @@ def admin_list_companies(
     )
     total = crud.count_companies(session, verified=verified, include_inactive=include_inactive)
     
-    # Log sensitive read
     log_audit("admin.companies.listed", admin_id=admin_user.id, count=len(items), total=total, verified=verified, include_inactive=include_inactive)
 
     return {
@@ -67,7 +60,6 @@ def admin_delete_company(
     company_id: int,
     session: Session = Depends(get_session),
 ):
-    """Delete a company (requires verified admin)."""
     try:
         res = crud.delete_company(session, company_id)
     except ValueError as e:
@@ -90,7 +82,6 @@ def admin_reactivate_company(
     company_id: int,
     session: Session = Depends(get_session),
 ):
-    """Reactivate a company and linked user account (requires verified admin)."""
     res = crud.reactivate_company(session, company_id)
     if not res:
         raise HTTPException(

@@ -54,7 +54,6 @@ async def student_profile_submit(request: Request):
     except ValueError as exc:
         return redirect_to(request, "ui_student_profile", str(exc), "warning")
     
-    # Prepare form data
     form_data = {
         "phone": txt(form.get("phone")) or "",
         "personal_email": txt(form.get("personal_email")) or "",
@@ -201,11 +200,9 @@ def student_offers_page(request: Request):
             return redirect
         page, limit, skip = parse_page_limit(request, default_limit=20, max_limit=100)
         
-        # Get all offers with job/company details
         offered = crud.list_student_offer_summaries(session, student.id, OfferStatus.offered, skip, limit)
         accepted = crud.list_student_offer_summaries(session, student.id, OfferStatus.accepted, skip, limit)
         
-        # Get total count for pagination
         total_offered = crud.count_student_offers(session, student.id, OfferStatus.offered)
         total_accepted = crud.count_student_offers(session, student.id, OfferStatus.accepted)
         total = total_offered + total_accepted

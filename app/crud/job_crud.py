@@ -1,7 +1,3 @@
-"""
-Job CRUD operations for job postings management.
-"""
-
 from sqlmodel import Session, select, func
 from typing import Optional, List
 from ..models import Job, Company, Application, Offer
@@ -12,10 +8,6 @@ from .state_transitions import close_job_and_cascade
 
 
 def create_job(session: Session, company_id: int, **data) -> Job:
-    """
-    Create a new job posting.
-    Ensures company is verified before allowing job creation.
-    """
     company = session.get(Company, company_id)
     if not company or not getattr(company, "is_active", True) or not company.verified:
         raise ValueError("Company not verified or does not exist")
@@ -59,7 +51,6 @@ def create_job(session: Session, company_id: int, **data) -> Job:
 
 
 def get_job_by_id(session: Session, job_id: int) -> Optional[Job]:
-    """Get job by ID."""
     return session.get(Job, job_id)
 
 
@@ -71,7 +62,6 @@ def list_jobs(
     company_name: Optional[str] = None,
     job_id: Optional[int] = None,
 ) -> List[Job]:
-    """List jobs with optional company and job filters and pagination."""
     statement = select(Job)
     if company_name:
         statement = statement.join(Company, Company.id == Job.company_id).where(
@@ -91,7 +81,6 @@ def list_company_jobs(
     skip: int = 0,
     limit: int = 100,
 ) -> List[Job]:
-    """List jobs created by a company with pagination."""
     statement = (
         select(Job)
         .where(Job.company_id == company_id)
@@ -109,9 +98,6 @@ def list_verified_jobs(
     search: Optional[str] = None,
     role_type: Optional[RoleType] = None,
 ) -> List[Job]:
-    """
-    List verified, open jobs that haven't passed the deadline.
-    """
     now = utc_now()
     statement = (
         select(Job)
@@ -141,7 +127,6 @@ def count_jobs(
     company_name: Optional[str] = None,
     job_id: Optional[int] = None,
 ) -> int:
-    """Count jobs with optional company and job filters."""
     statement = select(func.count()).select_from(Job)
     if company_name:
         statement = statement.join(Company, Company.id == Job.company_id).where(
@@ -155,13 +140,11 @@ def count_jobs(
 
 
 def count_company_jobs(session: Session, company_id: int) -> int:
-    """Count jobs created by a company."""
     statement = select(func.count()).select_from(Job).where(Job.company_id == company_id)
     return session.exec(statement).one()
 
 
 def count_active_jobs(session: Session) -> int:
-    """Count all active (non-closed) jobs from verified companies."""
     statement = (
         select(func.count())
         .select_from(Job)
@@ -178,7 +161,6 @@ def count_verified_jobs(
     search: Optional[str] = None,
     role_type: Optional[RoleType] = None,
 ) -> int:
-    """Count verified, open jobs that haven't passed the deadline."""
     now = utc_now()
     statement = (
         select(func.count())
@@ -200,7 +182,6 @@ def count_verified_jobs(
 
 
 def get_applicants_for_job(session: Session, job_id: int) -> List[Application]:
-    """Get all applications for a job."""
     statement = (
         select(Application)
         .where(Application.job_id == job_id)
@@ -215,7 +196,6 @@ def get_applicants_for_job_paginated(
     skip: int = 0,
     limit: int = 100,
 ) -> List[Application]:
-    """Get paginated applications for a job."""
     statement = (
         select(Application)
         .where(Application.job_id == job_id)
@@ -227,13 +207,11 @@ def get_applicants_for_job_paginated(
 
 
 def count_applicants_for_job(session: Session, job_id: int) -> int:
-    """Count applications for a job."""
     statement = select(func.count()).select_from(Application).where(Application.job_id == job_id)
     return session.exec(statement).one()
 
 
 def close_job(session: Session, job_id: int) -> Optional[Job]:
-    """Close a job posting with cascading to applications/offers (state-driven)."""
     job = session.get(Job, job_id)
     if not job:
         raise ValueError("Job not found")
@@ -245,7 +223,6 @@ def close_job(session: Session, job_id: int) -> Optional[Job]:
 
 
 def delete_job(session: Session, job_id: int) -> Optional[bool]:
-    """Delete a job posting."""
     job = session.get(Job, job_id)
     if not job:
         return None

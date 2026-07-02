@@ -1,7 +1,3 @@
-"""
-Token blacklist CRUD operations for tracking used tokens.
-"""
-
 import hashlib
 from datetime import timedelta
 from sqlmodel import Session, select
@@ -14,7 +10,6 @@ logger = get_logger(__name__)
 
 
 def _hash_token(token: str) -> str:
-    """Hash a token using SHA256."""
     return hashlib.sha256(token.encode()).hexdigest()
 
 
@@ -24,21 +19,8 @@ def mark_token_as_used(
     user_id: int,
     token_purpose: str,
 ) -> bool:
-    """
-    Mark a token as used/consumed.
-    
-    Args:
-        session: Database session
-        token: The token string to mark as used
-        user_id: User ID associated with token
-        token_purpose: Purpose of token ('password_reset' or 'email_verification')
-    
-    Returns:
-        True if marked successfully, False if token already used
-    """
     token_hash = _hash_token(token)
     
-    # Check if token already used
     existing = session.exec(
         select(TokenBlacklist).where(TokenBlacklist.token_hash == token_hash)
     ).first()
@@ -47,7 +29,6 @@ def mark_token_as_used(
         logger.warning(f"Attempted reuse of consumed {token_purpose} token for user {user_id}")
         return False
     
-    # Add token to blacklist
     blacklist_entry = TokenBlacklist(
         token_hash=token_hash,
         user_id=user_id,
@@ -65,16 +46,6 @@ def mark_token_as_used(
 
 
 def is_token_used(session: Session, token: str) -> bool:
-    """
-    Check if a token has already been used/consumed.
-    
-    Args:
-        session: Database session
-        token: The token string to check
-    
-    Returns:
-        True if token is in blacklist (used), False if not in blacklist (unused)
-    """
     token_hash = _hash_token(token)
     entry = session.exec(
         select(TokenBlacklist).where(TokenBlacklist.token_hash == token_hash)
@@ -83,16 +54,6 @@ def is_token_used(session: Session, token: str) -> bool:
 
 
 def invalidate_user_tokens(session: Session, user_id: int) -> int:
-    """
-    Invalidate all tokens for a user (useful on password change for security).
-    
-    Args:
-        session: Database session
-        user_id: User ID
-    
-    Returns:
-        Number of tokens invalidated
-    """
     try:
         entries = session.exec(
             select(TokenBlacklist).where(TokenBlacklist.user_id == user_id)
@@ -112,17 +73,6 @@ def invalidate_user_tokens(session: Session, user_id: int) -> int:
 
 
 def cleanup_expired_tokens(session: Session, older_than_days: int = 2) -> int:
-    """
-    Delete consumed tokens older than specified days from blacklist.
-    Prevents blacklist table from growing indefinitely.
-    
-    Args:
-        session: Database session
-        older_than_days: Delete tokens consumed more than this many days ago (default: 2)
-    
-    Returns:
-        Number of tokens deleted
-    """
     try:
         cutoff_time = utc_now() - timedelta(days=older_than_days)
         

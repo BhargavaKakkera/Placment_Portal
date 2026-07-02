@@ -95,7 +95,6 @@ async def company_jobs_submit(request: Request):
     except ValueError as exc:
         return redirect_to(request, "ui_company_jobs", str(exc), "warning")
     
-    # Prepare form data for potential re-rendering
     form_data = {
         "title": str(form.get("title", "")).strip(),
         "description": txt(form.get("description")) or "",
@@ -118,7 +117,6 @@ async def company_jobs_submit(request: Request):
         if redirect:
             return redirect
 
-        # Required-field checks (UI-friendly errors instead of falling through to 500)
         field_errors = {}
         role_type_value = form_data["role_type"]
         selected_branches = [b for b in form_data["allowed_branches"] if b and b != "__all__"]
@@ -171,7 +169,6 @@ async def company_jobs_submit(request: Request):
                 }
             )
         except (ValidationError, ValueError) as exc:
-            # Re-render the form with errors and data instead of redirecting
             jobs = crud.list_company_jobs(session, company.id, 0, 50)
             field_errors = extract_field_errors(exc)
             return render(
@@ -192,7 +189,6 @@ async def company_jobs_submit(request: Request):
                 **payload.model_dump(mode="json")
             )
         except (ValueError, IntegrityError) as exc:
-            # Re-render with error message on database error
             jobs = crud.list_company_jobs(session, company.id, 0, 50)
             return render(
                 request,
@@ -263,7 +259,6 @@ async def company_job_deadline_update_submit(job_id: int, request: Request):
         if not company or not job or job.company_id != company.id:
             return redirect_to(request, "ui_company_jobs", "Job not found.", "warning")
         try:
-            # Prefer UTC-converted deadline if available, fallback to local datetime
             deadline_utc_value = form.get("application_deadline_utc")
             deadline_value = dt(deadline_utc_value) if deadline_utc_value else dt(form.get("application_deadline"))
             payload = JobDeadlineUpdate.model_validate(
@@ -363,7 +358,6 @@ async def company_application_action_submit(application_id: int, request: Reques
         try:
             status_value = str(form.get("status", CompanyApplicationAction.shortlisted.value)).strip()
             ctc_value = flt(form.get("ctc"))
-            # Prefer UTC-converted deadline if available, fallback to local datetime
             deadline_utc_value = form.get("offer_response_deadline_utc")
             deadline_value = dt(deadline_utc_value) if deadline_utc_value else dt(form.get("offer_response_deadline"))
             payload = CompanyApplicationStatusUpdate.model_validate(

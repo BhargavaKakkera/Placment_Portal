@@ -1,7 +1,3 @@
-"""
-Admin router for dashboard statistics.
-"""
-
 from fastapi import APIRouter, Depends
 from sqlmodel import Session
 
@@ -21,24 +17,6 @@ router = APIRouter(
 def get_dashboard_stats(
     session: Session = Depends(get_session),
 ):
-    """
-    Get dashboard statistics (requires verified admin).
-    
-    Returns:
-        AdminDashboardResponse with the following stats:
-        - total_students: Total number of students
-        - placed_students: Number of students with accepted offers
-        - placement_rate: Placement rate percentage
-        - branch_stats: Placement breakdown per branch
-        - active_jobs: Number of active job postings from verified companies
-        - total_jobs: Total number of jobs created
-        - total_companies: Total number of verified companies
-        - pending_companies: Companies waiting for admin verification
-        - pending_admins: Admin accounts waiting for first-admin approval
-        - offers_made: Total number of offers made
-        - offers_pending_response: Offers still awaiting student response
-        - offers_accepted: Number of accepted offers
-    """
     total_students = crud.count_students(session)
     placed_students = crud.count_placed_students(session)
     placement_rate = round((placed_students / total_students) * 100, 2) if total_students else 0.0

@@ -1,9 +1,3 @@
-"""
-Main FastAPI application.
-
-Initializes the FastAPI app with middleware, security headers, and startup tasks.
-"""
-
 import logging
 import os
 import secrets
@@ -30,28 +24,25 @@ from .exceptions import ApplicationException
 from .logger import configure_logging, get_logger, configure_uvicorn_logging
 from .security_alerts import record_server_error
 
-# Configure logging before anything else
 configure_logging(log_level=LOG_LEVEL)
-configure_uvicorn_logging()  # Enable uvicorn access logs
+configure_uvicorn_logging()
 logger = get_logger(__name__)
 
 app = FastAPI(
     title="Placement Portal - Placement Cell API",
     description="API for managing placements, students, companies, and job applications",
     version="1.0.0",
-    docs_url="/docs",  # Always enable Swagger UI
-    redoc_url="/redoc",  # Always enable ReDoc
-    openapi_url="/openapi.json",  # Always expose OpenAPI schema
+    docs_url="/docs",
+    redoc_url="/redoc",
+    openapi_url="/openapi.json",
 )
 
 
 class SecurityHeadersMiddleware(BaseHTTPMiddleware):
-    """Add security headers to all responses."""
 
     async def dispatch(self, request, call_next):
         response = await call_next(request)
         
-        # Security headers
         response.headers["X-Content-Type-Options"] = "nosniff"
         response.headers["X-Frame-Options"] = "DENY"
         response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
@@ -67,7 +58,6 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
             "frame-ancestors 'none'"
         )
         
-        # HSTS header in production
         if not DEBUG:
             response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
         
@@ -76,7 +66,6 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
 
 
 class RequestIDMiddleware(BaseHTTPMiddleware):
-    """Add unique request ID to all requests for tracking."""
     
     async def dispatch(self, request: Request, call_next):
         request.state.request_id = str(uuid4())[:8]
@@ -113,13 +102,10 @@ class RequestIDMiddleware(BaseHTTPMiddleware):
         return response
 
 
-# Add security headers middleware
 app.add_middleware(SecurityHeadersMiddleware)
 
-# Add request ID middleware
 app.add_middleware(RequestIDMiddleware)
 
-# Add CORS middleware for API endpoints
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
@@ -131,19 +117,17 @@ app.add_middleware(
     allow_credentials=True,
     allow_methods=["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
     allow_headers=["*"],
-    max_age=600,  # Cache preflight requests for 10 minutes
+    max_age=600,
 )
 
-# Add session middleware with secure cookies
 app.add_middleware(
     SessionMiddleware,
     secret_key=SESSION_SECRET_KEY,
     same_site="lax",
-    https_only=not DEBUG,  # HTTPS only in production
-    max_age=60 * 30,  # 30 minutes session timeout
+    https_only=not DEBUG,
+    max_age=60 * 30,
 )
 
-# Mount static files
 static_path = Path(__file__).resolve().parent / "static"
 app.mount("/static", StaticFiles(directory=str(static_path)), name="static")
 logger.info(f"Static files mounted from: {static_path}")
@@ -151,37 +135,26 @@ logger.info(f"Static files mounted from: {static_path}")
 
 @app.on_event("startup")
 def on_startup() -> None:
-    """
-    Startup event: Run migrations and cleanup tasks.
-
-    Raises:
-        RuntimeError: If startup tasks fail
-    """
     try:
         logger.info("Application startup beginning...")
         logger.info("Email runtime configuration at startup: %s", email_runtime_config_summary())
         
-        # Run database migrations
         run_migrations()
         logger.info("Migrations completed")
 
-        # Cleanup expired unverified users
         try:
             with Session(engine) as session:
                 crud.purge_expired_unverified_users(session, older_than_days=15)
                 logger.info("Cleanup of expired unverified users completed")
         except Exception as e:
             logger.error(f"Error during user cleanup: {str(e)}", exc_info=True)
-            # Don't fail startup, just log the error
 
-        # Cleanup expired tokens from blacklist
         try:
             with Session(engine) as session:
                 crud.cleanup_expired_tokens(session, older_than_days=2)
                 logger.info("Cleanup of expired tokens completed")
         except Exception as e:
             logger.error(f"Error during token cleanup: {str(e)}", exc_info=True)
-            # Don't fail startup, just log the error
 
         logger.info("Application startup completed successfully")
         if DEBUG:
@@ -194,7 +167,6 @@ def on_startup() -> None:
         raise RuntimeError("Application startup failed") from e
 
 
-# Include routers
 from .routers import auth, jobs, students, companies
 from .routers.admin import router as admin_router
 from .ui import router as ui_router
@@ -211,7 +183,6 @@ logger.info("All routers registered")
 
 @app.exception_handler(ApplicationException)
 async def application_exception_handler(request: Request, exc: ApplicationException):
-    """Handle all custom application exceptions with standard format."""
     logger.warning(
         f"Application error at {request.method} {request.url.path}: [{exc.error_code}] {exc.message}"
     )
@@ -228,7 +199,6 @@ async def application_exception_handler(request: Request, exc: ApplicationExcept
 
 @app.exception_handler(RequestValidationError)
 async def request_validation_exception_handler(request: Request, exc: RequestValidationError):
-    """Convert Pydantic validation errors to user-friendly format."""
     errors = []
     for error in exc.errors():
         field = ".".join(str(x) for x in error["loc"][1:])
@@ -245,7 +215,7 @@ async def request_validation_exception_handler(request: Request, exc: RequestVal
             "success": False,
             "error": "Validation failed",
             "error_code": "VALIDATION_ERROR",
-            "details": {"errors": errors[:5]},  # Limit to 5 errors
+            "details": {"errors": errors[:5]},
             "request_id": getattr(request.state, "request_id", None)
         },
     )
@@ -253,7 +223,6 @@ async def request_validation_exception_handler(request: Request, exc: RequestVal
 
 @app.exception_handler(HTTPException)
 async def http_exception_handler(request: Request, exc: HTTPException):
-    """Handle FastAPI HTTPException with standard format."""
     detail = exc.detail if isinstance(exc.detail, str) else "Request failed"
     return JSONResponse(
         status_code=exc.status_code,
@@ -269,7 +238,6 @@ async def http_exception_handler(request: Request, exc: HTTPException):
 
 @app.exception_handler(Exception)
 async def unhandled_exception_handler(request: Request, exc: Exception):
-    """Catch unexpected errors without exposing stack traces."""
     request_id = getattr(request.state, "request_id", None)
     logger.error(
         f"Unhandled error at {request.method} {request.url.path}: {str(exc)}",
@@ -290,23 +258,18 @@ async def unhandled_exception_handler(request: Request, exc: Exception):
 
 @app.get("/")
 def root():
-    """Redirect root to UI."""
     logger.debug("Root endpoint accessed, redirecting to /ui/")
     return RedirectResponse(url="/ui/", status_code=307)
 
 
 @app.get("/health")
 def health_check():
-    """Health check endpoint."""
     logger.debug("Health check called")
     return {"status": "healthy"}
 
 
 @app.get("/health/email-config")
 def email_config_health_check():
-    """
-    Report non-secret email runtime config so deployment env can be verified.
-    """
     summary = email_runtime_config_summary()
     raw_env_present = summary["raw_env_present"]
     return {
@@ -329,9 +292,6 @@ def email_config_health_check():
 
 @app.post("/health/email-send-test")
 def email_send_test(request: Request, to: str):
-    """
-    Send a diagnostic email. Requires EMAIL_TEST_TOKEN and X-Email-Test-Token.
-    """
     supplied_token = request.headers.get("X-Email-Test-Token")
     if not EMAIL_TEST_TOKEN or supplied_token != EMAIL_TEST_TOKEN:
         raise HTTPException(status_code=404, detail="Not found")
@@ -352,9 +312,6 @@ def email_send_test(request: Request, to: str):
     summary="Lifecycle policy rules for company/job/application/offer behavior",
 )
 def lifecycle_policy() -> Dict[str, Any]:
-    """
-    Canonical policy contract for frontend/admin to enforce lifecycle behavior.
-    """
     return {
         "policy_version": "2026-03-27",
         "description": "Single source of truth for active vs inactive company behavior.",

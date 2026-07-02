@@ -1,10 +1,3 @@
-"""
-Authentication and token management.
-
-Handles JWT token creation/verification, password hashing, email/password reset tokens,
-and role-based access control with logging and exception handling.
-"""
-
 from datetime import timedelta
 from typing import Optional
 
@@ -35,15 +28,6 @@ oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login")
 
 
 def hash_password(password: str) -> str:
-    """
-    Hash password using bcrypt.
-
-    Args:
-        password: Plain text password
-
-    Returns:
-        Hashed password
-    """
     try:
         hashed = PWD_CONTEXT.hash(password)
         logger.debug("Password hashed successfully")
@@ -54,16 +38,6 @@ def hash_password(password: str) -> str:
 
 
 def verify_password(plain: str, hashed: str) -> bool:
-    """
-    Verify plain password against hashed password.
-
-    Args:
-        plain: Plain text password
-        hashed: Hashed password
-
-    Returns:
-        True if passwords match, False otherwise
-    """
     try:
         result = PWD_CONTEXT.verify(plain, hashed)
         if not result:
@@ -75,19 +49,6 @@ def verify_password(plain: str, hashed: str) -> bool:
 
 
 def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -> str:
-    """
-    Create JWT access token.
-
-    Args:
-        data: Token payload data
-        expires_delta: Custom expiration time
-
-    Returns:
-        Encoded JWT token
-
-    Raises:
-        TokenError: If token creation fails
-    """
     try:
         to_encode = data.copy()
         expire = utc_now_aware() + (
@@ -106,15 +67,6 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -
 
 
 def verify_access_token(token: str) -> Optional[int]:
-    """
-    Verify and decode JWT access token.
-
-    Args:
-        token: JWT token to verify
-
-    Returns:
-        User ID if valid, None otherwise
-    """
     try:
         payload = jwt.decode(token, JWT_SECRET_KEY, algorithms=[ALGORITHM])
         user_id_raw = payload.get("sub")
@@ -132,19 +84,6 @@ def verify_access_token(token: str) -> Optional[int]:
 
 
 def create_password_reset_token(user_id: int, expires_delta: Optional[timedelta] = None) -> str:
-    """
-    Create JWT token for password reset.
-
-    Args:
-        user_id: User ID
-        expires_delta: Custom expiration time
-
-    Returns:
-        Encoded JWT token
-
-    Raises:
-        TokenError: If token creation fails
-    """
     try:
         expire = utc_now_aware() + (
             expires_delta or timedelta(minutes=PASSWORD_RESET_TOKEN_EXPIRE_MINUTES)
@@ -163,19 +102,6 @@ def create_password_reset_token(user_id: int, expires_delta: Optional[timedelta]
 
 
 def create_email_verification_token(user_id: int, expires_delta: Optional[timedelta] = None) -> str:
-    """
-    Create JWT token for email verification.
-
-    Args:
-        user_id: User ID
-        expires_delta: Custom expiration time
-
-    Returns:
-        Encoded JWT token
-
-    Raises:
-        TokenError: If token creation fails
-    """
     try:
         expire = utc_now_aware() + (
             expires_delta or timedelta(minutes=EMAIL_VERIFICATION_TOKEN_EXPIRE_MINUTES)
@@ -194,16 +120,6 @@ def create_email_verification_token(user_id: int, expires_delta: Optional[timede
 
 
 def verify_password_reset_token(token: str, session: Optional[Session] = None) -> Optional[int]:
-    """
-    Verify JWT token is for password reset and check if already used.
-
-    Args:
-        token: JWT token to verify
-        session: Optional database session to check blacklist
-
-    Returns:
-        User ID if valid and token purpose is password_reset, None otherwise
-    """
     try:
         payload = jwt.decode(token, JWT_SECRET_KEY, algorithms=[ALGORITHM])
         if payload.get("purpose") != "password_reset":
@@ -214,7 +130,6 @@ def verify_password_reset_token(token: str, session: Optional[Session] = None) -
             logger.warning("Password reset token missing 'sub' claim")
             return None
         
-        # Check if token already used
         if session and is_token_used(session, token):
             logger.warning(f"Attempted reuse of password reset token for user_id: {user_id_raw}")
             return None
@@ -230,16 +145,6 @@ def verify_password_reset_token(token: str, session: Optional[Session] = None) -
 
 
 def verify_email_verification_token(token: str, session: Optional[Session] = None) -> Optional[int]:
-    """
-    Verify JWT token is for email verification and check if already used.
-
-    Args:
-        token: JWT token to verify
-        session: Optional database session to check blacklist
-
-    Returns:
-        User ID if valid and token purpose is email_verification, None otherwise
-    """
     try:
         payload = jwt.decode(token, JWT_SECRET_KEY, algorithms=[ALGORITHM])
         if payload.get("purpose") != "email_verification":
@@ -250,7 +155,6 @@ def verify_email_verification_token(token: str, session: Optional[Session] = Non
             logger.warning("Email verification token missing 'sub' claim")
             return None
         
-        # Check if token already used
         if session and is_token_used(session, token):
             logger.warning(f"Attempted reuse of email verification token for user_id: {user_id_raw}")
             return None
@@ -266,19 +170,6 @@ def verify_email_verification_token(token: str, session: Optional[Session] = Non
 
 
 def get_current_user(token: str = Depends(oauth2_scheme), session: Session = Depends(get_session)) -> User:
-    """
-    Get and validate current authenticated user.
-
-    Args:
-        token: JWT access token
-        session: Database session
-
-    Returns:
-        Current authenticated user
-
-    Raises:
-        HTTPException: If authentication fails
-    """
     try:
         user_id = verify_access_token(token)
         if user_id is None:
@@ -314,17 +205,7 @@ def get_current_user(token: str = Depends(oauth2_scheme), session: Session = Dep
 
 
 def require_role(required_role: str):
-    """
-    Dependency that ensures current user has required role.
-
-    Args:
-        required_role: Required user role
-
-    Returns:
-        Dependency function that checks role
-    """
     def _role_check(user: User = Depends(get_current_user)) -> User:
-        """Check if user has required role."""
         if user.role != required_role:
             logger.warning(f"Authorization failed: user {user.id} role {user.role} != {required_role}")
             raise AuthorizationError("Insufficient permissions")
@@ -335,18 +216,6 @@ def require_role(required_role: str):
 
 
 def get_current_student(user: User = Depends(get_current_user)) -> User:
-    """
-    Get current student user.
-
-    Args:
-        user: Current authenticated user
-
-    Returns:
-        Current student user
-
-    Raises:
-        HTTPException: If user is not a student
-    """
     if user.role != Role.student:
         logger.warning(f"Student access denied for non-student user: {user.id}")
         raise AuthorizationError("Only students allowed")
@@ -354,18 +223,6 @@ def get_current_student(user: User = Depends(get_current_user)) -> User:
 
 
 def get_current_company(user: User = Depends(get_current_user)) -> User:
-    """
-    Get current company user with email verification check.
-
-    Args:
-        user: Current authenticated user
-
-    Returns:
-        Current company user
-
-    Raises:
-        HTTPException: If user is not a company or email not verified
-    """
     if user.role != Role.company:
         logger.warning(f"Company access denied for non-company user: {user.id}")
         raise AuthorizationError("Only companies allowed")
@@ -378,18 +235,6 @@ def get_current_company(user: User = Depends(get_current_user)) -> User:
 
 
 def get_current_admin(user: User = Depends(get_current_user)) -> User:
-    """
-    Get current admin user.
-
-    Args:
-        user: Current authenticated user
-
-    Returns:
-        Current admin user
-
-    Raises:
-        HTTPException: If user is not an admin
-    """
     if user.role != Role.admin:
         logger.warning(f"Admin access denied for non-admin user: {user.id}")
         raise AuthorizationError("Only admins allowed")
@@ -397,11 +242,6 @@ def get_current_admin(user: User = Depends(get_current_user)) -> User:
 
 
 def get_verified_admin(user: User = Depends(get_current_admin)):
-    """
-    Check if user has admin role AND is verified.
-    - First admin (is_first_admin=True) is automatically verified
-    - Other admins need to be verified by first admin
-    """
     if user.role != Role.admin:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only admins allowed")
     
@@ -411,11 +251,9 @@ def get_verified_admin(user: User = Depends(get_current_admin)):
             detail="Admin email not verified. Please verify your email first."
         )
 
-    # First admin is always admin-approved after email verification.
     if user.is_first_admin:
         return user
     
-    # Other admins need verification
     if not user.verified:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,

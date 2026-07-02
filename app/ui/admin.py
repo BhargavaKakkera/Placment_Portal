@@ -194,7 +194,6 @@ async def admin_students_provision_submit(request: Request, background_tasks: Ba
     except ValueError as exc:
         return redirect_to(request, "ui_admin_students", str(exc), "warning")
     
-    # Prepare form data
     form_data = {
         "email": str(form.get("email", "")).strip(),
         "name": str(form.get("name", "")).strip(),
@@ -361,7 +360,6 @@ async def admin_student_edit_submit(student_id: int, request: Request):
     except ValueError as exc:
         return redirect_path(request, f"/ui/admin/students/{student_id}", str(exc), "warning")
     
-    # Prepare form data
     form_data = {
         "reg_no": txt(form.get("reg_no")) or "",
         "roll_no": txt(form.get("roll_no")) or "",
@@ -411,7 +409,6 @@ async def admin_student_edit_submit(student_id: int, request: Request):
                 **payload.model_dump(mode="json", exclude_unset=True)
             )
         except ValueError as exc:
-            # Handle constraint violations from update_student
             return render(
                 request,
                 "admin_student_edit.html",
@@ -774,12 +771,10 @@ def admin_analytics_page(request: Request):
         if redirect:
             return redirect
         
-        # Calculate summary metrics
         total_students = crud.count_students(session)
         placed_students = crud.count_placed_students(session)
         placement_rate = (placed_students / total_students * 100) if total_students > 0 else 0
         
-        # CTC statistics
         offers_stmt = select(Offer).where(Offer.status == "accepted")
         accepted_offers = session.exec(offers_stmt).all()
         
@@ -804,10 +799,8 @@ def admin_analytics_page(request: Request):
             "total_offers": total_offers,
         }
         
-        # Branch-wise statistics
         branch_stats = crud.get_branch_placement_stats(session)
         
-        # Company-wise statistics
         company_metrics = []
         companies_stmt = select(Company).where(Company.is_active == True)
         companies = session.exec(companies_stmt).all()
@@ -823,7 +816,7 @@ def admin_analytics_page(request: Request):
             
             acceptance_rate = (offers_accepted / offers_made * 100) if offers_made > 0 else 0
             
-            if offers_made > 0:  # Only show companies with offers
+            if offers_made > 0:
                 company_metrics.append({
                     "company_name": company.name,
                     "offers_made": offers_made,
@@ -831,7 +824,6 @@ def admin_analytics_page(request: Request):
                     "acceptance_rate": acceptance_rate,
                 })
         
-        # Sort by acceptance rate descending
         company_metrics.sort(key=lambda x: x["acceptance_rate"], reverse=True)
         
         analytics_data = {

@@ -1,7 +1,3 @@
-"""
-User CRUD operations for authentication and admin management.
-"""
-
 from datetime import timedelta
 from sqlmodel import Session, select, func
 from typing import Optional, List
@@ -18,13 +14,12 @@ def create_user(
     role: str,
     is_first_admin: bool = False
 ) -> User:
-    """Create a new user with hashed password."""
     user = User(
         email=email, 
         password_hash=hash_password(password), 
         role=role,
         is_first_admin=is_first_admin,
-        verified=is_first_admin  # First admin is auto-verified
+        verified=is_first_admin
     )
     session.add(user)
     session.commit()
@@ -33,7 +28,6 @@ def create_user(
 
 
 def authenticate_user(session: Session, email: str, password: str) -> Optional[User]:
-    """Authenticate user by email and password."""
     statement = select(User).where(User.email == email).where(User.is_active == True)
     user = session.exec(statement).first()
     if not user:
@@ -44,18 +38,15 @@ def authenticate_user(session: Session, email: str, password: str) -> Optional[U
 
 
 def get_user_by_id(session: Session, user_id: int) -> Optional[User]:
-    """Get user by ID."""
     return session.get(User, user_id)
 
 
 def get_user_by_email(session: Session, email: str) -> Optional[User]:
-    """Get active user by email."""
     statement = select(User).where(User.email == email).where(User.is_active == True)
     return session.exec(statement).first()
 
 
 def update_user_password(session: Session, user_id: int, new_password: str) -> Optional[User]:
-    """Update user password hash."""
     user = session.get(User, user_id)
     if not user or not getattr(user, "is_active", True):
         return None
@@ -67,7 +58,6 @@ def update_user_password(session: Session, user_id: int, new_password: str) -> O
 
 
 def mark_user_email_verified(session: Session, user_id: int) -> Optional[User]:
-    """Mark a user's email as verified."""
     user = session.get(User, user_id)
     if not user or not getattr(user, "is_active", True):
         return None
@@ -81,7 +71,6 @@ def mark_user_email_verified(session: Session, user_id: int) -> Optional[User]:
 
 
 def get_all_users(session: Session, skip: int = 0, limit: int = 100) -> List[User]:
-    """Get all users with pagination."""
     statement = (
         select(User)
         .where(User.is_active == True)
@@ -93,16 +82,11 @@ def get_all_users(session: Session, skip: int = 0, limit: int = 100) -> List[Use
 
 
 def count_users(session: Session) -> int:
-    """Count all users."""
     statement = select(func.count()).select_from(User).where(User.is_active == True)
     return session.exec(statement).one()
 
 
 def verify_admin(session: Session, admin_user_id: int, verified_by_admin_id: int) -> Optional[User]:
-    """
-    Verify an admin user.
-    Only the first admin can verify other admins.
-    """
     admin = session.get(User, admin_user_id)
     if not admin:
         return None
@@ -125,7 +109,6 @@ def update_user_verification(
     verified: bool, 
     verified_by_admin_id: int
 ) -> Optional[User]:
-    """Update user verification status."""
     user = session.get(User, user_id)
     if not user:
         return None
@@ -145,7 +128,6 @@ def update_user_verification(
 
 
 def get_pending_admins(session: Session, skip: int = 0, limit: int = 100) -> List[User]:
-    """Get all unverified admin users."""
     statement = (
         select(User)
         .where(User.role == Role.admin)
@@ -160,7 +142,6 @@ def get_pending_admins(session: Session, skip: int = 0, limit: int = 100) -> Lis
 
 
 def count_pending_admins(session: Session) -> int:
-    """Count unverified admin users."""
     statement = (
         select(func.count())
         .select_from(User)
@@ -177,12 +158,6 @@ def purge_expired_unverified_users(
     older_than_days: int = 15,
     email: Optional[str] = None,
 ) -> int:
-    """
-    Hard-delete stale email-unverified users older than `older_than_days`.
-    Safety rule: delete only if there is no placement history.
-    - Student side history: applications/offers
-    - Company side history: jobs/offers
-    """
     cutoff = utc_now() - timedelta(days=older_than_days)
     statement = (
         select(User)

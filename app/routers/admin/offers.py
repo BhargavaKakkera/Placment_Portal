@@ -1,7 +1,3 @@
-"""
-Admin router for offer management.
-"""
-
 from fastapi import APIRouter, Depends, HTTPException
 from sqlmodel import Session
 

@@ -32,18 +32,6 @@ class RegisterIn(BaseModel):
     @field_validator("password")
     @classmethod
     def validate_password(cls, v: str) -> str:
-        """
-        Validate password meets complexity requirements.
-
-        Args:
-            v: Password to validate
-
-        Returns:
-            Validated password
-
-        Raises:
-            ValueError: If password doesn't meet requirements
-        """
         if not re.search(r"[A-Z]", v):
             raise ValueError("Password must contain at least one uppercase letter")
         if not re.search(r"[a-z]", v):
@@ -88,7 +76,6 @@ class PasswordResetConfirmIn(BaseModel):
     @field_validator("new_password")
     @classmethod
     def validate_password(cls, v: str) -> str:
-        """Validate password meets complexity requirements."""
         if not re.search(r"[A-Z]", v):
             raise ValueError("Password must contain at least one uppercase letter")
         if not re.search(r"[a-z]", v):
@@ -113,7 +100,6 @@ class ChangePasswordIn(BaseModel):
     @field_validator("new_password")
     @classmethod
     def validate_password(cls, v: str) -> str:
-        """Validate password meets complexity requirements."""
         if not re.search(r"[A-Z]", v):
             raise ValueError("Password must contain at least one uppercase letter")
         if not re.search(r"[a-z]", v):
@@ -124,7 +110,6 @@ class ChangePasswordIn(BaseModel):
 
 
 class StudentUpdate(BaseModel):
-    """Only student-editable fields."""
     phone: Optional[str] = Field(
         None,
         description="Phone number must be exactly 10 digits"
@@ -156,7 +141,6 @@ class StudentUpdate(BaseModel):
     @field_validator("phone", mode="before")
     @classmethod
     def validate_phone(cls, v):
-        """Convert empty strings to None and validate non-empty values."""
         if isinstance(v, str) and v.strip() == "":
             return None
         if v is None:
@@ -172,7 +156,6 @@ class StudentUpdate(BaseModel):
     @field_validator("personal_email", mode="before")
     @classmethod
     def validate_personal_email(cls, v):
-        """Convert empty strings to None."""
         if isinstance(v, str) and v.strip() == "":
             return None
         return v
@@ -180,7 +163,6 @@ class StudentUpdate(BaseModel):
     @field_validator("address", mode="before")
     @classmethod
     def validate_address(cls, v):
-        """Convert empty strings to None."""
         if isinstance(v, str) and v.strip() == "":
             return None
         return v
@@ -188,7 +170,6 @@ class StudentUpdate(BaseModel):
     @field_validator("resume_url", "github_url", "linkedin_url", "leetcode_url", "codeforces_url", "hackerrank_url", "portfolio_url", "other_coding_url", mode="before")
     @classmethod
     def validate_urls(cls, v):
-        """Convert empty strings to None for URL fields."""
         if v is None:
             return None
         if isinstance(v, str) and v.strip() == "":
@@ -198,7 +179,6 @@ class StudentUpdate(BaseModel):
     @field_validator("github_url", mode="after")
     @classmethod
     def validate_github(cls, v: Optional[str]) -> Optional[str]:
-        """GitHub URL must point to valid profile if provided."""
         if v and "github.com" not in str(v):
             raise ValueError("GitHub URL must be from github.com")
         return v
@@ -206,14 +186,12 @@ class StudentUpdate(BaseModel):
     @field_validator("linkedin_url", mode="after")
     @classmethod
     def validate_linkedin(cls, v: Optional[str]) -> Optional[str]:
-        """LinkedIn URL must be from LinkedIn if provided."""
         if v and "linkedin.com" not in str(v):
             raise ValueError("LinkedIn URL must be from linkedin.com")
         return v
 
 
 class AdminStudentProvisionIn(BaseModel):
-    """Admin creating student accounts."""
     email: EmailStr = Field(max_length=120)
     name: str = Field(min_length=2, max_length=100)
     reg_no: str = Field(min_length=2, max_length=30)
@@ -227,7 +205,6 @@ class AdminStudentProvisionIn(BaseModel):
     @field_validator("name")
     @classmethod
     def validate_name(cls, v: str) -> str:
-        """Name must be alphabetic (with spaces/hyphens)."""
         if not all(c.isalpha() or c in " -'" for c in v):
             raise ValueError("Name must contain only letters, spaces, hyphens, or apostrophes")
         return v.strip()
@@ -235,7 +212,6 @@ class AdminStudentProvisionIn(BaseModel):
     @field_validator("reg_no", "roll_no")
     @classmethod
     def validate_unique_numbers(cls, v: str) -> str:
-        """Registration/Roll numbers must be non-empty."""
         if not v or not v.strip():
             raise ValueError("Cannot be empty")
         return v.strip().upper()
@@ -243,7 +219,6 @@ class AdminStudentProvisionIn(BaseModel):
     @field_validator("graduation_year")
     @classmethod
     def validate_graduation(cls, v: int) -> int:
-        """Graduation year must be reasonable."""
         current_year = datetime.utcnow().year
         if v < current_year:
             raise ValueError("Student must not be already graduated")
@@ -267,7 +242,6 @@ class AdminStudentProvisionOut(BaseModel):
 
 
 class StudentAdminUpdate(BaseModel):
-    """Admin-editable student fields with validation."""
     reg_no: Optional[str] = Field(None, min_length=2, max_length=30)
     roll_no: Optional[str] = Field(None, min_length=2, max_length=30)
     cgpa: Optional[float] = Field(None, ge=0.0, le=10.0)
@@ -279,7 +253,6 @@ class StudentAdminUpdate(BaseModel):
     @field_validator("graduation_year")
     @classmethod
     def validate_graduation(cls, v: Optional[int]) -> Optional[int]:
-        """Graduation year must be reasonable."""
         if v:
             current_year = datetime.utcnow().year
             if v < current_year:
@@ -365,9 +338,9 @@ class JobCreate(BaseModel):
         max_length=50
     )
 
-    stipend: Optional[float] = Field(None, ge=0)  # Max ₹200k/month
+    stipend: Optional[float] = Field(None, ge=0)
 
-    ctc: Optional[float] = Field(None, ge=0)  # Annual amount
+    ctc: Optional[float] = Field(None, ge=0)
 
     ppo_available: Optional[bool] = False
 
@@ -376,7 +349,6 @@ class JobCreate(BaseModel):
     @field_validator("title")
     @classmethod
     def validate_title(cls, v: str) -> str:
-        """Reject titles that are too generic."""
         generic_titles = {"job", "position", "role", "offer"}
         if v.lower().strip() in generic_titles:
             raise ValueError("Job title must be specific (e.g., 'Senior Software Engineer')")
@@ -385,7 +357,6 @@ class JobCreate(BaseModel):
     @field_validator("application_deadline")
     @classmethod
     def validate_deadline(cls, v: Optional[datetime]) -> Optional[datetime]:
-        """Deadline must be in future."""
         if v:
             from .datetime_utils import utc_now
             if v <= utc_now():
@@ -395,7 +366,6 @@ class JobCreate(BaseModel):
     @field_validator("ctc")
     @classmethod
     def validate_ctc(cls, v: Optional[float]) -> Optional[float]:
-        """CTC must be a positive annual amount."""
         if v is not None and v <= 0:
             raise PydanticCustomError(
                 "ctc_positive",
@@ -406,7 +376,6 @@ class JobCreate(BaseModel):
     @field_validator("stipend")
     @classmethod
     def validate_stipend(cls, v: Optional[float]) -> Optional[float]:
-        """Stipend must be reasonable."""
         if v is not None and v <= 0:
                 raise PydanticCustomError(
                 "stipend_positive",
@@ -417,7 +386,6 @@ class JobCreate(BaseModel):
     @field_validator("allowed_branches")
     @classmethod
     def validate_branches(cls, v: Optional[List[Branch]]) -> Optional[List[Branch]]:
-        """Validate branch list."""
         if v is not None and len(v) == 0:
             raise ValueError("At least one branch must be selected or leave empty for all branches")
         return v
@@ -442,7 +410,6 @@ class JobCreate(BaseModel):
 
 
 class JobDeadlineUpdate(BaseModel):
-    """Update application deadline for a job."""
     application_deadline: Optional[datetime] = Field(
         None,
         description="New application deadline (or None to remove deadline)"
@@ -451,14 +418,8 @@ class JobDeadlineUpdate(BaseModel):
     @field_validator("application_deadline")
     @classmethod
     def validate_deadline(cls, v: Optional[datetime]) -> Optional[datetime]:
-        """Deadline must be in future if provided.
-        
-        Note: datetime-local input comes as naive datetime in user's local timezone.
-        We assume it's already in UTC (as per backend convention), so direct comparison is valid.
-        """
         if v:
             from .datetime_utils import utc_now
-            # Deadline must be strictly in the future
             if v <= utc_now():
                 raise ValueError("Application deadline must be in the future")
         return v
@@ -565,7 +526,6 @@ class CompanyApplicantItemOut(BaseModel):
     resume_url: Optional[HttpUrl]
     applied_at: datetime
     status: ApplicationStatus
-    # Personal details for display in modals
     phone: Optional[str] = None
     personal_email: Optional[EmailStr] = None
     address: Optional[str] = None
@@ -743,12 +703,10 @@ class BranchPlacementStatOut(BaseModel):
 
 
 class AdminVerifyUser(BaseModel):
-    """Schema for admin to verify another admin"""
     user_id: int
 
 
 class PaginationParams(BaseModel):
-    """Safe pagination parameters with hard limits."""
     skip: int = Field(
         0,
         ge=0,
@@ -764,7 +722,6 @@ class PaginationParams(BaseModel):
 
 
 class PaginationMeta(BaseModel):
-    """Consistent pagination metadata for all list endpoints."""
     skip: int
     limit: int
     total: int
@@ -773,18 +730,15 @@ class PaginationMeta(BaseModel):
     @computed_field
     @property
     def current_page(self) -> int:
-        """Calculated page number (1-indexed)."""
         return (self.skip // self.limit) + 1 if self.limit > 0 else 1
     
     @computed_field
     @property
     def total_pages(self) -> int:
-        """Total number of pages."""
         return (self.total + self.limit - 1) // self.limit if self.limit > 0 else 1
 
 
 class ErrorResponse(BaseModel):
-    """Standard error response for all API endpoints."""
     success: bool = False
     error: str
     error_code: str
@@ -793,14 +747,12 @@ class ErrorResponse(BaseModel):
 
 
 class SuccessResponse(BaseModel):
-    """Standard success response wrapper."""
     success: bool = True
     data: Any = None
     message: Optional[str] = None
 
 
 class AdminDashboardResponse(BaseModel):
-    """Schema for admin dashboard statistics."""
     total_students: int
     placed_students: int
     placement_rate: float

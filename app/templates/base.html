@@ -211,7 +211,6 @@
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
     <script>
-        // ===== CSRF Token Handling =====
         document.addEventListener("DOMContentLoaded", function () {
             const tokenMeta = document.querySelector('meta[name="csrf-token"]');
             const csrfToken = tokenMeta ? tokenMeta.getAttribute("content") : "";
@@ -237,7 +236,6 @@
             });
         });
 
-        // ===== TOAST FEEDBACK =====
         function showAppToast(message, category) {
             const toastEl = document.getElementById("app-toast");
             if (!toastEl || !message) return;
@@ -255,7 +253,6 @@
             }
         });
 
-        // ===== PASSWORD HELPERS =====
         document.addEventListener("DOMContentLoaded", function () {
             document.querySelectorAll("[data-password-toggle]").forEach(function (button) {
                 button.addEventListener("click", function () {
@@ -317,7 +314,6 @@
             document.getElementById('loading-overlay').classList.add('hidden');
         }
 
-        // ===== FORM SUBMISSION HANDLING =====
         document.addEventListener("submit", function (event) {
             const form = event.target;
             if (!(form instanceof HTMLFormElement)) {
@@ -354,16 +350,14 @@
             setFormLoading(form, event.submitter);
         });
 
-        // Hide loading overlay after page loads
         window.addEventListener('load', () => {
             document.getElementById('loading-overlay').classList.add('hidden');
         });
         window.addEventListener('pageshow', restoreFormButtons);
 
-        // ===== SESSION TIMEOUT WARNING =====
         {% if current_user %}
-        const SESSION_TIMEOUT = 30 * 60 * 1000; // 30 minutes
-        const WARNING_TIME = 5 * 60 * 1000; // Show warning 5 minutes before
+        const SESSION_TIMEOUT = 30 * 60 * 1000;
+        const WARNING_TIME = 5 * 60 * 1000;
         let logoutTimer;
         let warningTimer;
         let countdownInterval;

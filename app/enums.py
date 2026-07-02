@@ -41,7 +41,6 @@ class ApplicationStatus(str, Enum):
 
 
 class ApplicationStatusReason(str, Enum):
-    """Why an application changed status"""
     initial = "initial"
     manual_rejection = "manual_rejection"
     manual_shortlist = "manual_shortlist"
@@ -61,7 +60,6 @@ class OfferStatus(str, Enum):
 
 
 class OfferStatusReason(str, Enum):
-    """Why an offer changed status"""
     initial = "initial"
     offer_accepted = "offer_accepted"
     offer_declined = "offer_declined"

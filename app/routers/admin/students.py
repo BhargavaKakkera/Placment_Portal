@@ -1,7 +1,3 @@
-"""
-Admin router for student management.
-"""
-
 import secrets
 from typing import Optional
 
@@ -37,10 +33,6 @@ logger = get_logger(__name__)
 
 
 def _send_student_invite_email(email: str, token: str) -> None:
-    """
-    Demo background task.
-    Replace with real email provider integration.
-    """
     send_student_invite_email(email, token)
 
 
@@ -50,7 +42,6 @@ def provision_student(
     background_tasks: BackgroundTasks,
     session: Session = Depends(get_session),
 ):
-    """Create student user+profile from official data and issue invite token."""
     crud.purge_expired_unverified_users(session, older_than_days=15, email=payload.email)
 
     existing_user = session.exec(select(User).where(User.email == payload.email)).first()
@@ -120,7 +111,6 @@ def admin_list_students(
     admin_user: User = Depends(get_verified_admin),
     session: Session = Depends(get_session),
 ):
-    """List all students with pagination (requires verified admin)."""
     items = crud.list_students(
         session,
         skip=pagination.skip,
@@ -136,7 +126,6 @@ def admin_list_students(
         include_inactive=include_inactive,
     )
     
-    # Log sensitive read
     log_audit(
         "admin.students.listed",
         admin_id=admin_user.id,
@@ -162,7 +151,6 @@ def admin_update_student(
     student_in: StudentAdminUpdate,
     session: Session = Depends(get_session),
 ):
-    """Update a student profile (requires verified admin)."""
     data = student_in.model_dump(exclude_unset=True, mode="json")
 
     if not data:
@@ -191,7 +179,6 @@ def admin_delete_student(
     student_id: int,
     session: Session = Depends(get_session),
 ):
-    """Delete a student (requires verified admin)."""
     try:
         res = crud.delete_student(session, student_id)
     except ValueError as e:
@@ -213,7 +200,6 @@ def admin_reactivate_student(
     student_id: int,
     session: Session = Depends(get_session),
 ):
-    """Reactivate a student and linked user account (requires verified admin)."""
     res = crud.reactivate_student(session, student_id)
     if not res:
         raise HTTPException(

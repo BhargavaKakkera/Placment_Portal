@@ -1,7 +1,3 @@
-"""
-Student CRUD operations for student profile management.
-"""
-
 from sqlmodel import Session, select, func
 from sqlalchemy.exc import IntegrityError
 from typing import Optional, List
@@ -14,7 +10,6 @@ from .state_transitions import deactivate_student_and_cascade
 
 
 def create_student(session: Session, user_id: int, **data) -> Student:
-    """Create a new student profile."""
     student = Student(user_id=user_id, **data)
     session.add(student)
     session.commit()
@@ -23,13 +18,11 @@ def create_student(session: Session, user_id: int, **data) -> Student:
 
 
 def get_student_by_user_id(session: Session, user_id: int) -> Optional[Student]:
-    """Get active student profile by user ID."""
     statement = select(Student).where(Student.user_id == user_id).where(Student.is_active == True)
     return session.exec(statement).first()
 
 
 def get_student_by_id(session: Session, student_id: int) -> Optional[Student]:
-    """Get active student profile by student ID."""
     student = session.get(Student, student_id)
     if not student or not getattr(student, "is_active", True):
         return None
@@ -41,7 +34,6 @@ def update_student(
     student_id: int,
     **data
 ) -> Optional[Student]:
-    """Update student profile. Raises ValueError for unique constraint violations."""
     student = session.get(Student, student_id)
     if not student or not getattr(student, "is_active", True):
         return None
@@ -56,7 +48,6 @@ def update_student(
         session.commit()
     except IntegrityError as e:
         session.rollback()
-        # Check what caused the integrity error
         if "reg_no" in str(e):
             raise ValueError("Registration number already exists for another student.")
         elif "roll_no" in str(e):
@@ -71,7 +62,6 @@ def update_student(
 
 
 def delete_student(session: Session, student_id: int) -> bool:
-    """Soft-delete student and cascade to applications/offers (state-driven)."""
     student = session.get(Student, student_id)
     if not student:
         raise ValueError("Student record not found")
@@ -90,7 +80,6 @@ def delete_student(session: Session, student_id: int) -> bool:
 
 
 def reactivate_student(session: Session, student_id: int) -> Optional[bool]:
-    """Reactivate student profile and linked user account."""
     student = session.get(Student, student_id)
     if not student:
         return None
@@ -125,7 +114,6 @@ def list_students(
     include_inactive: bool = False,
     active: Optional[bool] = None,
 ) -> List[Student]:
-    """List students with optional branch filtering."""
     statement = select(Student)
     if active is not None:
         statement = statement.where(Student.is_active == active)
@@ -146,7 +134,6 @@ def count_students(
     include_inactive: bool = False,
     active: Optional[bool] = None,
 ) -> int:
-    """Count students with optional branch filtering."""
     statement = select(func.count()).select_from(Student)
     if active is not None:
         statement = statement.where(Student.is_active == active)
@@ -160,7 +147,6 @@ def count_students(
 
 
 def count_placed_students(session: Session) -> int:
-    """Count active students who have accepted an offer (placed students)."""
     statement = (
         select(func.count(func.distinct(Student.id)))
         .select_from(Student)
@@ -172,7 +158,6 @@ def count_placed_students(session: Session) -> int:
 
 
 def get_branch_placement_stats(session: Session) -> List[dict]:
-    """Return placement stats grouped by student branch."""
     total_rows = session.exec(
         select(Student.branch, func.count(Student.id))
         .where(Student.is_active == True)

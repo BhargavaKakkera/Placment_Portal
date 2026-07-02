@@ -2,7 +2,6 @@ import os
 import unittest
 from datetime import datetime, timedelta, timezone
 
-# Set environment variables BEFORE importing app
 os.environ["DATABASE_URL"] = os.getenv(
     "TEST_DATABASE_URL",
     "postgresql+psycopg://postgres:2005@localhost:5432/test_placement_portal",
@@ -10,7 +9,7 @@ os.environ["DATABASE_URL"] = os.getenv(
 os.environ["TEST_DATABASE_URL"] = "postgresql+psycopg://postgres:2005@localhost:5432/test_placement_portal"
 os.environ["DEBUG"] = "true"
 os.environ["LOG_LEVEL"] = "ERROR"
-os.environ["ENABLE_RATE_LIMITING"] = "false"  # Disable rate limiting in tests
+os.environ["ENABLE_RATE_LIMITING"] = "false"
 os.environ["SECRET_KEY"] = "588b4257178a991143c21aa7e42c102999c2c2d32e5069d6cc8389c2b3fc0fb5"
 os.environ["JWT_SECRET_KEY"] = "a1b2c3d4e5f6g7h8i9j0k1l2m3n4o5p6q7r8s9t0u1v2w3x4y5z6a7b8c9d0e1f2"
 os.environ["SESSION_SECRET_KEY"] = "z9y8x7w6v5u4t3s2r1q0p9o8n7m6l5k4j3i2h1g0f9e8d7c6b5a4z3y2x1w0v9"
@@ -112,8 +111,6 @@ class CriticalWorkflowTests(unittest.TestCase):
     def test_root_does_not_expose_users(self):
         resp = self.client.get("/", follow_redirects=True)
         self.assertEqual(resp.status_code, 200)
-        # Root redirects to UI, which is HTML, not JSON
-        # Just verify it returns 200 and is HTML
         self.assertIn("html", resp.text.lower())
 
     def test_password_reset_flow(self):
@@ -188,7 +185,6 @@ class CriticalWorkflowTests(unittest.TestCase):
         delete_resp = self.client.delete("/students/me", headers=self._auth_header(student_token))
         self.assertEqual(delete_resp.status_code, 200, delete_resp.text)
 
-        # Existing token should stop working because account becomes inactive.
         me_resp = self.client.get("/students/me", headers=self._auth_header(student_token))
         self.assertEqual(me_resp.status_code, 403, me_resp.text)
 
@@ -286,7 +282,6 @@ class CriticalWorkflowTests(unittest.TestCase):
         )
         self.assertEqual(accept_resp.status_code, 200, accept_resp.text)
 
-        # Company is allowed to move accepted -> rejected.
         reject_resp = self.client.patch(
             f"/companies/applications/{application_id}",
             headers=self._auth_header(company_token),
@@ -295,7 +290,6 @@ class CriticalWorkflowTests(unittest.TestCase):
         self.assertEqual(reject_resp.status_code, 200, reject_resp.text)
         self.assertEqual(reject_resp.json()["status"], "rejected")
 
-        # After rollback, student should be able to apply to another job.
         second_job_resp = self.client.post(
             "/jobs/",
             headers=self._auth_header(company_token),
@@ -351,7 +345,6 @@ class CriticalWorkflowTests(unittest.TestCase):
         del_student = self.client.delete("/students/me", headers=self._auth_header(student_token))
         self.assertEqual(del_student.status_code, 200, del_student.text)
 
-        # Reactivate both from admin endpoints.
         react_company = self.client.post(
             f"/admin/companies/{company_id}/reactivate",
             headers=self._auth_header(admin_token),
@@ -364,7 +357,6 @@ class CriticalWorkflowTests(unittest.TestCase):
         )
         self.assertEqual(react_student.status_code, 200, react_student.text)
 
-        # They should be able to login again after reactivation.
         new_company_token = self._login(company_email, company_password)
         new_student_token = self._login(student_email, student_password)
         self.assertTrue(isinstance(new_company_token, str) and len(new_company_token) > 10)

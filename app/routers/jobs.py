@@ -47,7 +47,6 @@ def list_jobs(pagination: PaginationParams = Depends(), session: Session = Depen
 
 @router.post("/{job_id}/apply")
 def apply_to_job(job_id: int, current_user=Depends(get_current_student), session: Session = Depends(get_session)):
-    # student applies to job
     student = crud.get_student_by_user_id(session, current_user.id)
     if not student:
         raise HTTPException(status_code=404, detail="Student profile not found")
@@ -123,7 +122,6 @@ def list_eligible_jobs(
 
 @router.get("/{job_id}", response_model=JobOut)
 def get_job(job_id: int, session: Session = Depends(get_session)):
-    """Get job details by ID."""
     job = crud.get_job_by_id(session, job_id)
     if not job:
         raise HTTPException(status_code=404, detail="Job not found")

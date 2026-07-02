@@ -1,7 +1,3 @@
-"""
-Simple in-process security alert counters.
-"""
-
 from __future__ import annotations
 
 from collections import deque

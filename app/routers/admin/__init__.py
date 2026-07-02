@@ -1,21 +1,7 @@
-"""
-Admin routers for managing the Placement Portal.
-
-This module contains admin endpoints organized by resource:
-- companies: Company verification and management
-- students: Student verification and management
-- jobs: Job posting management
-- applications: Application management
-- users: Admin user management (verification of other admins)
-- analytics: Placement analytics and insights
-"""
-
 from fastapi import APIRouter
 
-# Create main admin router
 router = APIRouter(prefix="/admin")
 
-# Import and include sub-routers
 from . import companies, students, jobs, applications, users, dashboard, offers, analytics
 
 router.include_router(companies.router)

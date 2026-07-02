@@ -1,7 +1,3 @@
-"""
-Application CRUD operations for job applications management.
-"""
-
 from datetime import datetime
 from sqlmodel import Session, select, func
 from typing import Optional, List
@@ -12,10 +8,6 @@ from ..datetime_utils import utc_now, to_utc_naive
 
 
 def apply_job(session: Session, student_id: int, job_id: int) -> Application:
-    """
-    Apply for a job.
-    Performs eligibility checks: CGPA, branch, backlogs, deadline, etc.
-    """
     job = session.get(Job, job_id)
     if not job:
         raise ValueError("Job not found")
@@ -30,7 +22,6 @@ def apply_job(session: Session, student_id: int, job_id: int) -> Application:
     if not getattr(company, "verified", False):
         raise ValueError("Company is not verified for this job")
     
-    # Check if already applied
     statement = select(Application).where(
         Application.student_id == student_id, 
         Application.job_id == job_id
@@ -45,13 +36,11 @@ def apply_job(session: Session, student_id: int, job_id: int) -> Application:
     if not getattr(student, "is_active", True):
         raise ValueError("Student profile is deactivated")
     
-    # CGPA eligibility
     if student.cgpa is None:
         raise ValueError("Student CGPA is missing. Ask admin to update profile.")
     if job.min_cgpa is not None and student.cgpa < job.min_cgpa:
         raise ValueError("CGPA below eligibility")
     
-    # Branch eligibility
     if student.branch is None:
         raise ValueError("Student branch is missing. Ask admin to update profile.")
     if job.allowed_branches:
@@ -60,7 +49,6 @@ def apply_job(session: Session, student_id: int, job_id: int) -> Application:
         if student_branch and student_branch.lower() not in allowed:
             raise ValueError("Branch not eligible for this job")
     
-    # Backlogs eligibility
     if job.max_backlogs is not None and student.backlogs is not None and student.backlogs > job.max_backlogs:
         raise ValueError("Too many backlogs to be eligible")
     
@@ -72,7 +60,6 @@ def apply_job(session: Session, student_id: int, job_id: int) -> Application:
     if block_reason:
         raise ValueError(block_reason)
     
-    # Create application
     app_obj = Application(student_id=student_id, job_id=job_id)
     session.add(app_obj)
     try:
@@ -85,7 +72,6 @@ def apply_job(session: Session, student_id: int, job_id: int) -> Application:
 
 
 def get_application_by_id(session: Session, application_id: int) -> Optional[Application]:
-    """Get application by ID."""
     return session.get(Application, application_id)
 
 
@@ -94,7 +80,6 @@ def shortlist_applicant(
     application_id: int, 
     company_id: int
 ) -> Optional[Application]:
-    """Shortlist an applicant."""
     application = session.get(Application, application_id)
     if not application:
         raise ValueError("Application not found")
@@ -115,7 +100,6 @@ def reject_applicant(
     application_id: int, 
     company_id: int
 ) -> Optional[Application]:
-    """Reject an applicant."""
     application = session.get(Application, application_id)
     if not application:
         raise ValueError("Application not found")
@@ -142,7 +126,6 @@ def list_applications(
     search: Optional[str] = None,
     status: Optional[ApplicationStatus] = None,
 ) -> List[dict]:
-    """List all applications with student/job/company context."""
     statement = (
         select(Application, Student, Job, Company)
         .join(Student, Application.student_id == Student.id)
@@ -191,7 +174,6 @@ def list_student_applications(
     skip: int = 0,
     limit: int = 100,
 ) -> List[Application]:
-    """List a student's applications with pagination."""
     statement = (
         select(Application)
         .where(Application.student_id == student_id)
@@ -208,7 +190,6 @@ def list_student_application_summaries(
     skip: int = 0,
     limit: int = 100,
 ):
-    """List a student's applications with job and company context."""
     statement = (
         select(Application, Job, Company)
         .join(Job, Application.job_id == Job.id)
@@ -250,7 +231,6 @@ def count_applications(
     search: Optional[str] = None,
     status: Optional[ApplicationStatus] = None,
 ) -> int:
-    """Count all applications."""
     statement = (
         select(func.count())
         .select_from(Application)
@@ -272,7 +252,6 @@ def count_applications(
 
 
 def count_student_applications(session: Session, student_id: int) -> int:
-    """Count a student's applications."""
     statement = (
         select(func.count())
         .select_from(Application)
@@ -287,7 +266,6 @@ def list_company_applicant_summaries(
     skip: int = 0,
     limit: int = 100,
 ):
-    """List applicant summaries for a job."""
     statement = (
         select(Application, Student)
         .join(Student, Application.student_id == Student.id)
@@ -312,7 +290,6 @@ def list_company_applicant_summaries(
             "resume_url": student.resume_url,
             "applied_at": application.applied_at,
             "status": application.status,
-            # Personal details
             "phone": student.phone,
             "personal_email": student.personal_email,
             "address": student.address,
@@ -329,7 +306,6 @@ def list_company_applicant_summaries(
 
 
 def delete_application(session: Session, application_id: int) -> Optional[bool]:
-    """Delete an application (admin operation)."""
     application = session.get(Application, application_id)
     if not application:
         return None
@@ -347,7 +323,6 @@ def update_application_status(
     application_id: int, 
     status: ApplicationStatus
 ) -> Optional[Application]:
-    """Update application status."""
     application = session.get(Application, application_id)
     if not application:
         return None
@@ -363,7 +338,6 @@ def _decline_linked_offer(
     application: Application,
     offer_status: OfferStatus,
 ) -> Optional[Offer]:
-    """Decline the linked offer for an application and release any lock if needed."""
     offer_stmt = select(Offer).where(
         Offer.job_id == application.job_id,
         Offer.student_id == application.student_id,
@@ -394,10 +368,6 @@ def apply_company_action(
     ctc: Optional[float] = None,
     offer_response_deadline: Optional[datetime] = None,
 ):
-    """
-    Apply a company action on an application with centralized transition rules.
-    Returns either updated Application or Offer (for offered action).
-    """
     if job.company_id != company_id:
         raise ValueError("Not allowed to modify this application")
 

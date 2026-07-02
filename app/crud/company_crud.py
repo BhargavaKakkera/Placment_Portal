@@ -1,7 +1,3 @@
-"""
-Company CRUD operations for company profile management.
-"""
-
 from sqlmodel import Session, select, func
 from typing import Optional, List
 from ..models import Company, User, Job
@@ -11,7 +7,6 @@ from .state_transitions import deactivate_company_and_cascade
 
 
 def create_company(session: Session, user_id: int, name: str) -> Company:
-    """Create a new company profile."""
     company = Company(user_id=user_id, name=name)
     session.add(company)
     session.commit()
@@ -20,13 +15,11 @@ def create_company(session: Session, user_id: int, name: str) -> Company:
 
 
 def get_company_by_user_id(session: Session, user_id: int) -> Optional[Company]:
-    """Get active company profile by user ID."""
     statement = select(Company).where(Company.user_id == user_id).where(Company.is_active == True)
     return session.exec(statement).first()
 
 
 def get_company_by_id(session: Session, company_id: int) -> Optional[Company]:
-    """Get active company profile by company ID."""
     company = session.get(Company, company_id)
     if not company or not getattr(company, "is_active", True):
         return None
@@ -34,7 +27,6 @@ def get_company_by_id(session: Session, company_id: int) -> Optional[Company]:
 
 
 def update_company(session: Session, company_id: int, **data) -> Optional[Company]:
-    """Update company profile."""
     company = session.get(Company, company_id)
     if not company or not getattr(company, "is_active", True):
         return None
@@ -50,7 +42,6 @@ def update_company(session: Session, company_id: int, **data) -> Optional[Compan
 
 
 def delete_company(session: Session, company_id: int) -> Optional[bool]:
-    """Soft-delete company and cascade to jobs/applications/offers (state-driven)."""
     company = session.get(Company, company_id)
     if not company or not getattr(company, "is_active", True):
         return None
@@ -58,7 +49,6 @@ def delete_company(session: Session, company_id: int) -> Optional[bool]:
 
 
 def reactivate_company(session: Session, company_id: int) -> Optional[bool]:
-    """Reactivate company profile and linked user account."""
     company = session.get(Company, company_id)
     if not company:
         return None
@@ -93,7 +83,6 @@ def list_companies(
     search: Optional[str] = None,
     active: Optional[bool] = None,
 ) -> List[Company]:
-    """List companies with optional filtering."""
     statement = select(Company)
     if active is not None:
         statement = statement.where(Company.is_active == active)
@@ -114,7 +103,6 @@ def count_companies(
     search: Optional[str] = None,
     active: Optional[bool] = None,
 ) -> int:
-    """Count companies with optional filtering."""
     statement = select(func.count()).select_from(Company)
     if active is not None:
         statement = statement.where(Company.is_active == active)
@@ -128,7 +116,6 @@ def count_companies(
 
 
 def verify_company(session: Session, company_id: int) -> Optional[Company]:
-    """Verify a company profile."""
     company = session.get(Company, company_id)
     if not company or not getattr(company, "is_active", True):
         return None

@@ -1,10 +1,3 @@
-"""
-Authentication endpoints.
-
-Handles user registration, login, email verification, and password reset with
-comprehensive logging, exception handling, and rate limiting.
-"""
-
 import time
 from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks, status
 from fastapi.security import OAuth2PasswordRequestForm
@@ -54,14 +47,6 @@ router = APIRouter(prefix="/auth", tags=["auth"])
 
 
 def _send_password_reset_email(email: str, token: str) -> None:
-    """
-    Demo background task for password reset email.
-    Replace with real provider integration later.
-    
-    Args:
-        email: User email address
-        token: Password reset token (logged without exposing token value)
-    """
     logger.info("Password reset background task begins execution for %s", email)
     try:
         send_password_reset_email(email, token)
@@ -75,14 +60,6 @@ def _send_password_reset_email(email: str, token: str) -> None:
 
 
 def _send_email_verification_email(email: str, token: str) -> None:
-    """
-    Demo background task for email verification.
-    Replace with real provider integration later.
-    
-    Args:
-        email: User email address
-        token: Email verification token (logged without exposing token value)
-    """
     logger.info("Background task begins execution: email verification for %s", email)
     try:
         send_email_verification_email(email, token)
@@ -101,20 +78,6 @@ def register(
     background_tasks: BackgroundTasks,
     session: Session = Depends(get_session),
 ):
-    """
-    Register new user account.
-
-    Args:
-        payload: Registration data
-        background_tasks: Background task manager
-        session: Database session
-
-    Returns:
-        Registration response with optional verification token (debug mode only)
-
-    Raises:
-        HTTPException: On validation or conflict errors
-    """
     try:
         logger.info(
             "Registration starts for role=%s email=%s email_config=%s",
@@ -129,11 +92,9 @@ def register(
 
         is_first_admin = False
         try:
-            # Auto-clean stale unverified accounts so email can be reused.
             crud.purge_expired_unverified_users(session, older_than_days=15, email=payload.email)
             logger.debug(f"Cleaned expired unverified users for: {payload.email}")
 
-            # Serialize admin bootstrap so concurrent registrations don't create two first admins.
             if payload.role == Role.admin:
                 serialize_first_admin_registration(session)
                 existing_admin = session.exec(
@@ -244,24 +205,10 @@ def login(
     form_data: OAuth2PasswordRequestForm = Depends(),
     session: Session = Depends(get_session)
 ):
-    """
-    Login user and return access token.
-
-    Args:
-        form_data: OAuth2 form with username/password
-        session: Database session
-
-    Returns:
-        Access token
-
-    Raises:
-        HTTPException: On authentication failure or rate limit
-    """
     try:
-        identifier = form_data.username  # Could be email
+        identifier = form_data.username
         logger.info(f"Login attempt for: {identifier}")
 
-        # Check rate limiting
         if ENABLE_RATE_LIMITING:
             allowed, remaining = check_rate_limit(
                 identifier,
@@ -276,14 +223,12 @@ def login(
                     detail="Too many login attempts. Try again later."
                 )
 
-        # Check deactivated accounts
         user_by_email = session.exec(select(User).where(User.email == identifier)).first()
         if user_by_email and not getattr(user_by_email, "is_active", True):
             logger.warning(f"Login attempt on deactivated account: {identifier}")
             record_auth_failure(identifier)
             raise AuthenticationError("Account is deactivated")
 
-        # Authenticate user
         user = crud.authenticate_user(session, identifier, form_data.password)
         if not user:
             logger.warning(f"Failed login attempt for: {identifier}")
@@ -292,24 +237,20 @@ def login(
                 record_attempt(identifier, count=1)
             raise AuthenticationError("Incorrect credentials")
 
-        # Check email verification for admin and company
         if user.role in (Role.admin, Role.company) and not getattr(user, "email_verified", False):
             logger.warning(f"Login blocked - email not verified: {identifier}")
             record_auth_failure(identifier)
             raise AuthenticationError("Email not verified. Please verify your email first.")
 
-        # Check admin verification
         if user.role == Role.admin:
             if not user.is_first_admin and not user.verified:
                 logger.warning(f"Login blocked - admin not verified: {identifier}")
                 record_auth_failure(identifier)
                 raise AuthenticationError("Admin not verified. Please wait for approval.")
 
-        # Generate token
         try:
             token = create_access_token({"sub": str(user.id), "role": user.role})
             
-            # Reset rate limit on successful login
             if ENABLE_RATE_LIMITING:
                 reset_limit(identifier)
 
@@ -334,19 +275,6 @@ def verify_email(
     payload: EmailVerificationConfirmIn,
     session: Session = Depends(get_session)
 ):
-    """
-    Verify user email using verification token (one-time use).
-
-    Args:
-        payload: Email verification token
-        session: Database session
-
-    Returns:
-        Success message
-
-    Raises:
-        HTTPException: On invalid token or user not found
-    """
     try:
         logger.debug("Email verification attempt")
         
@@ -360,10 +288,8 @@ def verify_email(
             logger.warning(f"Email verification failed - user not found: {user_id}")
             raise HTTPException(status_code=404, detail="User not found or inactive")
 
-        # Mark token as consumed to prevent reuse
         mark_token_as_used(session, payload.token, user_id, "email_verification")
 
-        # Issue new token after verification (session rotation)
         new_token = create_access_token({"sub": str(user.id), "role": user.role})
         
         logger.info(f"Email verified successfully for user: {user_id}")
@@ -388,24 +314,9 @@ def resend_verification_email(
     background_tasks: BackgroundTasks,
     session: Session = Depends(get_session),
 ):
-    """
-    Resend email verification instructions.
-
-    Args:
-        payload: Email address
-        background_tasks: Background task manager
-        session: Database session
-
-    Returns:
-        Generic response message
-
-    Raises:
-        HTTPException: On errors
-    """
     try:
         identifier = f"resend_verification:{payload.email}"
         
-        # Rate limiting
         if ENABLE_RATE_LIMITING:
             allowed, remaining = check_rate_limit(
                 identifier,
@@ -461,20 +372,6 @@ def forgot_password(
     background_tasks: BackgroundTasks,
     session: Session = Depends(get_session),
 ):
-    """
-    Request password reset.
-
-    Args:
-        payload: Email address
-        background_tasks: Background task manager
-        session: Database session
-
-    Returns:
-        Generic response message
-
-    Raises:
-        HTTPException: On errors
-    """
     start_time = time.time()
     try:
         logger.debug(f"Password reset request for: {payload.email}")
@@ -502,7 +399,6 @@ def forgot_password(
             response["reset_token"] = reset_token
             logger.debug("Reset token exposed in DEBUG mode")
 
-        # Constant timing to prevent email enumeration
         elapsed = time.time() - start_time
         if elapsed < 0.5:
             time.sleep(0.5 - elapsed)
@@ -521,23 +417,9 @@ def reset_password(
     payload: PasswordResetConfirmIn,
     session: Session = Depends(get_session)
 ):
-    """
-    Reset password using reset token (one-time use).
-
-    Args:
-        payload: Reset token and new password
-        session: Database session
-
-    Returns:
-        Success message
-
-    Raises:
-        HTTPException: On invalid token or user not found
-    """
     try:
         identifier = "password_reset"
         
-        # Rate limiting
         if ENABLE_RATE_LIMITING:
             allowed, remaining = check_rate_limit(
                 identifier,
@@ -567,7 +449,6 @@ def reset_password(
                 record_attempt(identifier, count=1)
             raise HTTPException(status_code=404, detail="User not found or inactive")
 
-        # Mark token as consumed to prevent reuse
         mark_token_as_used(session, payload.token, user_id, "password_reset")
 
         if ENABLE_RATE_LIMITING:
@@ -591,20 +472,6 @@ def change_password(
     current_user: User = Depends(get_current_user),
     session: Session = Depends(get_session)
 ):
-    """
-    Change password for authenticated user.
-
-    Args:
-        payload: Old password and new password
-        current_user: Currently authenticated user
-        session: Database session
-
-    Returns:
-        Success message
-
-    Raises:
-        HTTPException: If old password is incorrect or user not found
-    """
     try:
         logger.debug(f"Password change attempt for user: {current_user.id}")
         
@@ -613,12 +480,10 @@ def change_password(
             logger.warning(f"Password change failed - user not found or deactivated: {current_user.id}")
             raise HTTPException(status_code=404, detail="User not found or inactive")
 
-        # Verify old password
         if not verify_password(payload.old_password, user.password_hash):
             logger.warning(f"Password change failed - invalid old password for user: {current_user.id}")
             raise HTTPException(status_code=401, detail="Incorrect old password")
 
-        # Update to new password
         user = crud.update_user_password(session, current_user.id, payload.new_password)
         if not user:
             logger.warning(f"Password change failed - could not update: {current_user.id}")

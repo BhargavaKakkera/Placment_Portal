@@ -1,7 +1,3 @@
-"""
-Offer CRUD operations for job offers management.
-"""
-
 from datetime import datetime, timedelta
 from sqlmodel import Session, select, func
 from typing import Optional, List
@@ -15,7 +11,6 @@ logger = get_logger(__name__)
 
 
 def _normalize_role_type(role_type) -> RoleType:
-    """Return a valid RoleType from enum/string values."""
     if isinstance(role_type, RoleType):
         return role_type
     if isinstance(role_type, str):
@@ -27,7 +22,6 @@ def _normalize_role_type(role_type) -> RoleType:
 
 
 def get_student_acceptance_state(session: Session, student_id: int) -> dict:
-    """Summarize accepted offers for a student by role type."""
     statement = (
         select(Offer, Job)
         .join(Job, Offer.job_id == Job.id)
@@ -58,7 +52,6 @@ def get_student_acceptance_state(session: Session, student_id: int) -> dict:
 
 
 def get_application_block_reason(session: Session, student_id: int, role_type) -> Optional[str]:
-    """Return the role-aware block reason for a new application or offer."""
     target_role = _normalize_role_type(role_type)
     acceptance_state = get_student_acceptance_state(session, student_id)
 
@@ -73,12 +66,6 @@ def get_application_block_reason(session: Session, student_id: int, role_type) -
 
 
 def _expire_overdue_offers(session: Session, student_id: Optional[int] = None) -> int:
-    """
-    Expire offered records past response deadline.
-    Business rule: once deadline is passed, offer is treated as expired by setting:
-    - offer.status = declined
-    - application.status = offer_expired (revivable by company)
-    """
     now = utc_now()
     statement = select(Offer).where(
         Offer.status == OfferStatus.offered,
@@ -123,9 +110,6 @@ def create_offer(
     ctc: Optional[float] = None,
     response_deadline: Optional[datetime] = None,
 ) -> Offer:
-    """
-    Create an offer for a shortlisted applicant.
-    """
     # Expire older stale offers before creating or re-opening an offer.
     _expire_overdue_offers(session, student_id=student_id)
 
@@ -139,7 +123,6 @@ def create_offer(
     if application.status != ApplicationStatus.shortlisted:
         raise ValueError("Only shortlisted applications can be offered")
     
-    # enforce CTC requirement based on job role
     job = session.get(Job, job_id)
     if not job:
         raise ValueError("Job not found")
@@ -205,19 +188,12 @@ def create_offer(
 
 
 def accept_offer(session: Session, offer_id: int, student_id: int) -> Optional[Offer]:
-    """
-    Accept an offer with database-level locking to prevent race conditions.
-    
-    Uses row-level locking (FOR UPDATE) to ensure only one process can accept
-    an offer simultaneously, preventing double-acceptance bugs.
-    """
     _expire_overdue_offers(session, student_id=student_id)
 
-    # Lock the offer row to prevent concurrent modifications
     offer = session.exec(
         select(Offer)
         .where(Offer.id == offer_id)
-        .with_for_update()  # Database row-level lock!
+        .with_for_update()
     ).first()
     
     if not offer:
@@ -232,13 +208,11 @@ def accept_offer(session: Session, offer_id: int, student_id: int) -> Optional[O
         logger.info(f"Offer {offer_id} status is {offer.status}, not offered")
         return None
     
-    # Verify company is still active
     company = session.get(Company, offer.company_id)
     if not company or not getattr(company, "is_active", True):
         logger.warning(f"Company {offer.company_id} not active for offer {offer_id}")
         return None
     
-    # Check deadline
     if offer.response_deadline:
         now = utc_now()
         deadline = to_utc_naive(offer.response_deadline)
@@ -261,13 +235,11 @@ def accept_offer(session: Session, offer_id: int, student_id: int) -> Optional[O
             session.commit()
             return None
     
-    # Verify student is still active
     student = session.get(Student, student_id)
     if not student or not getattr(student, "is_active", True):
         logger.warning(f"Student {student_id} not active for offer {offer_id}")
         return None
     
-    # Check business rules: Get job role type
     job = session.get(Job, offer.job_id)
     if not job:
         logger.warning(f"Job {offer.job_id} not found for offer {offer_id}")
@@ -275,7 +247,6 @@ def accept_offer(session: Session, offer_id: int, student_id: int) -> Optional[O
     
     role_type = _normalize_role_type(getattr(job, "role_type", RoleType.full_time))
     
-    # Lock and check acceptance state to prevent concurrent acceptances
     acceptance_state = get_student_acceptance_state(session, student_id)
     
     if acceptance_state["has_accepted_full_time"]:
@@ -286,7 +257,6 @@ def accept_offer(session: Session, offer_id: int, student_id: int) -> Optional[O
         logger.info(f"Student {student_id} already has internship offer")
         return None
     
-    # ✅ NOW ACCEPT - with all checks passed and offer locked
     try:
         offer.status = OfferStatus.accepted
         offer.status_reason = OfferStatusReason.offer_accepted
@@ -295,7 +265,6 @@ def accept_offer(session: Session, offer_id: int, student_id: int) -> Optional[O
         session.add(offer)
         session.add(student)
 
-        # Update related application
         accepted_app_stmt = select(Application).where(
             Application.job_id == offer.job_id,
             Application.student_id == student_id,
@@ -307,7 +276,6 @@ def accept_offer(session: Session, offer_id: int, student_id: int) -> Optional[O
             accepted_app.updated_at = utc_now()
             session.add(accepted_app)
 
-        # Decline other offers based on role type rules
         stmt = select(Offer).where(
             Offer.student_id == student_id,
             Offer.id != offer_id,
@@ -379,7 +347,6 @@ def accept_offer(session: Session, offer_id: int, student_id: int) -> Optional[O
 
 
 def decline_offer(session: Session, offer_id: int, student_id: int) -> Optional[Offer]:
-    """Decline an offer."""
     _expire_overdue_offers(session, student_id=student_id)
 
     offer = session.get(Offer, offer_id)
@@ -422,7 +389,6 @@ def list_student_offer_summaries(
     skip: int = 0,
     limit: int = 100,
 ):
-    """List a student's offers with job and company context."""
     _expire_overdue_offers(session, student_id=student_id)
     statement = (
         select(Offer, Job, Company)
@@ -464,7 +430,6 @@ def count_student_offers(
     student_id: int,
     status: Optional[OfferStatus] = None,
 ) -> int:
-    """Count a student's offers with optional status filter."""
     _expire_overdue_offers(session, student_id=student_id)
     statement = select(func.count()).select_from(Offer).where(Offer.student_id == student_id)
     if status is not None:
@@ -478,7 +443,6 @@ def list_company_accepted_offer_summaries(
     skip: int = 0,
     limit: int = 100,
 ):
-    """List accepted offers for a company with student and job context."""
     statement = (
         select(Offer, Student, Job)
         .join(Student, Offer.student_id == Student.id)
@@ -528,7 +492,6 @@ def list_company_accepted_offer_summaries(
 
 
 def count_company_accepted_offers(session: Session, company_id: int) -> int:
-    """Count accepted offers for a company."""
     statement = (
         select(func.count())
         .select_from(Offer)
@@ -541,19 +504,16 @@ def count_company_accepted_offers(session: Session, company_id: int) -> int:
 
 
 def count_offers_made(session: Session) -> int:
-    """Count all valid offers made (excluding invalidated ones)."""
     statement = select(func.count()).select_from(Offer).where(Offer.status != OfferStatus.invalidated)
     return session.exec(statement).one()
 
 
 def count_offers_accepted(session: Session) -> int:
-    """Count all accepted offers."""
     statement = select(func.count()).select_from(Offer).where(Offer.status == OfferStatus.accepted)
     return session.exec(statement).one()
 
 
 def count_offers_pending_response(session: Session) -> int:
-    """Count offers awaiting student response."""
     _expire_overdue_offers(session)
     statement = select(func.count()).select_from(Offer).where(Offer.status == OfferStatus.offered)
     return session.exec(statement).one()
@@ -566,7 +526,6 @@ def list_offers_admin_summaries(
     search: Optional[str] = None,
     status: Optional[OfferStatus] = None,
 ):
-    """List offers for admin management with student/job/company context."""
     statement = (
         select(Offer, Student, Job, Company)
         .join(Student, Offer.student_id == Student.id)
@@ -613,7 +572,6 @@ def count_offers_all(
     search: Optional[str] = None,
     status: Optional[OfferStatus] = None,
 ) -> int:
-    """Count all offers across statuses."""
     statement = (
         select(func.count())
         .select_from(Offer)
@@ -634,10 +592,6 @@ def count_offers_all(
 
 
 def admin_delete_offer(session: Session, offer_id: int) -> bool:
-    """
-    Hard-delete an offer.
-    If the offer was accepted, unlock student and reset linked application so the student is free again.
-    """
     offer = session.get(Offer, offer_id)
     if not offer:
         return False

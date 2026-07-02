@@ -1,7 +1,6 @@
 import os
 import unittest
 
-# Set environment variables BEFORE importing app
 os.environ["DATABASE_URL"] = os.getenv(
     "TEST_DATABASE_URL",
     "postgresql+psycopg://postgres:2005@localhost:5432/test_placement_portal",

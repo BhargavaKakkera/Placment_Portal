@@ -92,7 +92,6 @@ def dt(value) -> Optional[datetime]:
     value = txt(value)
     if not value:
         return None
-    # Handle ISO 8601 'Z' suffix (convert to +00:00 for fromisoformat)
     if value.endswith('Z'):
         value = value[:-1] + '+00:00'
     return to_utc_naive(datetime.fromisoformat(value))
@@ -112,10 +111,6 @@ def validation_message(exc: ValidationError | ValueError) -> str:
 
 
 def extract_field_errors(exc: ValidationError | ValueError) -> dict[str, str]:
-    """
-    Extract field-level error messages from validation exceptions.
-    Returns a dict mapping field names to error messages.
-    """
     errors_dict = {}
     if isinstance(exc, ValidationError):
         for error in exc.errors():
@@ -124,19 +119,12 @@ def extract_field_errors(exc: ValidationError | ValueError) -> dict[str, str]:
             if field:
                 errors_dict[str(field)] = msg
     elif isinstance(exc, ValueError):
-        # For custom errors, map them to a generic field or extract field name if present
         msg = str(exc)
         errors_dict["__root__"] = msg
     return errors_dict
 
 
 async def read_form_with_csrf(request: Request):
-    """
-    Read POST form data and validate CSRF token against session token.
-
-    Raises:
-        ValueError: If CSRF token is missing or invalid
-    """
     form = await request.form()
     form_token = str(form.get("csrf_token", "")).strip()
     session_token = str(request.session.get("_csrf_token", "")).strip()
@@ -210,7 +198,6 @@ def eligible_jobs(session: Session, student: Student) -> list[Job]:
         ).all()
     )
     
-    # Cache acceptance state to avoid N+1 query (fetch once instead of per job)
     acceptance_state = get_student_acceptance_state(session, student.id)
     
     eligible = []
@@ -229,7 +216,6 @@ def eligible_jobs(session: Session, student: Student) -> list[Job]:
         if job.application_deadline and to_utc_naive(job.application_deadline) < utc_now():
             continue
         
-        # Check application block reason using cached state
         role_type = job.role_type if hasattr(job, "role_type") else RoleType.full_time
         if acceptance_state["has_accepted_full_time"] and role_type == RoleType.full_time:
             continue
@@ -241,7 +227,6 @@ def eligible_jobs(session: Session, student: Student) -> list[Job]:
 
 
 def parse_page_limit(request: Request, default_limit: int = 20, max_limit: int = 100) -> tuple[int, int, int]:
-    """Parse page/limit query params and return (page, limit, skip)."""
     try:
         page = int(str(request.query_params.get("page", "1")))
     except ValueError:
@@ -263,7 +248,6 @@ def build_pager(
     page: int,
     limit: int,
 ) -> dict:
-    """Build pager metadata and previous/next URLs preserving existing query params."""
     has_prev = page > 1
     has_next = page * limit < total
     query = dict(request.query_params)

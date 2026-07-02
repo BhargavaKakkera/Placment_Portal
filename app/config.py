@@ -1,47 +1,19 @@
-"""
-Application configuration.
-
-Loads environment variables and provides configuration for the application.
-Validates all required configuration at startup.
-"""
-
 import os
 import logging
 from dotenv import load_dotenv
 
 load_dotenv()
 
-# Initialize logger before any validations
 logger = logging.getLogger(__name__)
 
 
 def _validate_secret_key(key: str, key_name: str) -> None:
-    """
-    Validate secret key has minimum length for cryptographic security.
-
-    Args:
-        key: Secret key to validate
-        key_name: Name of the key for logging
-
-    Raises:
-        RuntimeError: If key is too short or invalid
-    """
     if not key or len(key) < 32:
         raise RuntimeError(f"{key_name} must be at least 32 characters long")
     logger.debug(f"{key_name} validation passed")
 
 
 def _validate_positive_int(value: int, name: str) -> None:
-    """
-    Validate that a value is a positive integer.
-
-    Args:
-        value: Value to validate
-        name: Name of the value for logging
-
-    Raises:
-        RuntimeError: If value is not positive
-    """
     if value <= 0:
         raise RuntimeError(f"{name} must be positive")
     logger.debug(f"{name} validation passed")
@@ -54,10 +26,8 @@ def _getenv_stripped(name: str, default: str | None = None) -> str | None:
     return value.strip()
 
 
-# ===== SECRET KEY CONFIGURATION =====
-# Backward compatibility:
-# - SECRET_KEY can act as a single base key
-# - JWT_SECRET_KEY and SESSION_SECRET_KEY can override independently
+# SECRET_KEY is kept as a fallback so older deployments do not need to set
+# JWT_SECRET_KEY and SESSION_SECRET_KEY separately.
 SECRET_KEY = os.getenv("SECRET_KEY")
 JWT_SECRET_KEY = os.getenv("JWT_SECRET_KEY") or SECRET_KEY
 SESSION_SECRET_KEY = os.getenv("SESSION_SECRET_KEY") or SECRET_KEY
@@ -75,7 +45,6 @@ if JWT_SECRET_KEY == SESSION_SECRET_KEY:
         "JWT and session keys are identical. Consider separate keys for stronger key isolation."
     )
 
-# ===== DATABASE CONFIGURATION =====
 DATABASE_URL = os.getenv("DATABASE_URL")
 if not DATABASE_URL:
     raise RuntimeError("DATABASE_URL environment variable must be set")
@@ -85,7 +54,6 @@ TEST_DATABASE_URL = os.getenv("TEST_DATABASE_URL")
 DB_CONNECT_TIMEOUT_SECONDS = int(os.getenv("DB_CONNECT_TIMEOUT_SECONDS", "5"))
 _validate_positive_int(DB_CONNECT_TIMEOUT_SECONDS, "DB_CONNECT_TIMEOUT_SECONDS")
 
-# ===== TOKEN CONFIGURATION =====
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "60"))
 PASSWORD_RESET_TOKEN_EXPIRE_MINUTES = int(os.getenv("PASSWORD_RESET_TOKEN_EXPIRE_MINUTES", "15"))
@@ -97,18 +65,16 @@ _validate_positive_int(PASSWORD_RESET_TOKEN_EXPIRE_MINUTES, "PASSWORD_RESET_TOKE
 _validate_positive_int(EMAIL_VERIFICATION_TOKEN_EXPIRE_MINUTES, "EMAIL_VERIFICATION_TOKEN_EXPIRE_MINUTES")
 _validate_positive_int(SESSION_TIMEOUT_MINUTES, "SESSION_TIMEOUT_MINUTES")
 
-# ===== DEBUG & ENVIRONMENT =====
 DEBUG = os.getenv("DEBUG", "false").lower() == "true"
 LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO").upper()
 ENABLE_EMAIL_VERIFICATION = os.getenv("ENABLE_EMAIL_VERIFICATION", "true").lower() == "true"
 ENABLE_RATE_LIMITING = os.getenv("ENABLE_RATE_LIMITING", "true").lower() == "true"
 ENABLE_EMAIL_DELIVERY = os.getenv("ENABLE_EMAIL_DELIVERY", "false").lower() == "true"
-# Only expose tokens in DEBUG mode for development convenience
-# In production, tokens are never exposed in responses
+# Token echoing is intentionally gated behind DEBUG so production responses
+# never include verification or reset tokens.
 EXPOSE_TOKENS_IN_RESPONSES = DEBUG and os.getenv("EXPOSE_TOKENS_IN_RESPONSES", "false").lower() == "true"
 APP_BASE_URL = _getenv_stripped("APP_BASE_URL", "http://localhost:8000").rstrip("/")
 
-# ===== EMAIL DELIVERY CONFIGURATION =====
 EMAIL_PROVIDER = _getenv_stripped("EMAIL_PROVIDER", "smtp").lower()
 EMAIL_FROM = _getenv_stripped("EMAIL_FROM")
 RESEND_API_KEY = _getenv_stripped("RESEND_API_KEY")
@@ -132,9 +98,6 @@ if ENABLE_EMAIL_DELIVERY:
 
 
 def email_runtime_config_summary() -> dict:
-    """
-    Return non-secret email configuration values as loaded by this process.
-    """
     return {
         "ENABLE_EMAIL_DELIVERY": ENABLE_EMAIL_DELIVERY,
         "EMAIL_PROVIDER": EMAIL_PROVIDER,
@@ -166,7 +129,6 @@ def email_runtime_config_summary() -> dict:
         },
     }
 
-# ===== RATE LIMITING CONFIGURATION =====
 MAX_LOGIN_ATTEMPTS = int(os.getenv("MAX_LOGIN_ATTEMPTS", "5"))
 LOGIN_ATTEMPT_WINDOW_SECONDS = int(os.getenv("LOGIN_ATTEMPT_WINDOW_SECONDS", "900"))
 MAX_PASSWORD_RESET_ATTEMPTS = int(os.getenv("MAX_PASSWORD_RESET_ATTEMPTS", "5"))
@@ -189,13 +151,10 @@ _validate_positive_int(ALERT_500_WINDOW_SECONDS, "ALERT_500_WINDOW_SECONDS")
 _validate_positive_int(ALERT_AUTH_FAILURE_THRESHOLD, "ALERT_AUTH_FAILURE_THRESHOLD")
 _validate_positive_int(ALERT_AUTH_FAILURE_WINDOW_SECONDS, "ALERT_AUTH_FAILURE_WINDOW_SECONDS")
 
-# ===== SECURITY CONFIGURATION =====
-# Cookie settings for secure session management
-COOKIE_SECURE = not DEBUG  # HTTPS only in production
-COOKIE_HTTPONLY = True  # JavaScript cannot access cookies
-COOKIE_SAMESITE = "lax"  # CSRF protection
+COOKIE_SECURE = not DEBUG
+COOKIE_HTTPONLY = True
+COOKIE_SAMESITE = "lax"
 
-# Password validation rules
 PASSWORD_MIN_LENGTH = 8
 PASSWORD_REQUIRE_DIGIT = True
 PASSWORD_REQUIRE_UPPERCASE = True

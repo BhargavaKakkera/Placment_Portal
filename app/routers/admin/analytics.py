@@ -1,9 +1,3 @@
-"""
-Analytics endpoints for placement statistics and insights.
-
-Provides endpoints for viewing placement metrics by branch, company, and overall.
-"""
-
 from fastapi import APIRouter, Depends, HTTPException
 from sqlmodel import Session, select, func
 from typing import List
@@ -20,10 +14,9 @@ router = APIRouter(prefix="/analytics", tags=["analytics"])
 
 
 class PlacementMetrics(BaseModel):
-    """Overall placement statistics."""
     total_students: int
     placed_students: int
-    placement_rate: float  # 0-100
+    placement_rate: float
     average_ctc: float
     highest_ctc: float
     lowest_ctc: float
@@ -44,7 +37,6 @@ class PlacementMetrics(BaseModel):
 
 
 class BranchMetrics(BaseModel):
-    """Per-branch statistics."""
     branch: str
     total_students: int
     placed_students: int
@@ -53,7 +45,6 @@ class BranchMetrics(BaseModel):
 
 
 class CompanyMetrics(BaseModel):
-    """Per-company statistics."""
     company_name: str
     offers_made: int
     offers_accepted: int
@@ -66,29 +57,24 @@ def get_placement_summary(
     current_user=Depends(get_current_admin),
     session: Session = Depends(get_session)
 ):
-    """Get overall placement metrics."""
     
     try:
-        # Total active students
         total_students = session.exec(
             select(func.count(Student.id)).where(Student.is_active == True)
         ).first() or 0
         
-        # Students with at least 1 accepted offer
         placed = session.exec(
             select(func.count(func.distinct(Offer.student_id)))
             .where(Offer.status == OfferStatus.accepted)
         ).first() or 0
         
-        # Placement rate
         placement_rate = (placed / total_students * 100) if total_students > 0 else 0
         
-        # CTC statistics
         ctc_stats = session.exec(
             select(
-                func.avg(Offer.ctc),  # average_ctc
-                func.max(Offer.ctc),  # highest
-                func.min(Offer.ctc)   # lowest
+                func.avg(Offer.ctc),
+                func.max(Offer.ctc),
+                func.min(Offer.ctc)
             )
             .where(
                 Offer.status == OfferStatus.accepted,
@@ -98,7 +84,6 @@ def get_placement_summary(
         
         avg_ctc, max_ctc, min_ctc = ctc_stats or (0, 0, 0)
         
-        # Total offers made (accepted)
         total_offers = session.exec(
             select(func.count(Offer.id))
             .where(Offer.status == OfferStatus.accepted)
@@ -125,13 +110,11 @@ def get_metrics_by_branch(
     current_user=Depends(get_current_admin),
     session: Session = Depends(get_session)
 ):
-    """Get placement metrics per branch."""
     
     try:
         metrics = []
         
         for branch in Branch:
-            # Total in branch
             total = session.exec(
                 select(func.count(Student.id))
                 .where(
@@ -140,7 +123,6 @@ def get_metrics_by_branch(
                 )
             ).first() or 0
             
-            # Placed in branch
             placed = session.exec(
                 select(func.count(func.distinct(Offer.student_id)))
                 .join(Student, Offer.student_id == Student.id)
@@ -150,7 +132,6 @@ def get_metrics_by_branch(
                 )
             ).first() or 0
             
-            # Average CTC
             avg_ctc = session.exec(
                 select(func.avg(Offer.ctc))
                 .join(Student, Offer.student_id == Student.id)
@@ -184,22 +165,18 @@ def get_metrics_by_company(
     current_user=Depends(get_current_admin),
     session: Session = Depends(get_session)
 ):
-    """Get placement metrics per company."""
     
     try:
-        # Get all verified companies
         companies = session.exec(select(Company).where(Company.verified == True)).all()
         
         metrics = []
         
         for company in companies:
-            # Offers made
             total_offers = session.exec(
                 select(func.count(Offer.id))
                 .where(Offer.company_id == company.id)
             ).first() or 0
             
-            # Accepted offers
             accepted = session.exec(
                 select(func.count(Offer.id))
                 .where(
@@ -208,7 +185,6 @@ def get_metrics_by_company(
                 )
             ).first() or 0
             
-            # Average CTC
             avg_ctc = session.exec(
                 select(func.avg(Offer.ctc))
                 .where(
@@ -218,7 +194,6 @@ def get_metrics_by_company(
                 )
             ).first() or 0
             
-            # Total applications
             total_apps = session.exec(
                 select(func.count(Application.id))
                 .join(Job, Application.job_id == Job.id)

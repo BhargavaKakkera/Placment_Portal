@@ -1,10 +1,3 @@
-"""
-Database configuration and connection management.
-
-Provides database engine, session management, and migration utilities with
-comprehensive logging and exception handling.
-"""
-
 import logging
 from pathlib import Path
 from sqlmodel import create_engine, Session
@@ -18,7 +11,6 @@ from .exceptions import DatabaseError
 
 logger = logging.getLogger(__name__)
 
-# Create database engine with connection pooling
 engine = create_engine(
     DATABASE_URL,
     echo=False,
@@ -29,12 +21,6 @@ logger.info("Database engine created")
 
 
 def get_session():
-    """
-    Get database session for dependency injection.
-
-    Yields:
-        SQLModel session
-    """
     session = None
     try:
         session = Session(engine)
@@ -53,12 +39,6 @@ def get_session():
 
 
 def validate_database_connection() -> None:
-    """
-    Validate database connection is working.
-
-    Raises:
-        DatabaseError: If connection validation fails
-    """
     try:
         with engine.connect() as connection:
             connection.execute(text("SELECT 1"))
@@ -78,12 +58,6 @@ def validate_database_connection() -> None:
 
 
 def run_migrations() -> None:
-    """
-    Run database migrations using Alembic.
-
-    Raises:
-        DatabaseError: If migrations fail
-    """
     try:
         logger.info("Starting database migrations...")
         validate_database_connection()
@@ -106,17 +80,7 @@ def run_migrations() -> None:
 
 
 def serialize_first_admin_registration(session: Session) -> None:
-    """
-    Serialize the "first admin" check to avoid multiple bootstrap admins.
-
-    Uses PostgreSQL advisory lock to ensure only one admin is created during initialization.
-
-    Args:
-        session: Database session
-
-    Raises:
-        DatabaseError: If lock acquisition fails
-    """
+    """Prevent concurrent creation of the first admin account."""
     try:
         session.connection().exec_driver_sql("SELECT pg_advisory_xact_lock(424242)")
         logger.debug("Admin registration lock acquired")

@@ -185,7 +185,6 @@ async def register_submit(request: Request, background_tasks: BackgroundTasks):
         logger.warning("UI registration blocked by CSRF/form error: %s", exc)
         return redirect_to(request, "ui_register", str(exc), "warning")
     
-    # Prepare form data
     form_data = {
         "email": str(form.get("email", "")).strip(),
         "password": str(form.get("password", "")),
@@ -278,7 +277,6 @@ async def register_submit(request: Request, background_tasks: BackgroundTasks):
 
 @router.get("/email-sent", name="ui_email_sent_success")
 def email_sent_success_page(request: Request):
-    # mode: verify_email | password_reset
     with Session(engine) as session:
         mode = str(request.query_params.get("mode", "password_reset"))
         return render(
@@ -329,7 +327,6 @@ async def verify_email_submit(request: Request):
     except ValueError as exc:
         return redirect_to(request, "ui_verify_email", str(exc), "warning")
     
-    # Prepare form data
     form_data = {
         "token": str(form.get("token", "")).strip(),
     }
@@ -361,7 +358,6 @@ async def verify_email_submit(request: Request):
                 field_errors={},
                 error_message=None,
             )
-        # verify_email_verification_token may return int|None depending on implementation
         if user_id is None:
             return render(
                 request,
@@ -384,7 +380,6 @@ async def verify_email_submit(request: Request):
                 field_errors={},
                 error_message="User not found.",
             )
-        # Mark token as consumed
         mark_token_as_used(session, payload.token, user_id_int, "email_verification")
     if DEBUG_MODE:
         return redirect_to(request, "ui_login", f"Email verified. (Debug token already consumed)", "success")
@@ -413,7 +408,6 @@ async def forgot_password_submit(request: Request, background_tasks: BackgroundT
         logger.warning("UI forgot-password blocked by CSRF/form error: %s", exc)
         return redirect_to(request, "ui_forgot_password", str(exc), "warning")
     
-    # Prepare form data
     form_data = {
         "email": str(form.get("email", "")).strip(),
     }
@@ -435,7 +429,6 @@ async def forgot_password_submit(request: Request, background_tasks: BackgroundT
             error_message=validation_message(exc),
         )
     
-    # Rate limiting per email
     logger.info(
         "UI password reset request starts for email=%s email_config=%s",
         payload.email,
@@ -479,8 +472,6 @@ async def forgot_password_submit(request: Request, background_tasks: BackgroundT
     if token and DEBUG_MODE:
         return redirect_to(request, "ui_reset_password", f"Demo reset token: {token}", "info")
 
-    # Dedicated success state so the reset form is not left visible after sending the email.
-    # mode is read from query params by the success page.
     return redirect_to(
         request,
         "ui_email_sent_success",
@@ -513,7 +504,6 @@ async def reset_password_submit(request: Request):
     except ValueError as exc:
         return redirect_to(request, "ui_reset_password", str(exc), "warning")
     
-    # Prepare form data
     form_data = {
         "token": str(form.get("token", "")).strip(),
         "new_password": str(form.get("new_password", "")),
@@ -570,7 +560,6 @@ async def reset_password_submit(request: Request):
                 field_errors={},
                 error_message="User not found.",
             )
-        # Mark token as consumed
         mark_token_as_used(session, payload.token, user_id, "password_reset")
     if DEBUG_MODE:
         return redirect_to(

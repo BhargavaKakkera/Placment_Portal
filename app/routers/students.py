@@ -22,17 +22,12 @@ router = APIRouter(prefix="/students", tags=["students"])
 
 
 def _student_update_data(student_in: StudentUpdate) -> dict:
-    """Build an update dict without nulling non-nullable academic fields."""
     data = student_in.model_dump(exclude_unset=True, mode="json")
     for field in ("cgpa", "backlogs"):
         if data.get(field) is None:
             data.pop(field, None)
     return data
 
-
-# ---------------------------
-# GET MY PROFILE
-# ---------------------------
 
 @router.get("/me", response_model=StudentOut)
 def get_my_student(
@@ -50,10 +45,6 @@ def get_my_student(
     return student
 
 
-# ---------------------------
-# UPDATE PROFILE (student editable fields)
-# ---------------------------
-
 @router.patch("/me", response_model=StudentOut)
 def update_my_profile(
     student_in: StudentUpdate,
@@ -69,7 +60,6 @@ def update_my_profile(
                 detail="Student profile not found"
             )
 
-        # Convert model to dict, excluding unset fields
         data = _student_update_data(student_in)
         
         logger.debug(f"Update data for student {student.id}: {data}")
@@ -103,10 +93,6 @@ def update_my_profile(
         )
 
 
-# ---------------------------
-# VIEW MY APPLICATIONS
-# ---------------------------
-
 @router.get("/me/applications", response_model=StudentApplicationListOut)
 def my_applications(
     pagination: PaginationParams = Depends(),
@@ -137,10 +123,6 @@ def my_applications(
     }
 
 
-# ---------------------------
-# ACCEPT OFFER
-# ---------------------------
-
 @router.post("/offers/{offer_id}/accept")
 def accept_offer(
     offer_id: int,
@@ -165,10 +147,6 @@ def accept_offer(
 
     return offer
 
-
-# ---------------------------
-# DECLINE OFFER
-# ---------------------------
 
 @router.post("/offers/{offer_id}/decline")
 def decline_offer(
@@ -206,10 +184,6 @@ def decline_offer(
 
     return declined
 
-
-# ---------------------------
-# WITHDRAW APPLICATION
-# ---------------------------
 
 @router.get("/me/offers", response_model=StudentOfferListOut)
 def my_offers(

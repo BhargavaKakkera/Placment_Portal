@@ -82,7 +82,6 @@ def update_application_status(
     current_user=Depends(get_current_company),
     session: Session = Depends(get_session),
 ):
-    # Unified application action endpoint for companies.
     application = session.get(Application, application_id)
     if not application:
         raise HTTPException(

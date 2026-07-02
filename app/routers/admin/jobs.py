@@ -1,7 +1,3 @@
-"""
-Admin router for job management.
-"""
-
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -35,7 +31,6 @@ def admin_list_jobs(
     admin_user: User = Depends(get_verified_admin),
     session: Session = Depends(get_session),
 ):
-    """List all jobs with pagination (requires verified admin)."""
     rows = crud.list_jobs(
         session,
         skip=pagination.skip,
@@ -46,7 +41,6 @@ def admin_list_jobs(
     items = [_serialize_job_with_company_name(session, job) for job in rows]
     total = crud.count_jobs(session, company_id=company_id, company_name=company_name)
     
-    # Log sensitive read
     log_audit(
         "admin.jobs.listed",
         admin_id=admin_user.id,
@@ -70,7 +64,6 @@ def close_job(
     job_id: int,
     session: Session = Depends(get_session),
 ):
-    """Close a job posting (requires verified admin)."""
     try:
         job = crud.close_job(session, job_id)
     except ValueError as e:
@@ -84,7 +77,6 @@ def admin_delete_job(
     job_id: int,
     session: Session = Depends(get_session),
 ):
-    """Delete a job (requires verified admin)."""
     try:
         res = crud.delete_job(session, job_id)
     except ValueError as e:

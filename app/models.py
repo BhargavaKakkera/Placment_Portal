@@ -26,7 +26,6 @@ class User(SQLModel, table=True):
     email_verified: bool = Field(default=False, index=True)
     email_verified_at: Optional[datetime] = None
 
-    # Admin verification fields
     is_first_admin: bool = Field(default=False)
     verified: bool = Field(default=False, index=True)
     verified_at: Optional[datetime] = None
@@ -60,8 +59,6 @@ class Student(SQLModel, table=True):
 
     graduation_year: int
     backlogs: int = 0
-
-    # ---- personal info ----
 
     phone: Optional[str] = None
     personal_email: Optional[str] = None
@@ -114,8 +111,7 @@ class Job(SQLModel, table=True):
 
     min_cgpa: Optional[float] = None
 
-    # CSV storage: "CSE,ECE"
-    # None means ALL branches allowed
+    # Stored as CSV because SQLModel enum arrays are awkward across SQLite and PostgreSQL.
     allowed_branches: Optional[str] = None
 
     max_backlogs: Optional[int] = None
@@ -187,9 +183,8 @@ class Offer(SQLModel, table=True):
 
 
 class TokenBlacklist(SQLModel, table=True):
-    """Track used (consumed) password reset and email verification tokens."""
     id: Optional[int] = Field(default=None, primary_key=True)
-    token_hash: str = Field(index=True, unique=True)  # SHA256 hash of token
+    token_hash: str = Field(index=True, unique=True)
     user_id: int = Field(
         sa_column=Column(
             Integer,
@@ -198,5 +193,5 @@ class TokenBlacklist(SQLModel, table=True):
             index=True,
         )
     )
-    token_purpose: str = Field(index=True)  # 'password_reset' or 'email_verification'
+    token_purpose: str = Field(index=True)
     consumed_at: datetime = Field(default_factory=utc_now)

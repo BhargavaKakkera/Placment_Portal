@@ -1,7 +1,6 @@
 import os
 import unittest
 
-# Keep test env predictable before importing app module config.
 os.environ.setdefault("DEBUG", "true")
 os.environ.setdefault("ENABLE_RATE_LIMITING", "false")
 
