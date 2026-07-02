@@ -1,12 +1,16 @@
 {% extends "base.html" %}
 {% block title %}Home{% endblock %}
 {% block content %}
-<div class="row g-4">
+<div class="row g-4 align-items-stretch">
     <div class="col-lg-8">
-        <div class="card shadow-sm">
-            <div class="card-body">
-                <h1 class="h3">Backend-first demo UI</h1>
-                <p class="text-muted">This interface is intentionally simple. It helps you show that the FastAPI flows work without turning the project into a frontend-heavy app.</p>
+        <div class="card shadow-sm home-hero h-100">
+            <div class="card-body p-4 p-md-5">
+                <div class="home-hero-badge mb-3">Placement Portal</div>
+                <h1 class="display-6 fw-semibold mb-3">Welcome to the Placement Portal</h1>
+                <p class="lead text-secondary mb-4">
+                    Manage jobs, applications, offers, and account access in one place.
+                    Built to keep the experience clear, fast, and ready for real users.
+                </p>
                 <div class="d-flex gap-2 flex-wrap">
                     {% if current_user %}
                     <a class="btn btn-primary" href="{{ role_home }}">Go to dashboard</a>
@@ -20,14 +24,31 @@
         </div>
     </div>
     <div class="col-lg-4">
-        <div class="card shadow-sm">
-            <div class="card-body">
-                <h2 class="h5">Quick links</h2>
-                <div class="list-group">
-                    <a class="list-group-item list-group-item-action" href="/ui/verify-email">Verify email</a>
-                    <a class="list-group-item list-group-item-action" href="/ui/forgot-password">Forgot password</a>
-                    <a class="list-group-item list-group-item-action" href="/ui/reset-password">Reset password</a>
-                    <a class="list-group-item list-group-item-action" href="/ui/jobs">Browse jobs</a>
+        <div class="card shadow-sm h-100">
+            <div class="card-body p-4">
+                <h2 class="h5 mb-3">A clean path into the portal</h2>
+                <div class="home-feature-list">
+                    <div class="home-feature-item">
+                        <div class="home-feature-icon">01</div>
+                        <div>
+                            <div class="fw-semibold">Students</div>
+                            <div class="text-secondary small">Track jobs, applications, and offers.</div>
+                        </div>
+                    </div>
+                    <div class="home-feature-item">
+                        <div class="home-feature-icon">02</div>
+                        <div>
+                            <div class="fw-semibold">Companies</div>
+                            <div class="text-secondary small">Publish roles and review applicants.</div>
+                        </div>
+                    </div>
+                    <div class="home-feature-item">
+                        <div class="home-feature-icon">03</div>
+                        <div>
+                            <div class="fw-semibold">Admins</div>
+                            <div class="text-secondary small">Oversee verification and workflow control.</div>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>

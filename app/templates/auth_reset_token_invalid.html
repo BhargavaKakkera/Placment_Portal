@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% block title %}Reset Link Invalid{% endblock %}
+{% block content %}
+<div class="row justify-content-center">
+  <div class="col-md-6 col-lg-5">
+    <div class="card shadow-sm border-0">
+      <div class="card-body p-4 p-md-5 text-center">
+        <div class="empty-state-icon mx-auto mb-3" aria-hidden="true" style="background:#fdecea;color:#dc3545;">⚠️</div>
+        <h1 class="h3 mb-2">Password reset link is invalid</h1>
+        <p class="mb-3 text-secondary">Password reset link is invalid, expired or has already been used.</p>
+        <p class="mb-4">Please request another password reset email.</p>
+
+        <div class="d-grid gap-2">
+          <a class="btn btn-primary" href="/ui/forgot-password">Forgot Password</a>
+          <a class="btn btn-outline-secondary" href="/ui/login">Back to Login</a>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+

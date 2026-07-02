@@ -365,9 +365,9 @@ class JobCreate(BaseModel):
         max_length=50
     )
 
-    stipend: Optional[float] = Field(None, gt=0, le=200)  # Max ₹200k/month
+    stipend: Optional[float] = Field(None, ge=0)  # Max ₹200k/month
 
-    ctc: Optional[float] = Field(None)  # Annual amount
+    ctc: Optional[float] = Field(None, ge=0)  # Annual amount
 
     ppo_available: Optional[bool] = False
 
@@ -407,8 +407,11 @@ class JobCreate(BaseModel):
     @classmethod
     def validate_stipend(cls, v: Optional[float]) -> Optional[float]:
         """Stipend must be reasonable."""
-        if v and (v < 0.5 or v > 200):
-            raise ValueError("Stipend must be between ₹0.5k/month and ₹200k/month")
+        if v is not None and v <= 0:
+                raise PydanticCustomError(
+                "stipend_positive",
+                "stipend must be greater than 0",
+            )
         return v
 
     @field_validator("allowed_branches")

@@ -221,6 +221,15 @@ class CriticalWorkflowTests(unittest.TestCase):
         )
         self.assertEqual(verify_company.status_code, 200, verify_company.text)
 
+        with Session(engine) as session:
+            email_verified = session.exec(
+                text('SELECT email_verified FROM "user" WHERE email = :email')
+                .bindparams(email="company1@example.com")
+            ).one()
+        if isinstance(email_verified, tuple):
+            email_verified = email_verified[0]
+        self.assertTrue(bool(email_verified), "Company email_verified should be persisted as true")
+
         job_resp = self.client.post(
             "/jobs/",
             headers=self._auth_header(company_token),

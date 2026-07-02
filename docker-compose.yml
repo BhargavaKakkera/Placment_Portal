@@ -1,41 +1,21 @@
-version: '3.9'
-
 services:
-  db:
-    image: postgres:16-alpine
-    container_name: placement_db
-    environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
-      POSTGRES_DB: placement_portal
-    ports:
-      - "5432:5432"
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-
   app:
-    build: .
-    container_name: placement_app
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: placement_portal_app
+    env_file:
+      - .env
     environment:
-      DATABASE_URL: postgresql+psycopg://postgres:postgres@db:5432/placement_portal
-      TEST_DATABASE_URL: postgresql+psycopg://postgres:postgres@db:5432/test_placement_portal
-      SECRET_KEY: ${SECRET_KEY}
-      JWT_SECRET_KEY: ${JWT_SECRET_KEY}
-      SESSION_SECRET_KEY: ${SESSION_SECRET_KEY}
-      DEBUG: "false"
-      LOG_LEVEL: INFO
-      EXPOSE_TOKENS_IN_RESPONSES: "false"
-      ENABLE_EMAIL_DELIVERY: "false"
+      APP_BASE_URL: http://localhost:8000
+      PORT: "8000"
+      PYTHONUNBUFFERED: "1"
     ports:
       - "8000:8000"
-    depends_on:
-      db:
-        condition: service_healthy
-
-volumes:
-  postgres_data:
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/docs').read()\""]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 30s

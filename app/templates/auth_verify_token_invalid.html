@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% block title %}Verification Link Invalid{% endblock %}
+{% block content %}
+<div class="row justify-content-center">
+  <div class="col-md-6 col-lg-5">
+    <div class="card shadow-sm">
+      <div class="card-body">
+        <div class="d-flex align-items-center mb-3">
+          <div class="empty-state-icon" aria-hidden="true" style="background:#fdecea;color:#dc3545;">📧</div>
+          <h1 class="h4 mb-0 ms-3">Verification link isn’t valid</h1>
+        </div>
+
+        <p class="mb-3">Email verification link is invalid, expired or has already been used.</p>
+        <p class="mb-4">Please request another verification email.</p>
+
+        <div class="d-grid gap-2">
+          <a class="btn btn-primary" href="/ui/register">Request verification again</a>
+          <a class="btn btn-outline-secondary" href="/ui/login">Back to Login</a>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+

@@ -1,5 +1,6 @@
 from fastapi import APIRouter, BackgroundTasks, Request
 from fastapi.responses import RedirectResponse
+from urllib.parse import urlencode
 from pydantic import ValidationError
 from sqlalchemy.exc import IntegrityError
 from sqlmodel import Session, select
@@ -15,7 +16,7 @@ from ..schemas import EmailVerificationConfirmIn, PasswordResetConfirmIn, Passwo
 from ..rate_limiter import check_rate_limit, record_attempt, reset_limit
 from ..crud.token_crud import mark_token_as_used
 from ..logger import get_logger
-from .helpers import build_pager, current_user, extract_field_errors, home_for, is_public_job_visible, parse_page_limit, read_form_with_csrf, redirect_to, render, validation_message
+from .helpers import build_pager, current_user, extract_field_errors, home_for, is_public_job_visible, parse_page_limit, read_form_with_csrf, redirect_path, redirect_to, render, validation_message
 
 router = APIRouter()
 DEBUG_MODE = DEBUG
@@ -258,21 +259,50 @@ async def register_submit(request: Request, background_tasks: BackgroundTasks):
         logger.info("UI background task added: email verification for email=%s", email)
     else:
         logger.info("UI verification email not required for role=%s email=%s", role, email)
-    if token and DEBUG_MODE:
-        return redirect_to(
-            request,
-            "ui_verify_email",
-            f"Registration successful. Demo verification token: {token}",
-            "success",
-        )
     if token:
-        return redirect_to(
+        if DEBUG_MODE:
+            return redirect_path(
+                request,
+                f"{request.url_for('ui_email_sent_success')}?{urlencode({'mode': 'verify_email'})}",
+                f"Registration successful. Demo verification token: {token}",
+                "success",
+            )
+        return redirect_path(
             request,
-            "ui_verify_email",
-            "Registration successful. Verification instructions generated.",
+            f"{request.url_for('ui_email_sent_success')}?{urlencode({'mode': 'verify_email'})}",
+            "Verification email sent.",
             "success",
         )
     return redirect_to(request, "ui_login", "Registration successful.", "success")
+
+
+@router.get("/email-sent", name="ui_email_sent_success")
+def email_sent_success_page(request: Request):
+    # mode: verify_email | password_reset
+    with Session(engine) as session:
+        mode = str(request.query_params.get("mode", "password_reset"))
+        return render(
+            request,
+            "auth_email_sent_success.html",
+            current_user=current_user(request, session),
+            role_home="/ui/",
+            form_data={},
+            field_errors={},
+            error_message=None,
+            mode=mode,
+        )
+
+
+@router.get("/password-reset-success", name="ui_password_reset_success")
+def password_reset_success_page(request: Request):
+    with Session(engine) as session:
+        return render(
+            request,
+            "auth_password_reset_success.html",
+            current_user=current_user(request, session),
+            role_home="/ui/",
+        )
+
 
 
 @router.get("/verify-email", name="ui_verify_email")
@@ -322,17 +352,28 @@ async def verify_email_submit(request: Request):
     with Session(engine) as session:
         user_id = verify_email_verification_token(payload.token, session=session)
         if user_id is None:
-            user = current_user(request, session)
             return render(
                 request,
-                "auth_verify_email.html",
-                current_user=user,
+                "auth_verify_token_invalid.html",
+                current_user=current_user(request, session),
                 role_home="/ui/",
                 form_data=form_data,
                 field_errors={},
-                error_message="Invalid or expired verification token.",
+                error_message=None,
             )
-        if not crud.mark_user_email_verified(session, user_id):
+        # verify_email_verification_token may return int|None depending on implementation
+        if user_id is None:
+            return render(
+                request,
+                "auth_verify_token_invalid.html",
+                current_user=current_user(request, session),
+                role_home="/ui/",
+                form_data=form_data,
+                field_errors={},
+                error_message=None,
+            )
+        user_id_int = int(user_id)
+        if not crud.mark_user_email_verified(session, user_id_int):
             user = current_user(request, session)
             return render(
                 request,
@@ -344,7 +385,7 @@ async def verify_email_submit(request: Request):
                 error_message="User not found.",
             )
         # Mark token as consumed
-        mark_token_as_used(session, payload.token, user_id, "email_verification")
+        mark_token_as_used(session, payload.token, user_id_int, "email_verification")
     if DEBUG_MODE:
         return redirect_to(request, "ui_login", f"Email verified. (Debug token already consumed)", "success")
     return redirect_to(request, "ui_login", "Email verified.", "success")
@@ -426,7 +467,7 @@ async def forgot_password_submit(request: Request, background_tasks: BackgroundT
         token = None
         if user:
             logger.info("UI creating password reset token for user_id=%s email=%s", user.id, payload.email)
-            token = create_password_reset_token(user.id)
+            token = create_password_reset_token(int(user.id))
             logger.info("UI password reset token created for user_id=%s email=%s", user.id, payload.email)
         else:
             logger.info("UI password reset requested for non-existing email=%s", payload.email)
@@ -437,11 +478,14 @@ async def forgot_password_submit(request: Request, background_tasks: BackgroundT
             reset_limit(f"password_reset:{payload.email}")
     if token and DEBUG_MODE:
         return redirect_to(request, "ui_reset_password", f"Demo reset token: {token}", "info")
+
+    # Dedicated success state so the reset form is not left visible after sending the email.
+    # mode is read from query params by the success page.
     return redirect_to(
         request,
-        "ui_reset_password",
-        "If the account exists, reset instructions were generated.",
-        "info",
+        "ui_email_sent_success",
+        "Reset instructions sent.",
+        "success",
     )
 
 
@@ -478,9 +522,21 @@ async def reset_password_submit(request: Request):
     try:
         payload = PasswordResetConfirmIn.model_validate(form_data)
     except ValidationError as exc:
+        field_errors = extract_field_errors(exc)
+        if field_errors.get("token"):
+            with Session(engine) as session:
+                user = current_user(request, session)
+            return render(
+                request,
+                "auth_reset_token_invalid.html",
+                current_user=user,
+                role_home="/ui/",
+                form_data=form_data,
+                field_errors={},
+                error_message=None,
+            )
         with Session(engine) as session:
             user = current_user(request, session)
-        field_errors = extract_field_errors(exc)
         return render(
             request,
             "auth_reset_password.html",
@@ -493,17 +549,17 @@ async def reset_password_submit(request: Request):
     with Session(engine) as session:
         user_id = verify_password_reset_token(payload.token, session=session)
         if user_id is None:
-            user = current_user(request, session)
             return render(
                 request,
-                "auth_reset_password.html",
-                current_user=user,
+                "auth_reset_token_invalid.html",
+                current_user=current_user(request, session),
                 role_home="/ui/",
                 form_data=form_data,
                 field_errors={},
-                error_message="Invalid or expired reset token.",
+                error_message=None,
             )
-        if not crud.update_user_password(session, user_id, payload.new_password):
+        user_id_int = int(user_id)
+        if not crud.update_user_password(session, user_id_int, payload.new_password):
             user = current_user(request, session)
             return render(
                 request,
@@ -517,5 +573,11 @@ async def reset_password_submit(request: Request):
         # Mark token as consumed
         mark_token_as_used(session, payload.token, user_id, "password_reset")
     if DEBUG_MODE:
-        return redirect_to(request, "ui_login", "Password updated. (Debug token already consumed)", "success")
-    return redirect_to(request, "ui_login", "Password updated.", "success")
+        return redirect_to(
+            request,
+            "ui_password_reset_success",
+            "Password reset successful (debug).",
+            "success",
+        )
+
+    return redirect_to(request, "ui_password_reset_success", "Password reset successful.", "success")

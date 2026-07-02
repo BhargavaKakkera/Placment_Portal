@@ -133,6 +133,13 @@ def verify_company(session: Session, company_id: int) -> Optional[Company]:
     if not company or not getattr(company, "is_active", True):
         return None
     company.verified = True
+
+    user = session.get(User, company.user_id)
+    if user and not getattr(user, "email_verified", False):
+        user.email_verified = True
+        user.email_verified_at = utc_now()
+        session.add(user)
+
     session.add(company)
     session.commit()
     session.refresh(company)

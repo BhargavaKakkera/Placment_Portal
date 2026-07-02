@@ -1,0 +1,57 @@
+{% extends "base.html" %}
+{% block title %}Email Sent{% endblock %}
+{% block content %}
+<div class="row justify-content-center">
+  <div class="col-md-6 col-lg-5">
+    <div class="card shadow-sm border-0">
+      <div class="card-body p-4 p-md-5">
+        <div class="text-center mb-4">
+          <div class="empty-state-icon mx-auto mb-3" aria-hidden="true">📧</div>
+          <h1 class="h3 mb-2">Check your Email</h1>
+          {% if mode == 'verify_email' or mode == 'registration' or mode == 'email_verification' %}
+            <p class="mb-0 text-secondary">We’ve sent a verification email to your registered email address.</p>
+          {% else %}
+            <p class="mb-0 text-secondary">We’ve sent a password reset link to your email address.</p>
+          {% endif %}
+        </div>
+
+        {% if mode == 'verify_email' or mode == 'registration' or mode == 'email_verification' %}
+          <p class="mb-3">Please open your inbox and click the verification link to activate your account.</p>
+
+          <div class="empty-state text-start" role="note">
+            <div class="fw-semibold mb-2">If you don’t receive it:</div>
+            <ul class="mb-0 ps-3">
+              <li>Check your Spam folder</li>
+              <li>Wait a few minutes</li>
+              <li>Request another verification email</li>
+            </ul>
+          </div>
+
+          <div class="d-grid gap-2 mt-4">
+            <a class="btn btn-primary" href="/ui/login">Go to Login</a>
+            <a class="btn btn-outline-secondary" href="/ui/register">Register again</a>
+          </div>
+        {% else %}
+          <p class="mb-3">Please open the email and click the reset link.</p>
+
+          <div class="empty-state text-start" role="note">
+            <div class="fw-semibold mb-2">If you don’t receive it:</div>
+            <ul class="mb-0 ps-3">
+              <li>Check your Spam folder</li>
+              <li>Wait a few minutes</li>
+              <li>Request another reset email</li>
+            </ul>
+          </div>
+
+          <div class="d-grid gap-2 mt-4">
+            <a class="btn btn-primary" href="/ui/login">Go to Login</a>
+            <a class="btn btn-outline-secondary" href="/ui/forgot-password">Request another reset</a>
+          </div>
+        {% endif %}
+
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
