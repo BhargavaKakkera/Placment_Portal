@@ -13,6 +13,7 @@ https://placement-portal-oftz.onrender.com/
 
 https://placement-portal-oftz.onrender.com/docs
 
+Note: The application is hosted on Render's free tier. The initial request after a period of inactivity may take 30–120 seconds while the service starts.
 
 ---
 
